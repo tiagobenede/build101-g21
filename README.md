@@ -88,6 +88,25 @@ comparación, plan con horarios, clima).
 - Las devtools de OpenUI quedan apagadas (`src/lib/genui/no-devtools.ts`): bajan código de un CDN.
 - En desarrollo: `window.rumboShow("llevame al Picasso")` en `/talk` prueba una pantalla sin micrófono.
 
+## Probar en el celular (y las notificaciones push)
+
+El celular necesita HTTPS para push, micrófono y GPS. Con **un solo túnel** alcanza: el
+navegador le habla a Supabase por `/supabase` en el mismo dominio y `next dev` lo reenvía
+al Supabase local (WebSockets de Realtime incluidos; ver `browserSupabaseUrl()`).
+
+1. Una vez: cuenta gratis en ngrok y `ngrok config add-authtoken <tu token>`.
+2. Con `npm run dev` corriendo: `ngrok http 3000` → abrí la URL `https://….ngrok-free.dev`
+   en el celular (la primera vez, "Visit Site" en la advertencia de ngrok).
+3. Push: claves VAPID en `.env.local` (`npx web-push generate-vapid-keys`, ver `.env.example`).
+   En la home, "Avisos cerca tuyo" → Activar.
+   - **iPhone (iOS 16.4+):** solo funciona instalada: Safari → Compartir → "Agregar a inicio",
+     y abrir Rumbo desde ese ícono (hay que volver a entrar con la cuenta).
+   - **Android:** directo desde Chrome.
+4. La notificación del sistema aparece si Rumbo no está a la vista; si está a la vista, se
+   muestra el aviso adentro de la app.
+
+Mientras el túnel está abierto, cualquiera con la URL llega al login: cerralo al terminar.
+
 ## Base de datos
 
 `supabase/migrations/20261017000000_init.sql` — con RLS (cada usuario ve solo lo suyo):
