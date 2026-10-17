@@ -7,9 +7,9 @@
 do $$
 declare
   demo_users jsonb := '[
-    {"id":"11111111-1111-4111-8111-111111111111","email":"sofia@rumbo.demo"},
-    {"id":"22222222-2222-4222-8222-222222222222","email":"mateo@rumbo.demo"},
-    {"id":"33333333-3333-4333-8333-333333333333","email":"lucia@rumbo.demo"},
+    {"id":"11111111-1111-4111-8111-111111111111","email":"tiago@rumbo.demo"},
+    {"id":"22222222-2222-4222-8222-222222222222","email":"lucas@rumbo.demo"},
+    {"id":"33333333-3333-4333-8333-333333333333","email":"nicolas@rumbo.demo"},
     {"id":"44444444-4444-4444-8444-444444444444","email":"nuevo@rumbo.demo"}
   ]';
   u jsonb;
@@ -39,9 +39,9 @@ end $$;
 -- Perfiles y gustos
 -- ---------------------------------------------------------------------------
 insert into public.profiles (id, full_name, home_city, travel_style, onboarded_at) values
-  ('11111111-1111-4111-8111-111111111111', 'Sofía Álvarez', 'Montevideo', 'Curiosa, camina todo, ama los fierros', now()),
-  ('22222222-2222-4222-8222-222222222222', 'Mateo Rossi',   'Buenos Aires', 'Museos, historia y librerías', now()),
-  ('33333333-3333-4333-8333-333333333333', 'Lucía Méndez',  'Santiago', 'Foodie, mercados y parques', now()),
+  ('11111111-1111-4111-8111-111111111111', 'Tiago',   'Montevideo', 'Curioso, camina todo, ama los fierros', now()),
+  ('22222222-2222-4222-8222-222222222222', 'Lucas',   'Buenos Aires', 'Museos, historia y librerías', now()),
+  ('33333333-3333-4333-8333-333333333333', 'Nicolas',  'Santiago', 'Foodie, mercados y parques', now()),
   -- Primer login: sin gustos ni onboarding (al entrar se resetea, ver loginAsDemo).
   ('44444444-4444-4444-8444-444444444444', 'Alex Romero',   'Montevideo', null, null);
 
