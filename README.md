@@ -70,9 +70,11 @@ Mientras Rumbo habla, la pantalla de `/talk` la arma un modelo de texto chico co
 [OpenUI](https://www.openui.com/) y nuestros componentes (tarjeta destacada, lista, ruta en el mapa,
 comparación, plan con horarios, clima).
 
-- **Cuándo se pide:** automáticamente con los resultados de `recommend_nearby` y `search_places`, y con el
-  tool `show_ui` (rutas, comparaciones, planes). Los botones "Llevame" y "Al plan" piden otra pantalla o
-  escriben en el itinerario.
+- **Un solo agente:** la pantalla muestra exactamente los lugares que devolvió el último tool de lugares del
+  agente (`recommend_nearby`, `search_places`, `search_events`, `get_place`), en su orden y en el mismo
+  momento en que el resultado entra a la conversación; si no encontró nada, la pantalla se vacía. El modelo
+  de UI solo decide cómo mostrarlos, nunca agrega otros. Lo que el viajero toca ("Llevame", "Al plan") se
+  le cuenta al agente con un mensaje de sistema. Regla en `src/lib/genui/screen-from-tool.ts`.
 - **Cómo:** `POST /api/genui` arma los datos reales (lugares con minutos a pie, itinerario de hoy, clima) y
   devuelve en streaming `DATA:{json}` + OpenUI Lang. El modelo solo compone: los componentes buscan nombre,
   minutos y rating por id, así que no puede inventarlos.

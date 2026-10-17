@@ -71,11 +71,22 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   }, [position])
   const genui = useGenUi(useCallback(() => positionRef.current, []))
   const showScreen = genui.show
-  const call = useRealtimeCall(places, position, showScreen)
+  const clearScreen = genui.clear
+  // La pantalla la maneja la llamada: muestra los lugares del último tool del agente o se vacía.
+  const onScreen = useCallback(
+    (screen: { request: string; placeIds: string[] } | null) => (screen ? void showScreen(screen) : clearScreen()),
+    [showScreen, clearScreen]
+  )
+  const call = useRealtimeCall(places, position, onScreen)
+  const { note } = call
 
+  // Lo que el viajero toca en la pantalla también se lo contamos al agente: es uno solo.
   const ask = useCallback(
-    (request: string, placeIds: string[]) => void showScreen({ request, placeIds }),
-    [showScreen]
+    (request: string, placeIds: string[]) => {
+      void showScreen({ request, placeIds })
+      note(`En la pantalla, el viajero tocó: "${request}". Ya se le está mostrando; si habla de eso, seguí desde ahí.`)
+    },
+    [showScreen, note]
   )
   const addToPlan = useCallback(
     async (place: GenUiPlace) => {
@@ -91,10 +102,11 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
         sourceRef: null,
         locked: null,
       })
-      if (res.ok) toast.success(`${place.name} quedó en tu plan a las ${slot}.`)
-      else toast.error(res.error)
+      if (!res.ok) return void toast.error(res.error)
+      toast.success(`${place.name} quedó en tu plan a las ${slot}.`)
+      note(`Desde la pantalla, el viajero agregó "${place.name}" a su plan de hoy a las ${slot}.`)
     },
-    [location.timeZone]
+    [location.timeZone, note]
   )
 
   // Solo en desarrollo: probar la UI generativa sin micrófono (window.rumboShow("llevame al Picasso")).

@@ -63,6 +63,11 @@ describe("firstOccurrenceIn", () => {
     expect(firstOccurrenceIn(occ, eventWindow("now", NOW, TZ))?.start.toISOString()).toBe("2026-10-17T12:00:00.000Z")
   })
 
+  it("descarta lo que termina en menos de 45 minutos", () => {
+    const occ = parseOccurrences("2026-10-17T15:00:00+02:00_2026-10-17T16:30:00+02:00", TZ)
+    expect(firstOccurrenceIn(occ, eventWindow("now", NOW, TZ))).toBeNull()
+  })
+
   it("descarta lo que ya terminó", () => {
     const occ = parseOccurrences("2026-10-17T10:00:00+02:00_2026-10-17T12:00:00+02:00", TZ)
     expect(firstOccurrenceIn(occ, eventWindow("today", NOW, TZ))).toBeNull()

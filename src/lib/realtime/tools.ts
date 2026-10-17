@@ -8,7 +8,6 @@
 import { z } from "zod"
 
 import type { PlaceCard } from "@/hooks/voice-session-types"
-import type { GenUiRequest } from "@/lib/genui/types"
 import { DIETS, INTEREST_TAGS } from "@/lib/agent/rank"
 import { EVENT_KIND_NAMES } from "@/lib/events/paris"
 
@@ -28,8 +27,8 @@ export const toolSchemas = {
     open_now: z.boolean().nullable().describe("true si lo necesita abierto ahora. null si no importa."),
   }),
   search_events: z.object({
-    when: z.enum(["now", "today", "tomorrow"]).describe("now = está pasando o empieza en las próximas 3 horas."),
-    kind: z.enum(EVENT_KIND_NAMES).nullable().describe("Qué tipo de evento pidió. null si cualquiera."),
+    when: z.enum(["now", "today", "tomorrow"]).describe("now = está pasando o empieza en las próximas 3 horas; today = lo que queda de hoy, también 'esta noche'."),
+    kind: z.enum(EVENT_KIND_NAMES).nullable().describe("Qué tipo de evento pidió (un concierto → música). null si no dijo el tipo."),
     free_only: z.boolean().nullable().describe("true si lo quiere gratis. null si no importa."),
   }),
   web_search: z.object({
@@ -57,13 +56,6 @@ export const toolSchemas = {
       .nullable()
       .describe("Si es una restricción de comida, cuál. null si no es de comida."),
   }),
-  show_ui: z.object({
-    request: z
-      .string()
-      .min(2)
-      .max(300)
-      .describe("Qué mostrar, con los nombres: 'ruta al Museo Picasso', 'comparar Café Charlot y Merci', 'plan de la tarde hasta la clase'."),
-  }),
 } as const
 
 export type ToolResult = {
@@ -71,8 +63,6 @@ export type ToolResult = {
   output: string
   /** Lugares para mostrar como tarjetas en la llamada. */
   cards: PlaceCard[]
-  /** Pantalla generada a pedir (UI generativa). */
-  ui?: GenUiRequest
 }
 
 export type ToolName = keyof typeof toolSchemas
@@ -93,8 +83,6 @@ const descriptions: Record<ToolName, string> = {
     "Cambia el plan del viaje: add (agrega un lugar o actividad), move (cambia el horario), remove, done, skip, undo (deshace el último cambio). Devuelve el plan de hoy actualizado. Las reservas no se pueden cambiar.",
   remember:
     "Guarda algo que contó de sí y sirve para después: qué come, qué evita, qué le gusta, cómo se mueve. Las restricciones de comida se respetan en las próximas recomendaciones.",
-  show_ui:
-    "Muestra una pantalla que acompaña lo que decís: una ruta ('llevame a…'), una comparación o un plan de varias paradas. No hace falta para recomendaciones: esas ya se muestran solas. Es instantáneo: no lo anuncies.",
 }
 
 export const isToolName = (name: string): name is ToolName => Object.hasOwn(toolSchemas, name)

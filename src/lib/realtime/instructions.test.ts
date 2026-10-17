@@ -93,4 +93,10 @@ describe("buildInstructions", () => {
   it("sin restricciones no agrega la línea", () => {
     expect(buildInstructions({ ...base, nextCommitment: null })).not.toContain("No negociable:")
   })
+
+  it("le dice al agente que lo que devuelven sus tools está en pantalla", () => {
+    const text = buildInstructions({ ...base, nextCommitment: null })
+    expect(text).toContain("aparece en la pantalla del viajero")
+    expect(text).toContain("nunca digas que no encontraste nada si el tool devolvió lugares")
+  })
 })

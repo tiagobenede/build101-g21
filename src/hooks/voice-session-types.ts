@@ -29,4 +29,6 @@ export interface VoiceCall {
   costUsd: number
   start: () => Promise<void>
   end: () => void
+  /** Le cuenta al agente algo que pasó en la pantalla (sin pedirle que responda). */
+  note: (text: string) => void
 }
