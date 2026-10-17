@@ -1,7 +1,9 @@
 "use server"
 
+import { after } from "next/server"
 import { z } from "zod"
 
+import { checkProximity } from "@/lib/proximity/engine"
 import { createClient } from "@/lib/supabase/server"
 
 const pingSchema = z.object({
@@ -26,7 +28,16 @@ export async function savePing(input: PingInput): Promise<PingResult> {
   if (!user) return { success: false, error: "Sin sesión." }
 
   const { error } = await supabase.from("pings").insert({ ...parsed.data, user_id: user.id })
-  if (!error) return { success: true }
+  if (!error) {
+    // Avisos por cercanía (C-6): después de responder, para no frenar las demás server actions.
+    const position = { lat: parsed.data.lat, lng: parsed.data.lng }
+    after(async () => {
+      await checkProximity(await createClient(), user.id, position).catch((err: unknown) =>
+        console.error("[proximity]", err instanceof Error ? err.message : err)
+      )
+    })
+    return { success: true }
+  }
 
   console.error("[location] savePing failed", error.message)
   return { success: false, error: "No se pudo guardar la ubicación." }

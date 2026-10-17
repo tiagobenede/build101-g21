@@ -1,4 +1,5 @@
 import type { NearbyPlace } from "@/lib/data/session"
+import type { JevChoice } from "@/lib/jev"
 
 /** Solo lo que está a la vista: más lejos no puede ser lo que sale en la foto. */
 export const CANDIDATE_RADIUS_METERS = 250
@@ -34,7 +35,7 @@ export function buildJevOptions(candidates: readonly NearbyPlace[]): JevOptions 
   return { criteria, places }
 }
 
-export type JevChoice = { choice: string; confidence: number; probabilities?: Record<string, number> }
+export type { JevChoice }
 
 /** El lugar que eligió Jev, o null si dijo "ninguno" o no está seguro. */
 export function readJevChoice(
