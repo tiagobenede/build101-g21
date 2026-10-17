@@ -10,6 +10,7 @@ import {
   TRANSLATE_KEY_TTL_SECONDS,
   TRANSLATE_MODEL,
 } from "@/lib/translate/config"
+import { activeTrip } from "@/lib/translate/server"
 
 const CLIENT_SECRETS_URL = "https://api.openai.com/v1/realtime/translations/client_secrets"
 /** Cada vez que alguien aprieta "hablo yo" o "habla él/ella" se abre una sesión. */
@@ -51,15 +52,7 @@ export async function POST(req: Request) {
 
   let conversationId = parsed.data.conversationId
   if (!conversationId) {
-    const today = new Date().toISOString().slice(0, 10)
-    const { data: trip } = await supabase
-      .from("trips")
-      .select("id")
-      .lte("start_date", today)
-      .gte("end_date", today)
-      .order("start_date", { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    const trip = await activeTrip(supabase)
     const { data: conversation, error } = await supabase
       .from("conversations")
       .insert({

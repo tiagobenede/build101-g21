@@ -3,6 +3,7 @@
 import {
   CalendarClockIcon,
   ChevronLeftIcon,
+  LanguagesIcon,
   MapIcon,
   MapPinIcon,
   MicIcon,
@@ -24,6 +25,7 @@ import { useLocation } from "@/components/location/location-provider"
 import type { MapPlace, MapStop } from "@/components/location/map-view"
 import { PlaceNotification } from "@/components/rumbo/place-notification"
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
+import { TranslatorPanel } from "@/components/translate/translator-panel"
 import { VoiceOrb } from "@/components/rumbo/voice-orb"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -32,9 +34,12 @@ import { Spinner } from "@/components/ui/spinner"
 import { useGenUi } from "@/hooks/use-genui"
 import { useRealtimeCall } from "@/hooks/use-realtime-call"
 import type { CallState, PlaceCard } from "@/hooks/voice-session-types"
+import type { FoundTip } from "@/app/api/translate/tips/route"
 import { distanceMeters } from "@/lib/geo"
 import type { GenUiPlace } from "@/lib/genui/types"
 import { addMinutesIso, zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
+import { LANGUAGES, type Lang } from "@/lib/translate/config"
+import type { Utterance } from "@/lib/translate/utterances"
 import { cn } from "@/lib/utils"
 
 // Leaflet usa `window`: solo en el cliente.
@@ -107,6 +112,69 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
       note(`Desde la pantalla, el viajero agregó "${place.name}" a su plan de hoy a las ${slot}.`)
     },
     [location.timeZone, note]
+  )
+
+  // Modo traductor: la charla con alguien del lugar pasa por acá, y lo que recomienda
+  // se muestra en la pantalla y le llega al agente (es uno solo).
+  const [translating, setTranslating] = useState(false)
+  const { micMuted, setMicMuted } = call
+  const mutedForTranslatorRef = useRef(false)
+  const openTranslator = useCallback(() => {
+    // El agente no tiene que escuchar (ni contestar) la charla traducida.
+    mutedForTranslatorRef.current = !micMuted
+    if (!micMuted) setMicMuted(true)
+    setTranslating(true)
+  }, [micMuted, setMicMuted])
+  const closeTranslator = useCallback(() => {
+    setTranslating(false)
+    if (mutedForTranslatorRef.current) setMicMuted(false)
+    mutedForTranslatorRef.current = false
+  }, [setMicMuted])
+
+  const onTurn = useCallback(
+    async (turn: Utterance, recent: Utterance[], conversationId: string, theirLang: Lang) => {
+      const said = turn.translated || turn.original
+      note(
+        turn.speaker === "me"
+          ? `Con el traductor, el viajero le dijo a una persona local: "${turn.original || said}". No respondas: estás escuchando.`
+          : `Con el traductor, una persona local (en ${LANGUAGES[theirLang]}) dijo: "${said}". No respondas: estás escuchando.`
+      )
+      if (turn.speaker !== "them") return
+
+      const res = await fetch("/api/translate/tips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId,
+          theirLang,
+          location: positionRef.current,
+          turns: recent.map(({ speaker, original, translated }) => ({
+            speaker,
+            original,
+            translated,
+          })),
+        }),
+      }).catch(() => null)
+      const body = (await res?.json().catch(() => null)) as {
+        success: boolean
+        data?: { tips: FoundTip[] }
+      } | null
+      const tips = body?.data?.tips ?? []
+      if (tips.length === 0) return
+
+      const summary = tips.map((t) => `${t.placeName} (${t.what.replace(/\.$/, "")})`).join("; ")
+      const placeIds = tips.flatMap((t) => (t.placeId ? [t.placeId] : []))
+      if (placeIds.length > 0)
+        void showScreen({
+          request: `Lo que te recomendó la persona local: ${summary}`,
+          placeIds,
+        })
+      else toast(`Anoté lo que te recomendó: ${summary}`)
+      note(
+        `La persona local recomendó: ${summary}. ${placeIds.length > 0 ? "Ya se muestra en la pantalla. " : ""}Quedó guardado; si después pregunta, retomalo.`
+      )
+    },
+    [note, showScreen]
   )
 
   // Solo en desarrollo: probar la UI generativa sin micrófono (window.rumboShow("llevame al Picasso")).
@@ -186,65 +254,83 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
         />
       </div>
 
-      <section
-        className={cn(
-          "mx-auto flex w-full max-w-md shrink-0 flex-col items-center gap-3 transition-[padding] duration-500",
-          compact ? "pt-4" : "flex-1 justify-center"
-        )}
-      >
-        <VoiceOrb
-          state={call.state}
-          inputVolumeRef={call.inputVolumeRef}
-          outputVolumeRef={call.outputVolumeRef}
-          className={cn("transition-[width] duration-500 ease-out", compact ? "w-28" : "w-56")}
-        />
-        <p className="text-muted-foreground h-5 text-[15px]">{STATUS_LABEL[call.state]}</p>
-      </section>
-
-      {!hasPlaces && compact && <div className="flex-1" />}
-
-      {hasPlaces && (
-        <ScrollFade className="mx-auto mt-2 min-h-0 w-full max-w-md flex-1 px-4">
-          <div className="flex flex-col gap-2 py-2">
-            {genui.screen ? (
-              <GenUiPanel key={genui.screen.id} screen={genui.screen} ask={ask} addToPlan={addToPlan} />
-            ) : (
-              call.places.map((place) => <PlaceNotification key={place.id} place={place} now={now.getTime()} />)
+      {translating ? (
+        <TranslatorPanel location={position} onTurn={onTurn} onExit={closeTranslator}>
+          {genui.screen && (
+            <ScrollFade className="max-h-[45%] min-h-0 shrink-0">
+              <div className="py-2">
+                <GenUiPanel key={genui.screen.id} screen={genui.screen} ask={ask} addToPlan={addToPlan} />
+              </div>
+            </ScrollFade>
+          )}
+        </TranslatorPanel>
+      ) : (
+        <>
+          <section
+            className={cn(
+              "mx-auto flex w-full max-w-md shrink-0 flex-col items-center gap-3 transition-[padding] duration-500",
+              compact ? "pt-4" : "flex-1 justify-center"
             )}
-          </div>
-        </ScrollFade>
-      )}
+          >
+            <VoiceOrb
+              state={call.state}
+              inputVolumeRef={call.inputVolumeRef}
+              outputVolumeRef={call.outputVolumeRef}
+              className={cn("transition-[width] duration-500 ease-out", compact ? "w-28" : "w-56")}
+            />
+            <p className="text-muted-foreground h-5 text-[15px]">{STATUS_LABEL[call.state]}</p>
+          </section>
 
-      <footer className="mx-auto w-full max-w-md px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        {active ? (
-          <div className="flex items-center justify-center gap-8">
-            <RoundToggle
-              on={call.micMuted}
-              onClick={() => call.setMicMuted(!call.micMuted)}
-              label={call.micMuted ? "Activar micrófono" : "Silenciar micrófono"}
-              icon={call.micMuted ? <MicOffIcon /> : <MicIcon />}
-            />
-            <Button
-              onClick={call.end}
-              aria-label="Terminar"
-              className="size-16 rounded-full bg-[#FF3B30] text-white hover:bg-[#FF3B30]/90"
-            >
-              {call.state === "connecting" ? <Spinner className="size-6" /> : <PhoneOffIcon className="size-6" />}
-            </Button>
-            <RoundToggle
-              on={call.speakerMuted}
-              onClick={() => call.setSpeakerMuted(!call.speakerMuted)}
-              label={call.speakerMuted ? "Activar sonido" : "Silenciar sonido"}
-              icon={call.speakerMuted ? <VolumeXIcon /> : <Volume2Icon />}
-            />
-          </div>
-        ) : (
-          <Button onClick={() => void call.start()} size="lg" className="h-14 w-full rounded-full text-base">
-            <MicIcon className="size-5" />
-            Hablar con Rumbo
-          </Button>
-        )}
-      </footer>
+          {!hasPlaces && compact && <div className="flex-1" />}
+
+          {hasPlaces && (
+            <ScrollFade className="mx-auto mt-2 min-h-0 w-full max-w-md flex-1 px-4">
+              <div className="flex flex-col gap-2 py-2">
+                {genui.screen ? (
+                  <GenUiPanel key={genui.screen.id} screen={genui.screen} ask={ask} addToPlan={addToPlan} />
+                ) : (
+                  call.places.map((place) => <PlaceNotification key={place.id} place={place} now={now.getTime()} />)
+                )}
+              </div>
+            </ScrollFade>
+          )}
+
+          <footer className="mx-auto w-full max-w-md px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            {active ? (
+              <div className="flex items-center justify-center gap-8">
+                <RoundToggle
+                  on={call.micMuted}
+                  onClick={() => call.setMicMuted(!call.micMuted)}
+                  label={call.micMuted ? "Activar micrófono" : "Silenciar micrófono"}
+                  icon={call.micMuted ? <MicOffIcon /> : <MicIcon />}
+                />
+                <Button
+                  onClick={call.end}
+                  aria-label="Terminar"
+                  className="size-16 rounded-full bg-[#FF3B30] text-white hover:bg-[#FF3B30]/90"
+                >
+                  {call.state === "connecting" ? <Spinner className="size-6" /> : <PhoneOffIcon className="size-6" />}
+                </Button>
+                <TranslatorButton onClick={openTranslator} />
+                <RoundToggle
+                  on={call.speakerMuted}
+                  onClick={() => call.setSpeakerMuted(!call.speakerMuted)}
+                  label={call.speakerMuted ? "Activar sonido" : "Silenciar sonido"}
+                  icon={call.speakerMuted ? <VolumeXIcon /> : <Volume2Icon />}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Button onClick={() => void call.start()} size="lg" className="h-14 flex-1 rounded-full text-base">
+                  <MicIcon className="size-5" />
+                  Hablar con Rumbo
+                </Button>
+                <TranslatorButton onClick={openTranslator} />
+              </div>
+            )}
+          </footer>
+        </>
+      )}
     </main>
   )
 }
@@ -300,6 +386,20 @@ function IconTile({ className, children }: { className: string; children: React.
     <span className={cn("flex size-9 items-center justify-center rounded-[10px] text-white [&_svg]:size-[18px]", className)}>
       {children}
     </span>
+  )
+}
+
+function TranslatorButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button
+      variant="secondary"
+      size="icon"
+      onClick={onClick}
+      aria-label="Traducir"
+      className="bg-card size-12 shrink-0 rounded-full [&_svg]:size-5"
+    >
+      <LanguagesIcon />
+    </Button>
   )
 }
 
