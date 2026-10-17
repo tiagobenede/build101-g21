@@ -123,18 +123,22 @@ export function updateProfile(db: SupabaseClient, input: ProfileInput): Promise<
   })
 }
 
+/** Un gusto: los de `INTEREST_TAGS` o uno que escribió el viajero ("jazz", "vinos naturales"). */
+export const interestTagSchema = z.string().trim().toLowerCase().min(2).max(30)
+
 /**
  * Suma un gusto al perfil (`on`) o lo saca (cuando dice que algo no le gusta). Los gustos
  * nuevos van al final: el orden lo eligió el viajero (onboarding o "Editar mis gustos").
  */
-export function setInterest(db: SupabaseClient, tag: (typeof INTEREST_TAGS)[number], on: boolean): Promise<Result<null>> {
+export function setInterest(db: SupabaseClient, tag: string, on: boolean): Promise<Result<null>> {
   return guarded("interest", async () => {
-    if (!(INTEREST_TAGS as readonly string[]).includes(tag)) return fail("Gusto inválido.")
+    const parsed = interestTagSchema.safeParse(tag)
+    if (!parsed.success) return fail("Gusto inválido.")
     const uid = await userId(db)
     if (!uid) return fail("Sin sesión.")
     const { error } = on
-      ? await db.from("interests").upsert({ user_id: uid, tag }, { onConflict: "user_id,tag", ignoreDuplicates: true })
-      : await db.from("interests").delete().eq("user_id", uid).eq("tag", tag)
+      ? await db.from("interests").upsert({ user_id: uid, tag: parsed.data }, { onConflict: "user_id,tag", ignoreDuplicates: true })
+      : await db.from("interests").delete().eq("user_id", uid).eq("tag", parsed.data)
     if (error) throw new Error(error.message)
     return ok(null)
   })

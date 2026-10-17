@@ -2,7 +2,6 @@
 
 import { refresh } from "next/cache"
 
-import type { InterestTag } from "@/lib/agent/rank"
 import { forgetFact, setInterest, updateProfile, type ProfileInput } from "@/lib/data/profile"
 import type { Result } from "@/lib/data/result"
 import { createClient } from "@/lib/supabase/server"
@@ -24,8 +23,8 @@ export async function forgetProfileFact(id: string): Promise<Result<{ summary: s
   return r
 }
 
-/** Prende o apaga un gusto desde "Tus gustos" en el perfil. */
-export async function toggleInterest(tag: InterestTag, on: boolean): Promise<Result<null>> {
+/** Prende, apaga o suma (uno escrito a mano) un gusto desde "Tus gustos" en el perfil. */
+export async function toggleInterest(tag: string, on: boolean): Promise<Result<null>> {
   const r = await setInterest(await createClient(), tag, on)
   if (r.ok) refresh()
   return r
