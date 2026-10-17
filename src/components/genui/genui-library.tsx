@@ -5,14 +5,16 @@ import "@/lib/genui/no-devtools"
 import type { ComponentRenderer } from "@openuidev/react-lang"
 import { CalendarPlusIcon, CloudSunIcon, FootprintsIcon, LockIcon, NavigationIcon, StarIcon } from "lucide-react"
 import dynamic from "next/dynamic"
-import { createContext, useContext, type ReactNode } from "react"
+import { createContext, useContext, useState, type ReactNode } from "react"
 
 import { CategoryIcon, categoryColor } from "@/components/rumbo/category-icon"
 import { Button } from "@/components/ui/button"
+import { useLocation } from "@/components/location/location-provider"
 import { useWalkingRoute } from "@/hooks/use-walking-route"
 import { buildGenUiLibrary, type GenUiComponentName, type genUiSchemas } from "@/lib/genui/library"
 import type { GenUiData, GenUiPlace } from "@/lib/genui/types"
-import { formatDistance, distanceMeters } from "@/lib/geo"
+import { formatDistance, distanceMeters, walkMinutes } from "@/lib/geo"
+import { pathMeters, remainingWalk, REROUTE_METERS } from "@/lib/maps/walk-progress"
 import { cn } from "@/lib/utils"
 import type { z } from "zod"
 
@@ -152,14 +154,21 @@ const RouteMap: ComponentRenderer<Props<"RouteMap">> = ({ props }) => {
 
 function RouteMapCard({ place }: { place: GenUiPlace }) {
   const { data } = useEnv()
-  const walk = useWalkingRoute(data.origin, place)
-  const route = walk.status === "ready" ? walk.route : null
-  const minutes = route?.minutes ?? place.walkMinutes
-  const meters = route?.meters ?? distanceMeters(data.origin, place)
+  // Tu posición en vivo (GPS o joystick): el mapa te sigue mientras caminás.
+  const { position } = useLocation()
+  // La ruta se vuelve a pedir recién al alejarte del origen de la vigente (no a cada paso).
+  const [routeFrom, setRouteFrom] = useState(data.origin)
+  if (distanceMeters(routeFrom, position) >= REROUTE_METERS) setRouteFrom(position)
+  const { route, failed } = useWalkingRoute(routeFrom, place)
+  // Lo que falta, sobre la ruta: los minutos bajan a medida que avanzás.
+  const meters = route ? pathMeters(remainingWalk(position, route.path, place)) : distanceMeters(position, place)
+  const minutes = route
+    ? Math.max(1, Math.round((route.minutes * meters) / Math.max(route.meters, 1)))
+    : walkMinutes(position, place)
   return (
     <article className="bg-card overflow-hidden rounded-[22px]">
       <div className="relative h-44">
-        <RouteMapView from={data.origin} to={place} category={place.category} path={route?.path ?? null} />
+        <RouteMapView from={position} to={place} category={place.category} path={route?.path ?? null} />
         <div className="bg-card/95 absolute top-2.5 right-2.5 z-[1000] rounded-xl px-3 py-1.5 shadow-md backdrop-blur-md">
           <span className="block text-[17px] leading-tight font-semibold tabular-nums">{minutes} min</span>
           <span className="text-muted-foreground text-[11px]">{formatDistance(meters)} a pie</span>
@@ -169,9 +178,7 @@ function RouteMapCard({ place }: { place: GenUiPlace }) {
         <CategoryIcon category={place.category} className="size-8" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-medium">{place.name}</span>
-          <span className="text-muted-foreground text-[13px]">
-            {walk.status === "failed" ? "Caminando, en línea recta en el mapa" : "Caminando"}
-          </span>
+          <span className="text-muted-foreground text-[13px]">{failed ? "Caminando, en línea recta en el mapa" : "Caminando"}</span>
         </span>
       </div>
     </article>

@@ -5,16 +5,17 @@ import { useEffect, useState } from "react"
 import type { LatLng } from "@/lib/geo"
 import type { WalkingRoute } from "@/lib/maps/walking-route"
 
-export type WalkingRouteState =
-  | { status: "loading" }
-  | { status: "ready"; route: WalkingRoute }
-  /** Sin ruta de Google: el mapa dibuja la línea recta y los minutos son la estimación. */
-  | { status: "failed" }
+export type WalkingRouteState = {
+  /** La última ruta que llegó. Mientras se pide una nueva (te moviste) queda la anterior. */
+  route: WalkingRoute | null
+  /** Google no dio ruta: el mapa dibuja la línea recta y los minutos son la estimación. */
+  failed: boolean
+}
 
-/** Pide la ruta a pie (por calles) desde `from` hasta `to`. */
+/** Pide la ruta a pie (por calles) desde `from` hasta `to`; de nuevo cada vez que cambian. */
 export function useWalkingRoute({ lat: fromLat, lng: fromLng }: LatLng, { lat: toLat, lng: toLng }: LatLng): WalkingRouteState {
-  const key = `${fromLat},${fromLng}|${toLat},${toLng}`
-  const [result, setResult] = useState<{ key: string; state: WalkingRouteState } | null>(null)
+  const [state, setState] = useState<WalkingRouteState & { to: string }>({ route: null, failed: false, to: "" })
+  const to = `${toLat},${toLng}`
 
   useEffect(() => {
     const abort = new AbortController()
@@ -25,12 +26,16 @@ export function useWalkingRoute({ lat: fromLat, lng: fromLng }: LatLng, { lat: t
       signal: abort.signal,
     })
       .then((res) => (res.ok ? (res.json() as Promise<{ route: WalkingRoute | null }>) : { route: null }))
-      .then(({ route }) => setResult({ key, state: route ? { status: "ready", route } : { status: "failed" } }))
+      .then(({ route }) =>
+        // Si falla un re-pedido, sigue la ruta que ya había.
+        setState((s) => (route ? { route, failed: false, to } : s.to === to && s.route ? s : { route: null, failed: true, to }))
+      )
       .catch(() => {
-        if (!abort.signal.aborted) setResult({ key, state: { status: "failed" } })
+        if (!abort.signal.aborted) setState((s) => (s.to === to && s.route ? s : { route: null, failed: true, to }))
       })
     return () => abort.abort()
-  }, [key, fromLat, fromLng, toLat, toLng])
+  }, [to, fromLat, fromLng, toLat, toLng])
 
-  return result?.key === key ? result.state : { status: "loading" }
+  // Una ruta de otro destino no sirve.
+  return state.to === to ? state : { route: null, failed: false }
 }
