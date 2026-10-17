@@ -21,6 +21,26 @@ export const LANGUAGES = {
 export type Lang = keyof typeof LANGUAGES
 export const LANG_CODES = Object.keys(LANGUAGES) as [Lang, ...Lang[]]
 
+/** Idioma principal de cada país, para los que ofrece la pantalla (ISO 3166-1 alfa-2). */
+const COUNTRY_LANG: Record<string, Lang> = {
+  FR: "fr", BE: "fr", MC: "fr", LU: "fr", CH: "fr", SN: "fr", CI: "fr", MA: "fr", TN: "fr",
+  IT: "it", SM: "it", VA: "it",
+  PT: "pt", BR: "pt", AO: "pt", MZ: "pt",
+  DE: "de", AT: "de", LI: "de",
+  ES: "es", MX: "es", AR: "es", UY: "es", CL: "es", CO: "es", PE: "es", BO: "es", PY: "es", EC: "es", VE: "es",
+  CR: "es", PA: "es", GT: "es", HN: "es", SV: "es", NI: "es", DO: "es", CU: "es", PR: "es",
+}
+
+/**
+ * Idioma de la persona del lugar según el país donde está el viajero. Si es el mismo que el
+ * suyo o no lo conocemos, inglés: lo más probable para entenderse.
+ */
+export function localLanguage(countryCode: string | null, myLang: Lang): Lang {
+  const lang = countryCode ? COUNTRY_LANG[countryCode.toUpperCase()] : undefined
+  if (lang && lang !== myLang) return lang
+  return myLang === "en" ? "es" : "en"
+}
+
 /** Quién habla: el viajero o la persona del lugar. */
 export type Speaker = "me" | "them"
 

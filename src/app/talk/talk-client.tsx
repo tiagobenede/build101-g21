@@ -67,7 +67,7 @@ const STATUS_LABEL: Record<CallState, string> = {
 }
 
 interface TalkClientProps {
-  location: { city: string; tripDay: string | null; timeZone: string }
+  location: { city: string; timeZone: string; localLang: Lang }
   nextCommitment: { title: string; startsAt: string } | null
   places: PlaceCard[]
   mapPlaces: MapPlace[]
@@ -287,7 +287,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
       )}
 
       {translating ? (
-        <TranslatorPanel location={position} onTurn={onTurn} onExit={closeTranslator}>
+        <TranslatorPanel location={position} defaultTheirLang={location.localLang} onTurn={onTurn} onExit={closeTranslator}>
           {genui.screen && (
             <ScrollFade className="max-h-[45%] min-h-0 shrink-0">
               <div className="py-2">
@@ -374,7 +374,7 @@ interface LocationCardProps extends Pick<TalkClientProps, "location" | "nextComm
 
 function LocationCard({ location, placeName, nextCommitment, now, map }: LocationCardProps) {
   const time = (d: Date) => new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit", timeZone: location.timeZone }).format(d)
-  const details = [location.city, time(now), location.tripDay].filter(Boolean).join(" · ")
+  const details = [location.city, time(now)].filter(Boolean).join(" · ")
 
   return (
     <Card className="gap-0 overflow-hidden rounded-2xl py-0 shadow-none ring-0 [&>[data-slot=item]:not(:last-child)]:border-b-border">
