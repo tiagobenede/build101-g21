@@ -4,6 +4,9 @@
  * se corta en frases y se lee de a una, en orden.
  */
 
+/** Cuánto esperar a que el navegador deje sonar el audio. */
+const RESUME_WAIT_MS = 1_500
+
 /** Tope de `/api/tts`; un texto sin puntos se corta antes en un espacio. */
 const MAX_CHUNK = 280
 /** Fin de frase: puntuación (y comillas o paréntesis que cierran) seguida de un espacio; "3.5" no corta. */
@@ -50,56 +53,83 @@ export class SentenceSplitter {
 /**
  * Lee frases de a una y en orden, aunque vengan de los dos lados: el audio se pide apenas
  * llega la frase (así la siguiente ya está lista) y se reproduce cuando termina la anterior.
+ *
+ * Suena por Web Audio y no con un `<audio>`: en iPhone, un `<audio>` que suena mientras el
+ * micrófono está abierto deja el mic "vivo" pero mandando silencio, y el turno siguiente no
+ * se traduce. El `AudioContext` se crea y se destraba con `unlock()` en el toque del botón
+ * (Safari no deja sonar un contexto creado fuera de un toque).
  */
 export class VoiceQueue {
   private queue: Promise<void> = Promise.resolve()
-  private playing: HTMLAudioElement | null = null
+  private ctx: AudioContext | null = null
+  private playing: AudioBufferSourceNode | null = null
   private generation = 0
 
   constructor(private readonly onError?: (err: unknown) => void) {}
+
+  /** Llamar dentro del toque de un botón (antes de cualquier `await`). */
+  unlock() {
+    this.ctx ??= new AudioContext()
+    void this.ctx.resume().catch(() => undefined)
+  }
 
   say(text: string, lang: string) {
     const generation = this.generation
     const audio = fetchAudio(text, lang)
     this.queue = this.queue.then(async () => {
-      const url = await audio.catch((err) => {
+      const data = await audio.catch((err) => {
         this.onError?.(err)
         return null
       })
-      if (!url) return
-      if (generation === this.generation) await this.play(url)
-      URL.revokeObjectURL(url)
+      if (!data || generation !== this.generation) return
+      await this.play(data).catch((err) => this.onError?.(err))
     })
   }
 
   /** Corta lo que suena y descarta lo pendiente. */
   stop() {
     this.generation++
-    this.playing?.pause()
-    this.playing?.dispatchEvent(new Event("ended"))
+    try {
+      this.playing?.stop()
+    } catch {
+      // Ya había terminado.
+    }
   }
 
-  private play(url: string) {
-    return new Promise<void>((resolve) => {
-      const audio = new Audio(url)
-      this.playing = audio
-      const done = () => {
-        if (this.playing === audio) this.playing = null
+  /** Suelta el contexto de audio (al cerrar el traductor). */
+  close() {
+    this.stop()
+    void this.ctx?.close().catch(() => undefined)
+    this.ctx = null
+  }
+
+  private async play(data: ArrayBuffer) {
+    this.unlock()
+    const ctx = this.ctx!
+    // Sin un toque antes, el navegador puede no dejar sonar: no trabar la cola esperando.
+    if (ctx.state !== "running") await Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, RESUME_WAIT_MS))])
+    if (ctx.state !== "running") throw new Error("El navegador no deja reproducir audio todavía.")
+    const buffer = await ctx.decodeAudioData(data)
+    await new Promise<void>((resolve) => {
+      const source = ctx.createBufferSource()
+      source.buffer = buffer
+      source.connect(ctx.destination)
+      this.playing = source
+      source.onended = () => {
+        if (this.playing === source) this.playing = null
         resolve()
       }
-      audio.onended = done
-      audio.onerror = done
-      audio.play().catch(done)
+      source.start()
     })
   }
 }
 
-async function fetchAudio(text: string, lang: string): Promise<string> {
+async function fetchAudio(text: string, lang: string): Promise<ArrayBuffer> {
   const res = await fetch("/api/tts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, lang, kind: "translation" }),
   })
   if (!res.ok) throw new Error(`tts ${res.status}`)
-  return URL.createObjectURL(await res.blob())
+  return res.arrayBuffer()
 }
