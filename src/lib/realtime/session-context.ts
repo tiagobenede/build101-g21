@@ -2,13 +2,24 @@ import "server-only"
 
 import { getTravelerContext, nextCommitment, type TravelerContext } from "@/lib/data/session"
 import type { LatLng } from "@/lib/geo"
+import { whereLine, type Where } from "@/lib/location/corner"
 import { getStreetAddress } from "@/lib/location/reverse"
+import { getWhere } from "@/lib/location/where"
 import { createClient } from "@/lib/supabase/server"
 import { getWeatherSummary } from "@/lib/weather"
 
 import { buildInstructions, type LocalTipLine } from "./instructions"
 
 const MAX_LOCAL_TIPS = 8
+/**
+ * La esquina no puede demorar el arranque de la llamada: si Google tarda más, la llamada
+ * sale solo con las coordenadas (el pedido sigue y queda en caché para where_am_i y el próximo refresco).
+ */
+const WHERE_BUDGET_MS = 1_200
+
+function whereWithin(location: LatLng, ms: number): Promise<Where | null> {
+  return Promise.race([getWhere(location), new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))])
+}
 
 /** Lo último que le recomendaron locales en el viaje (sin lo que descartó). */
 async function recentLocalTips(tripId: string | null): Promise<LocalTipLine[]> {
@@ -43,16 +54,19 @@ async function recentLocalTips(tripId: string | null): Promise<LocalTipLine[]> {
 export async function buildSessionInstructions(location: LatLng | null): Promise<{ ctx: TravelerContext; instructions: string }> {
   const ctx = await getTravelerContext({ location })
   const now = new Date()
-  const [weather, localTips, address] = await Promise.all([
+  const [weather, localTips, address, where] = await Promise.all([
     getWeatherSummary(ctx.location),
     recentLocalTips(ctx.trip?.id ?? null),
     getStreetAddress(ctx.location),
+    whereWithin(ctx.location, WHERE_BUDGET_MS),
   ])
   const instructions = buildInstructions({
     ctx,
     nextCommitment: nextCommitment(ctx.itinerary, now),
     weather,
     address,
+    // Sin Google a tiempo, al menos las coordenadas (esas no dependen de nadie).
+    where: whereLine(where ?? { location: ctx.location, street: null, barrio: null, city: null, corner: null }),
     localTips,
     now,
     timeZone: ctx.timeZone,

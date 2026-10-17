@@ -17,6 +17,8 @@ interface InstructionsInput {
   weather: string | null
   /** Calle y barrio (reverse geocoding), o null si no se pudo traer. */
   address?: string | null
+  /** Calle, esquina más cercana y coordenadas (`whereLine`), o null si no se pudo armar. */
+  where?: string | null
   /** Lo que le recomendaron personas locales en el traductor (lo más nuevo primero). */
   localTips?: LocalTipLine[]
   now: Date
@@ -140,7 +142,7 @@ export const greetingPrompt = (firstName: string) =>
  * Instrucciones compactas: todo el contexto va acá (no por tools) para que se
  * cachee entre turnos y cada respuesta lea pocos tokens nuevos.
  */
-export function buildInstructions({ ctx, nextCommitment, weather, address = null, localTips = [], now, timeZone }: InstructionsInput): string {
+export function buildInstructions({ ctx, nextCommitment, weather, address = null, where = null, localTips = [], now, timeZone }: InstructionsInput): string {
   const companions = ctx.companions ?? []
   const places = pickContextPlaces(ctx.nearby, MAX_PLACES_IN_CONTEXT)
     .map((p) => `- ${p.name} (${p.category}; ${p.tags.join(", ")}; ${p.walkMinutes} min a pie${p.rating ? `; ★${p.rating}` : ""}; visita ~${p.typical_visit_minutes} min)`)
@@ -153,7 +155,7 @@ export function buildInstructions({ ctx, nextCommitment, weather, address = null
   return `Sos Rumbo, guía de viaje por voz. Hablás con ${ctx.firstName} en español rioplatense, cálido y directo: usá vos, nunca tú (decí "con vos", no "contigo").
 Respondé en 1 o 2 oraciones (máx. 40 palabras), salvo cuando te pide que le cuentes de un lugar o una obra (ver abajo). Nada de listas ni disclaimers. Charlá natural, como alguien que la acompaña: no hagas preguntas de formulario. Si falta un dato clave, hacé una sola pregunta corta.
 
-Ahora es ${nowLine(now, timeZone)}, hora local. Ubicación: ${locationLine(ctx.locationLabel, address)}${weather ? ` Clima: ${weather}` : ""}
+Ahora es ${nowLine(now, timeZone)}, hora local. Ubicación: ${locationLine(ctx.locationLabel, address)}${weather ? ` Clima: ${weather}` : ""}${where ? `\nDónde está exacto: ${where}` : ""}
 Gustos (en orden de importancia): ${ctx.interests.join(", ")}.${ctx.travelStyle ? ` Estilo: ${ctx.travelStyle}.` : ""}
 ${[
   constraintsLine(ctx.constraints),
@@ -168,6 +170,8 @@ ${formatTodayPlan(ctx.itinerary, now, timeZone, new Map(companions.map((c) => [c
 
 Lugares cerca (para responder preguntas; nombralos con el nombre exacto):
 ${places}
+
+Si pregunta dónde está, en qué calle o en qué esquina, decíselo con la calle y la esquina más cercana; las coordenadas, solo si las pide (con 5 decimales, primero latitud). Si se movió desde que empezó la llamada (te llegó una actualización de ubicación), llamá antes a where_am_i. No inventes calles ni esquinas que no estén en esos datos.
 
 Pantalla: lo que devuelven recommend_nearby, search_places, search_events, get_place y show_route aparece en la pantalla del viajero en ese mismo momento y en ese orden. Hablá de esos lugares (el primero es el destacado) y nunca digas que no encontraste nada si el tool devolvió lugares; si no devolvió ninguno, la pantalla queda vacía. Para recomendar o mostrar un lugar usá siempre uno de esos tools, aunque esté en la lista de cerca, así lo que decís y lo que se ve coinciden.
 Si quiere ir a un lugar ("llevame", "dale, vamos para ahí", "¿cómo llego?", "mostrame cómo ir"), llamá a show_route con ese lugar (si dice "ahí" o "ese", es el que está en la pantalla o el último que nombraste): la pantalla pasa al mapa con la caminata. Decí los minutos que devuelve y para qué lado arrancar solo si lo sabés; no inventes calles.

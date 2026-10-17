@@ -23,6 +23,8 @@ import {
 } from "@/lib/data/session"
 import { fetchParisEvents } from "@/lib/events/paris"
 import { walkMinutes, type LatLng } from "@/lib/geo"
+import { whereLine } from "@/lib/location/corner"
+import { getWhere } from "@/lib/location/where"
 import { walkingRoute } from "@/lib/maps/walking-route"
 import { getOpeningInfo } from "@/lib/places/details"
 import { findPlaceByName } from "@/lib/places/lookup"
@@ -483,6 +485,12 @@ async function rememberTool(args: ToolArgs<"remember">, location: LatLng | null)
   return { output: JSON.stringify({ ok: true, profile: saved.data.summary }), cards: [] }
 }
 
+/** Dónde está parado: calle, esquina y coordenadas de la ubicación en vivo. */
+async function whereAmITool(location: LatLng | null): Promise<ToolResult> {
+  const at = location ?? (await getTravelerContext()).location
+  return { output: JSON.stringify({ where: whereLine(await getWhere(at)) }), cards: [] }
+}
+
 /** Ejecuta un tool del agente con los permisos del usuario logueado. */
 export async function runTool(
   name: string,
@@ -530,6 +538,8 @@ export async function runTool(
       const args = toolSchemas.show_route.safeParse(json)
       return args.success ? showRouteTool(args.data, location) : invalid
     }
+    case "where_am_i":
+      return whereAmITool(location)
     case "edit_itinerary": {
       const args = toolSchemas.edit_itinerary.safeParse(json)
       return args.success ? editItinerary(args.data, location) : invalid

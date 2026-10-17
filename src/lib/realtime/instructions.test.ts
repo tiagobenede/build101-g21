@@ -152,6 +152,16 @@ describe("locationLine", () => {
     const text = buildInstructions({ ...base, nextCommitment: null, address: "Rue Rambuteau, Saint-Merri, París" })
     expect(text).toContain("está en Rue Rambuteau, Saint-Merri, París")
   })
+  it("incluye la esquina y las coordenadas, y cómo responder dónde está", () => {
+    const where = "Sobre Rue Rambuteau, a 70 m de la esquina con Rue Beaubourg (Beaubourg, París). Coordenadas: 48.86060, 2.35220."
+    const text = buildInstructions({ ...base, nextCommitment: null, where })
+    expect(text).toContain(`Dónde está exacto: ${where}`)
+    expect(text).toContain("where_am_i")
+  })
+
+  it("sin esos datos, no deja la línea vacía", () => {
+    expect(buildInstructions({ ...base, nextCommitment: null })).not.toContain("Dónde está exacto")
+  })
 })
 
 describe("viaje compartido", () => {
