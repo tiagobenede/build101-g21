@@ -51,10 +51,8 @@ export function localLanguage(countryCode: string | null, myLang: Lang): Lang {
 /** Quién habla: el viajero o la persona del lugar. */
 export type Speaker = "me" | "them"
 
-/** Al soltar el botón, se cierra la sesión este tiempo después de las últimas palabras traducidas. */
-export const FLUSH_QUIET_MS = 2_500
-/** Nunca esperar más que esto después de soltar. */
-export const FLUSH_MAX_MS = 10_000
+/** Al soltar el botón, se espera esto (que salga el audio de las últimas palabras) y se cierra. */
+export const RELEASE_TAIL_MS = 1_500
 /** Si nadie habla en un minuto, se suelta solo (sigue cobrando aunque haya silencio). */
 export const ACTIVE_MAX_MS = 60_000
 /** US$ por minuto abierto (precio de lista, sin la transcripción). */

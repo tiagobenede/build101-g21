@@ -6,8 +6,7 @@ import { toast } from "sonner"
 import type { LatLng } from "@/lib/geo"
 import {
   ACTIVE_MAX_MS,
-  FLUSH_MAX_MS,
-  FLUSH_QUIET_MS,
+  RELEASE_TAIL_MS,
   SPEAK_QUIET_MS,
   TRANSLATE_USD_PER_MINUTE,
   TRANSLATE_VOICE,
@@ -33,6 +32,9 @@ type Direction = {
   openedAt: number
   lastOutputAt: number
   releasing: boolean
+  /** Ya se pidió cerrar (no se vuelve a cerrar). */
+  closing: boolean
+  /** Ya cortó: lo que llegue no se lee. */
   closed: boolean
 }
 
@@ -141,10 +143,12 @@ export function useTranslator({
 
   const closeDirection = useCallback(
     async (d: Direction) => {
-      if (d.closed) return
-      d.closed = true
+      if (d.closing) return
+      d.closing = true
       d.track.enabled = false
+      // Hasta que corta, lo que llega se sigue mostrando y leyendo (el final llega al cerrar).
       await d.conn?.close()
+      d.closed = true
       d.track.stop()
       speakRest(d)
       const last = d.builder.finish()
@@ -166,24 +170,28 @@ export function useTranslator({
     setSpeaker(null)
     if (!d.conn) return // sigue conectando: `open` la cierra al terminar
     setState("finishing")
-    const releasedAt = Date.now()
-    await new Promise<void>((resolve) => {
-      const check = setInterval(() => {
-        const now = Date.now()
-        if (now - Math.max(d.lastOutputAt, releasedAt) > FLUSH_QUIET_MS || now - releasedAt > FLUSH_MAX_MS) {
-          clearInterval(check)
-          resolve()
-        }
-      }, TICK_MS)
-    })
+    // Un respiro para que salga el audio de las últimas palabras; después se cierra, y al
+    // cerrar el modelo manda lo que le faltaba traducir.
+    await new Promise((resolve) => setTimeout(resolve, RELEASE_TAIL_MS))
     await closeDirection(d)
     if (!activeRef.current && micRef.current) setState("ready")
   }, [closeDirection])
 
+  const acquiringRef = useRef(false)
+
   const open = useCallback(
     async (who: Speaker) => {
-      const mic = micRef.current
-      if (!mic) return
+      // Mientras se pide el mic (en iPhone, uno nuevo por turno) el botón ya se ve conectando
+      // y los toques se ignoran, para no abrir dos traducciones a la vez.
+      acquiringRef.current = true
+      setSpeaker(who)
+      setState("connecting")
+      const mic = await liveMic(micRef).finally(() => (acquiringRef.current = false))
+      if (!mic) {
+        setSpeaker(null)
+        setState("off")
+        return
+      }
       const { myLang: mine, theirLang: theirs, location: here } = langsRef.current
       const targetLang = who === "me" ? theirs : mine
       const d: Direction = {
@@ -197,6 +205,7 @@ export function useTranslator({
         openedAt: 0,
         lastOutputAt: Date.now(),
         releasing: false,
+        closing: false,
         closed: false,
       }
       activeRef.current = d
@@ -226,8 +235,10 @@ export function useTranslator({
         onEvent: (ev) => {
           if (ev.type === "session.input_transcript.delta" || ev.type === "session.output_transcript.delta") {
             const kind = ev.type === "session.input_transcript.delta" ? "input" : "output"
+            // También lo que se transcribe del original: suele llegar después de la traducción,
+            // y si se cierra antes se pierden las últimas palabras.
+            d.lastOutputAt = Date.now()
             if (kind === "output") {
-              d.lastOutputAt = Date.now()
               if (TRANSLATE_VOICE === "elevenlabs" && !d.closed) {
                 for (const sentence of d.splitter.push(ev.delta ?? "")) voice().say(sentence, targetLang)
                 if (d.speakTimer) clearTimeout(d.speakTimer)
@@ -242,7 +253,11 @@ export function useTranslator({
       })
       d.openedAt = Date.now()
       // Se soltó (o se cortó todo) mientras conectaba.
-      if (activeRef.current !== d) return void closeDirection(d)
+      if (activeRef.current !== d) {
+        await closeDirection(d)
+        if (!activeRef.current) setState(micRef.current ? "ready" : "off")
+        return
+      }
       setState("listening")
     },
     [closeDirection, speakRest, upsert, voice]
@@ -251,7 +266,9 @@ export function useTranslator({
   /** Apretar el botón de alguien: si ya hablaba, suelta; si hablaba el otro, cambia. */
   const press = useCallback(
     async (who: Speaker) => {
-      if (!micRef.current) return
+      if (!micRef.current || acquiringRef.current) return
+      // Dentro del toque: destraba la voz de la traducción (Safari lo pide así).
+      if (TRANSLATE_VOICE === "elevenlabs") voice().unlock()
       if (activeRef.current?.speaker === who) return void release()
       if (activeRef.current) void release()
       try {
@@ -267,7 +284,7 @@ export function useTranslator({
         }
       }
     },
-    [closeDirection, open, release]
+    [closeDirection, open, release, voice]
   )
 
   // Cada `stop` cambia la generación: un pedido de mic que llega después se descarta.
@@ -279,11 +296,10 @@ export function useTranslator({
     startingRef.current = true
     const generation = generationRef.current
     try {
-      const mic = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      })
+      const mic = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS)
       if (generation !== generationRef.current) return mic.getTracks().forEach((t) => t.stop())
       micRef.current = mic
+      keepMicWhilePlaying(true)
       setState("ready")
     } catch {
       toast.error("Necesito permiso de micrófono para traducir.")
@@ -300,9 +316,11 @@ export function useTranslator({
     const mic = micRef.current
     micRef.current = null
     await Promise.all([...openRef.current].map((d) => closeDirection(d)))
-    voiceRef.current?.stop()
+    voiceRef.current?.close()
+    voiceRef.current = null
     voiceFailedRef.current = false
     mic?.getTracks().forEach((t) => t.stop())
+    keepMicWhilePlaying(false)
     setState("off")
     const conversationId = conversationRef.current
     conversationRef.current = null
@@ -368,4 +386,46 @@ export function useTranslator({
   )
 
   return { state, speaker, utterances, spentUsd, start, press, release, stop, simulate }
+}
+
+const MIC_CONSTRAINTS: MediaStreamConstraints = {
+  audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+}
+
+const isIOS = () => typeof navigator !== "undefined" && /iPhone|iPad|iPod/.test(navigator.userAgent)
+
+/**
+ * El micrófono listo para un turno nuevo. En iPhone, reproducir la voz de la traducción
+ * (un `<audio>`) con el micrófono abierto deja la pista muteada: los turnos siguientes
+ * mandaban silencio y no se traducía nada. Si la pista no sirve (o es iOS), se pide de
+ * nuevo; se llama desde el toque del botón, así que iOS no vuelve a preguntar.
+ */
+async function liveMic(micRef: { current: MediaStream | null }): Promise<MediaStream | null> {
+  const mic = micRef.current
+  if (!mic) return null
+  const track = mic.getAudioTracks()[0]
+  if (track && track.readyState === "live" && !track.muted && !isIOS()) return mic
+  try {
+    const fresh = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS)
+    mic.getTracks().forEach((t) => t.stop())
+    micRef.current = fresh
+    return fresh
+  } catch {
+    return mic
+  }
+}
+
+/**
+ * En iPhone, cuando suena la voz de la traducción (un `<audio>`), Safari pasa la sesión de
+ * audio a "solo reproducir" y el micrófono queda mudo: el turno siguiente manda silencio y
+ * no se traduce nada. Con "play-and-record" el mic sigue andando mientras suena.
+ */
+function keepMicWhilePlaying(on: boolean) {
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession
+  if (!session) return
+  try {
+    session.type = on ? "play-and-record" : "auto"
+  } catch {
+    // Navegador sin ese tipo de sesión.
+  }
 }

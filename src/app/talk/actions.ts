@@ -2,7 +2,10 @@
 
 import { z } from "zod"
 
+import { placeNameAt } from "@/lib/location/locale"
+import { latLngSchema } from "@/lib/location/schema"
 import { createClient } from "@/lib/supabase/server"
+import { LANG_CODES, localLanguage, type Lang } from "@/lib/translate/config"
 
 const turnSchema = z.object({
   conversationId: z.uuid(),
@@ -21,4 +24,20 @@ export async function saveTurn(input: { conversationId: string; role: "user" | "
     content: parsed.data.text,
   })
   if (error) console.error("[talk] saveTurn failed", error.message)
+}
+
+/**
+ * Idioma de la gente del lugar donde está el viajero ahora (para el traductor). Con la
+ * ubicación en vivo: la que se calculó al cargar la página puede ser de antes de moverse.
+ */
+export async function localLanguageAt(input: { lat: number; lng: number }, myLang: Lang): Promise<Lang | null> {
+  const parsed = latLngSchema.safeParse(input)
+  if (!parsed.success || !LANG_CODES.includes(myLang)) return null
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+  const place = await placeNameAt(parsed.data)
+  return place ? localLanguage(place.countryCode, myLang) : null
 }

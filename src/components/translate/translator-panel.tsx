@@ -6,9 +6,11 @@ import { useEffect, useRef, useState } from "react"
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
+import { localLanguageAt } from "@/app/talk/actions"
 import { useTranslator, type TranslatorState } from "@/hooks/use-translator"
 import type { LatLng } from "@/lib/geo"
 import { LANG_CODES, LANGUAGES, type Lang, type Speaker } from "@/lib/translate/config"
+import { installDevMic, speakIntoDevMic } from "@/lib/translate/dev-mic"
 import type { Utterance } from "@/lib/translate/utterances"
 import { cn } from "@/lib/utils"
 
@@ -38,6 +40,27 @@ interface TranslatorPanelProps {
 export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, children }: TranslatorPanelProps) {
   const [myLang, setMyLang] = useState<Lang>("es")
   const [theirLang, setTheirLang] = useState<Lang>(defaultTheirLang)
+  /** Si el viajero eligió el idioma a mano, no se lo pisa. */
+  const chosenRef = useRef(false)
+  const chooseTheirLang = (lang: Lang) => {
+    chosenRef.current = true
+    setTheirLang(lang)
+  }
+  // El idioma por defecto sale de la ubicación al cargar la página, que puede ser de antes
+  // de moverse: al abrir se recalcula con la ubicación en vivo.
+  const openedAtRef = useRef({ location, myLang })
+  useEffect(() => {
+    let alive = true
+    const { location: here, myLang: mine } = openedAtRef.current
+    void localLanguageAt(here, mine)
+      .then((lang) => {
+        if (alive && lang && !chosenRef.current) setTheirLang(lang)
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [])
   const t = useTranslator({
     myLang,
     theirLang,
@@ -48,7 +71,8 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
   /** Frase a pantalla completa para que la lea la persona local (B-5). */
   const [shown, setShown] = useState<Utterance | null>(null)
   /** Las instrucciones se ven hasta que alguien habla; después quedan plegadas. */
-  const [helpOpen, setHelpOpen] = useState(true)
+  // Si el viajero ya las ocultó alguna vez, arrancan plegadas (se recuerda en este navegador).
+  const [helpOpen, setHelpOpen] = useState(() => readHelpHidden() !== true)
   // Solo en desarrollo: simular la charla sin micrófono, por el mismo camino que un turno real
   // (window.rumboTranslatorSay("them", "Allez au Breizh Café…", "Vayan al Breizh Café…")).
   const { simulate } = t
@@ -68,7 +92,63 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
     setHelpOpen(false)
     void t.press(who)
   }
-  const { start } = t
+  const { start, stop } = t
+
+  // Solo en desarrollo: una charla de verdad (con traducción real) escribiendo en la consola.
+  // rumboTranslatorTalk("me", "Hola, ¿dónde se puede comer bien?") aprieta el botón, lo dice
+  // por un mic de mentira y suelta. El mic de mentira queda puesto hasta rumboDevMicOff().
+  const stateRef = useRef(t.state)
+  useEffect(() => {
+    stateRef.current = t.state
+  })
+  const langsRef = useRef({ myLang, theirLang })
+  useEffect(() => {
+    langsRef.current = { myLang, theirLang }
+  })
+  const pressRef = useRef(t.press)
+  useEffect(() => {
+    pressRef.current = t.press
+  })
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return
+    if (readDevMic()) installDevMic()
+    const until = async (ok: (s: TranslatorState) => boolean, ms: number) => {
+      for (const end = Date.now() + ms; !ok(stateRef.current); ) {
+        if (Date.now() > end) throw new Error(`El traductor quedó en "${stateRef.current}".`)
+        await new Promise((r) => setTimeout(r, 100))
+      }
+    }
+    const w = window as unknown as {
+      rumboTranslatorTalk?: (who: Speaker, text: string) => Promise<void>
+      rumboDevMicOff?: () => void
+    }
+    w.rumboTranslatorTalk = async (who, text) => {
+      if (!readDevMic()) {
+        writeDevMic(true)
+        installDevMic()
+        await stop()
+        await start()
+      }
+      await until((s) => s === "ready", 30_000)
+      setHelpOpen(false)
+      void pressRef.current(who)
+      await until((s) => s === "listening", 15_000)
+      const { myLang: mine, theirLang: theirs } = langsRef.current
+      await speakIntoDevMic(text, who === "me" ? mine : theirs)
+      await new Promise((r) => setTimeout(r, 800))
+      void pressRef.current(who)
+      await until((s) => s === "ready", 30_000)
+    }
+    w.rumboDevMicOff = () => {
+      writeDevMic(false)
+      window.location.reload()
+    }
+    return () => {
+      delete w.rumboTranslatorTalk
+      delete w.rumboDevMicOff
+    }
+  }, [start, stop])
+
   useEffect(() => {
     void start()
   }, [start])
@@ -103,22 +183,31 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
             disabled={busy}
             onClick={() => {
               setMyLang(theirLang)
-              setTheirLang(myLang)
+              chooseTheirLang(myLang)
             }}
           >
             <ArrowLeftRightIcon className="size-4" />
           </Button>
-          <LangSelect label="La otra persona" value={theirLang} onChange={setTheirLang} disabled={busy} />
+          <LangSelect label="La otra persona" value={theirLang} onChange={chooseTheirLang} disabled={busy} />
         </div>
 
         <ScrollFade className="min-h-0 flex-1">
           <div className="flex flex-col gap-2 py-2">
             {helpOpen ? (
-              <HowItWorks theirLang={LANGUAGES[theirLang]} />
+              <HowItWorks
+                theirLang={LANGUAGES[theirLang]}
+                onHide={() => {
+                  setHelpOpen(false)
+                  writeHelpHidden(true)
+                }}
+              />
             ) : (
               <button
                 type="button"
-                onClick={() => setHelpOpen(true)}
+                onClick={() => {
+                  setHelpOpen(true)
+                  writeHelpHidden(false)
+                }}
                 className="text-muted-foreground inline-flex items-center gap-1 self-center text-[13px]"
               >
                 <CircleHelpIcon className="size-3.5" />
@@ -130,7 +219,8 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
                 key={u.id}
                 className={cn(
                   "max-w-[85%] rounded-2xl px-3 py-2",
-                  u.speaker === "me" ? "bg-brand self-end text-white" : "bg-card self-start",
+                  // Cada uno de su lado, como sus botones: yo a la izquierda, la otra persona a la derecha.
+                  u.speaker === "me" ? "bg-brand self-start text-white" : "bg-card self-end",
                   !u.final && "opacity-70"
                 )}
               >
@@ -248,20 +338,68 @@ function LangSelect({
 }
 
 /** Antes de la primera frase: cómo se usa, en tres pasos. */
-function HowItWorks({ theirLang }: { theirLang: string }) {
+const HELP_KEY = "rumbo.translator.help-hidden"
+
+function readHelpHidden(): boolean {
+  try {
+    return localStorage.getItem(HELP_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function writeHelpHidden(hidden: boolean) {
+  try {
+    if (hidden) localStorage.setItem(HELP_KEY, "1")
+    else localStorage.removeItem(HELP_KEY)
+  } catch {
+    // Sin storage (modo privado): se vuelve a mostrar la próxima vez.
+  }
+}
+
+function HowItWorks({ theirLang, onHide }: { theirLang: string; onHide: () => void }) {
   const steps = [
     <>Cuando hable la otra persona ({theirLang}), tocá <b>Habla la otra persona</b> y otra vez al terminar.</>,
     <>Para responder, <b>Hablo yo</b>. Con <b>Mostrar</b> le enseñás tu frase en grande.</>,
     <>Si te recomienda un lugar, aparece abajo, queda guardado y te aviso cuando pases cerca.</>,
   ]
   return (
-    <ol className="bg-card flex flex-col gap-2.5 rounded-2xl p-4">
-      {steps.map((step, i) => (
-        <li key={i} className="flex gap-3 text-[15px] leading-snug">
-          <span className="bg-brand/10 text-brand flex size-6 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold">{i + 1}</span>
-          <span>{step}</span>
-        </li>
-      ))}
-    </ol>
+    <div className="bg-card relative rounded-2xl p-4 pr-10">
+      <button
+        type="button"
+        onClick={onHide}
+        aria-label="Ocultar cómo se usa"
+        className="text-muted-foreground hover:bg-muted absolute top-2 right-2 rounded-full p-1.5"
+      >
+        <XIcon className="size-4" />
+      </button>
+      <ol className="flex flex-col gap-2.5">
+        {steps.map((step, i) => (
+          <li key={i} className="flex gap-3 text-[15px] leading-snug">
+            <span className="bg-brand/10 text-brand flex size-6 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold">{i + 1}</span>
+            <span>{step}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
   )
+}
+
+const DEV_MIC_KEY = "rumbo.translator.dev-mic"
+
+function readDevMic(): boolean {
+  try {
+    return localStorage.getItem(DEV_MIC_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function writeDevMic(on: boolean) {
+  try {
+    if (on) localStorage.setItem(DEV_MIC_KEY, "1")
+    else localStorage.removeItem(DEV_MIC_KEY)
+  } catch {
+    // Sin storage: el mic de mentira dura hasta recargar.
+  }
 }

@@ -1,14 +1,16 @@
 const CALLS_URL = "https://api.openai.com/v1/realtime/translations/calls"
 /**
- * Cuánto esperar `session.closed` después de pedir `session.close`. Por WebRTC no llegó
- * nunca en las pruebas, y la traducción ya terminó cuando se cierra: esperar más es cobrar más.
+ * Al pedir `session.close` el modelo manda de golpe lo que le faltaba traducir (mientras hay
+ * silencio se lo guarda). Se corta al llegar `session.closed` (a veces no llega) o cuando deja
+ * de mandar un rato, y nunca después del tope: se cobra mientras siga abierta.
  */
-const CLOSE_WAIT_MS = 1_000
+const CLOSE_QUIET_MS = 3_000
+const CLOSE_MAX_MS = 10_000
 
 export type TranslationEvent = { type: string; delta?: string; error?: { message?: string } }
 
 export interface TranslationConnection {
-  /** Cierra bien: `session.close`, espera `session.closed` (o 1 s) y corta. Deja de cobrar. */
+  /** Cierra bien: `session.close`, recibe lo que faltaba traducir y corta. Deja de cobrar. */
   close: () => Promise<void>
 }
 
@@ -37,7 +39,9 @@ export async function connectTranslation({
 
   let onClosed: (() => void) | null = null
   const dc = pc.createDataChannel("oai-events")
+  let lastEventAt = Date.now()
   dc.onmessage = (e) => {
+    lastEventAt = Date.now()
     try {
       const event = JSON.parse(e.data as string) as TranslationEvent
       if (event.type === "session.closed") onClosed?.()
@@ -75,9 +79,18 @@ export async function connectTranslation({
       (closing ??= (async () => {
         if (dc.readyState === "open") {
           dc.send(JSON.stringify({ type: "session.close" }))
+          const closedAt = Date.now()
+          lastEventAt = closedAt
           await new Promise<void>((resolve) => {
-            onClosed = resolve
-            setTimeout(resolve, CLOSE_WAIT_MS)
+            const check = setInterval(() => {
+              const now = Date.now()
+              if (now - lastEventAt > CLOSE_QUIET_MS || now - closedAt > CLOSE_MAX_MS) done()
+            }, 100)
+            const done = () => {
+              clearInterval(check)
+              resolve()
+            }
+            onClosed = done
           })
         }
         hangUp()
