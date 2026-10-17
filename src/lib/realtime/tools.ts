@@ -28,8 +28,8 @@ export const toolSchemas = {
     open_now: z.boolean().nullable().describe("true si lo necesita abierto ahora. null si no importa."),
   }),
   search_events: z.object({
-    when: z.enum(["now", "today", "tomorrow"]).describe("now = está pasando o empieza en las próximas 3 horas."),
-    kind: z.enum(EVENT_KIND_NAMES).nullable().describe("Qué tipo de evento pidió. null si cualquiera."),
+    when: z.enum(["now", "today", "tomorrow"]).describe("now = está pasando o empieza en las próximas 3 horas; today = lo que queda de hoy, también 'esta noche'."),
+    kind: z.enum(EVENT_KIND_NAMES).nullable().describe("Qué tipo de evento pidió (un concierto → música). null si no dijo el tipo."),
     free_only: z.boolean().nullable().describe("true si lo quiere gratis. null si no importa."),
   }),
   web_search: z.object({

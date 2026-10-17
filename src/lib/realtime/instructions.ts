@@ -69,7 +69,7 @@ function constraintsLine({ dietary, mobility, dailyBudget, pace, schedule }: Tra
  * toma de las instrucciones y preguntaba "¿cómo te llamás?".
  */
 export const greetingPrompt = (firstName: string) =>
-  `Empezó la llamada. Saludá a ${firstName} por su nombre en una sola frase corta (máx. 15 palabras), como alguien que la acompaña en el viaje. Si suma, sumale algo del momento (el clima o lo próximo del plan). No le preguntes cómo se llama ni cuánto tiempo tiene.`
+  `Empezó la llamada. Saludá a ${firstName} por su nombre con una sola frase de no más de 12 palabras, como alguien que la acompaña en el viaje. Como mucho un dato del momento (el clima o dónde está); no hables del plan ni ofrezcas opciones todavía. No le preguntes cómo se llama ni cuánto tiempo tiene.`
 
 /**
  * Instrucciones compactas: todo el contexto va acá (no por tools) para que se

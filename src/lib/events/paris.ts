@@ -13,6 +13,8 @@ const FETCH_LIMIT = 40
 export const MAX_EVENTS = 3
 /** "Ahora" = lo que está pasando o empieza en las próximas horas. */
 export const NOW_WINDOW_HOURS = 3
+/** Una función a la que le queda menos que esto no vale la caminata. */
+export const MIN_REMAINING_MINUTES = 45
 /** `date_start`/`date_end` vienen con offsets inconsistentes: se filtra grueso y se afina con `occurrences`. */
 const PREFILTER_SLACK_MS = 3 * 60 * 60 * 1000
 
@@ -28,7 +30,7 @@ export const EVENT_KINDS = {
   paseo: ["Balade urbaine"],
   niños: ["Enfants"],
   deporte: ["Sport"],
-  noche: ["Nuit"],
+  "vida nocturna": ["Nuit"],
 } as const
 export type EventKind = keyof typeof EVENT_KINDS
 export const EVENT_KIND_NAMES = Object.keys(EVENT_KINDS) as [EventKind, ...EventKind[]]
@@ -110,14 +112,14 @@ export function parseOccurrences(raw: string | null, timeZone: string): { start:
   })
 }
 
-/** Primera función que se cruza con la ventana (y no terminó), o null. */
+/** Primera función que se cruza con la ventana y a la que le queda un rato, o null. */
 export function firstOccurrenceIn(
   occurrences: { start: Date; end: Date }[],
   window: TimeWindow
 ): { start: Date; end: Date } | null {
   return (
     occurrences
-      .filter((o) => o.end > window.from && o.start < window.to)
+      .filter((o) => o.end.getTime() - window.from.getTime() >= MIN_REMAINING_MINUTES * 60_000 && o.start < window.to)
       .sort((a, b) => a.start.getTime() - b.start.getTime())[0] ?? null
   )
 }
