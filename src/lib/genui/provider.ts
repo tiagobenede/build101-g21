@@ -1,10 +1,19 @@
 import "server-only"
 
 /**
- * Modelo que escribe la UI. Groq si hay GROQ_API_KEY (inferencia muy rápida);
- * si no, un modelo chico de OpenAI. Los dos hablan la API de chat de OpenAI.
+ * Modelo que escribe la UI. Por defecto gpt-6-luna: en nuestro benchmark (4 pantallas
+ * reales, 3 rondas) armó 12/12 bien, ~0,9 s a la primera línea y ~US$0,0002 por
+ * pantalla (US$0,10 / 0,50 por millón de tokens). Groq queda como opción si hay key.
+ * Los dos hablan la API de chat de OpenAI.
  */
-export type GenUiProvider = { name: "groq" | "openai"; baseUrl: string; apiKey: string; model: string }
+export type GenUiProvider = {
+  name: "groq" | "openai"
+  baseUrl: string
+  apiKey: string
+  model: string
+  /** Los modelos de razonamiento piensan antes de responder: para UI no hace falta. */
+  reasoningEffort: "none" | null
+}
 
 export function genUiProvider(): GenUiProvider | null {
   if (process.env.GROQ_API_KEY) {
@@ -13,6 +22,7 @@ export function genUiProvider(): GenUiProvider | null {
       baseUrl: "https://api.groq.com/openai/v1",
       apiKey: process.env.GROQ_API_KEY,
       model: process.env.GENUI_MODEL ?? "llama-3.3-70b-versatile",
+      reasoningEffort: null,
     }
   }
   if (process.env.OPENAI_API_KEY) {
@@ -20,7 +30,8 @@ export function genUiProvider(): GenUiProvider | null {
       name: "openai",
       baseUrl: "https://api.openai.com/v1",
       apiKey: process.env.OPENAI_API_KEY,
-      model: process.env.GENUI_MODEL ?? "gpt-4.1-mini",
+      model: process.env.GENUI_MODEL ?? "gpt-6-luna",
+      reasoningEffort: (process.env.GENUI_MODEL ?? "gpt-6-luna").startsWith("gpt-4") ? null : "none",
     }
   }
   return null
@@ -45,7 +56,8 @@ export async function* streamCompletion(
       model: provider.model,
       stream: true,
       temperature: 0.2,
-      max_tokens: GENUI_MAX_TOKENS,
+      max_completion_tokens: GENUI_MAX_TOKENS,
+      ...(provider.reasoningEffort ? { reasoning_effort: provider.reasoningEffort } : {}),
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
