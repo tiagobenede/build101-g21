@@ -26,6 +26,8 @@ import { onTableChange } from "@/lib/supabase/client"
 import type { CallState, MentionedPlace, PlaceCard, VoiceCall } from "./voice-session-types"
 
 const IDLE_CHECK_MS = 5_000
+/** Tools que no necesitan que el agente vuelva a hablar cuando terminan. */
+const SILENT_TOOLS = new Set(["remember"])
 const MAX_PENDING_NOTES = 3
 /** Tablas que cambian lo que sabe el agente: si se tocan con la llamada abierta, se rearman las instrucciones. */
 const CONTEXT_TABLES = ["itinerary_items", "profiles", "interests", "local_tips", "trip_members"] as const
@@ -83,6 +85,8 @@ export function useRealtimeCall(
   const toolPlacesRef = useRef<PlaceCard[]>([])
   /** La última pantalla con varios lugares: si la voz recomienda otro que el destacado, pasa adelante (una vez). */
   const placesScreenRef = useRef<{ request: string; placeIds: string[]; followed: boolean } | null>(null)
+  /** Respuestas en las que el agente ya habló (un tool silencioso no pide otra). */
+  const spokenResponsesRef = useRef(new Set<string>())
 
   useEffect(() => {
     knownPlacesRef.current = knownPlaces
@@ -135,7 +139,8 @@ export function useRealtimeCall(
       const conn = connRef.current
       const queue = queueRef.current
       if (!callId || !conn || !queue) return
-      queue.begin(callId, typeof ev.response_id === "string" ? ev.response_id : "")
+      const responseId = typeof ev.response_id === "string" ? ev.response_id : ""
+      queue.begin(callId, responseId)
 
       const result: ToolResult = await fetch("/api/realtime/tools", {
         method: "POST",
@@ -161,15 +166,22 @@ export function useRealtimeCall(
       // Un solo agente: la pantalla cambia en el mismo momento en que el resultado entra a la
       // conversación, con exactamente esos lugares (o se vacía si no encontró nada).
       const screen = screenFromTool(ev.name, ev.arguments, result.cards, result.output)
-      queue.resolve(callId, result.output, () => {
-        toolPlacesRef.current = [...result.cards, ...toolPlacesRef.current]
-        showPlaces(result.cards.slice(0, 1))
-        placesScreenRef.current =
-          screen.kind === "show" && screen.placeIds.length > 1 ? { request: screen.request, placeIds: screen.placeIds, followed: false } : null
-        if (screen.kind === "show")
-          onScreenRef.current?.({ request: screen.request, placeIds: screen.placeIds, story: screen.story, phrase: screen.phrase })
-        if (screen.kind === "clear") onScreenRef.current?.(null)
-      })
+      // Guardar un gusto no merece otro turno: si el agente ya reaccionó en voz, entra en silencio.
+      const silent = SILENT_TOOLS.has(String(ev.name)) && spokenResponsesRef.current.has(responseId)
+      queue.resolve(
+        callId,
+        result.output,
+        () => {
+          toolPlacesRef.current = [...result.cards, ...toolPlacesRef.current]
+          showPlaces(result.cards.slice(0, 1))
+          placesScreenRef.current =
+            screen.kind === "show" && screen.placeIds.length > 1 ? { request: screen.request, placeIds: screen.placeIds, followed: false } : null
+          if (screen.kind === "show")
+            onScreenRef.current?.({ request: screen.request, placeIds: screen.placeIds, story: screen.story, phrase: screen.phrase })
+          if (screen.kind === "clear") onScreenRef.current?.(null)
+        },
+        { silent }
+      )
     },
     [showPlaces]
   )
@@ -207,6 +219,7 @@ export function useRealtimeCall(
           setState("thinking")
           break
         case "response.output_audio_transcript.delta":
+          if (typeof ev.response_id === "string") spokenResponsesRef.current.add(ev.response_id)
           agentTextRef.current += typeof ev.delta === "string" ? ev.delta : ""
           revealPlaces()
           break

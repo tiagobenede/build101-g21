@@ -78,12 +78,18 @@ export const toolSchemas = {
   }),
   remember: z.object({
     statement: z.string().min(3).max(300).describe("Lo que hay que recordar, en tercera persona: 'Es vegetariana'."),
-    kind: z.enum(["constraint", "preference"]).describe("constraint = no negociable (dieta, movilidad); preference = gusto."),
+    kind: z
+      .enum(["constraint", "preference"])
+      .describe("Solo 'constraint' (no negociable: dieta, movilidad) o 'preference' (gusto). Algo que evita es preference con avoid true."),
     avoid: z.boolean().describe("true si es algo que evita o no le gusta."),
     diet: z
       .enum(DIETS)
       .nullable()
       .describe("Si es una restricción de comida, cuál. null si no es de comida."),
+    interest: z
+      .enum(INTEREST_TAGS)
+      .nullable()
+      .describe("El gusto de la lista que corresponde ('me encantan los autos clásicos' → autos). null si no encaja en ninguno."),
   }),
   translation_transcript: z.object({}),
 } as const
@@ -118,7 +124,7 @@ const descriptions: Record<ToolName, string> = {
   edit_itinerary:
     "Cambia el plan del viaje: add (agrega un lugar o actividad), move (cambia el horario), remove, done, skip, undo (deshace el último cambio). Devuelve el plan de hoy actualizado. Las reservas no se pueden cambiar.",
   remember:
-    "Guarda algo que contó de sí y sirve para después: qué come, qué evita, qué le gusta, cómo se mueve. Las restricciones de comida se respetan en las próximas recomendaciones.",
+    "Guarda algo que contó de sí y sirve para después: qué come, qué evita, qué le gusta, cómo se mueve. Con interest, el gusto entra en su perfil y en las próximas recomendaciones (con avoid, se saca). Las restricciones de comida se respetan siempre.",
   translation_transcript:
     "La charla entera que el viajero tuvo hace un rato con una persona local usando el traductor (lo que dijo cada uno, en el original y traducido). Usalo cuando necesites lo que se dijo exactamente y el resumen no alcanza.",
 }

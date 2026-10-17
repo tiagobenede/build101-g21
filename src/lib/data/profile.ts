@@ -52,6 +52,19 @@ async function guarded<T>(label: string, run: () => Promise<Result<T>>): Promise
   }
 }
 
+/** Misma frase sin importar mayúsculas, tildes ni puntuación ("Es vegetariana." = "es vegetariana"). */
+export function sameStatement(a: string, b: string): boolean {
+  const norm = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9ñ ]+/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+  return norm(a) === norm(b)
+}
+
 /** Reescribe `compiled_summary` con los hechos vigentes. */
 async function recompileSummary(db: SupabaseClient, uid: string): Promise<string | null> {
   const { data, error } = await db
@@ -110,6 +123,23 @@ export function updateProfile(db: SupabaseClient, input: ProfileInput): Promise<
   })
 }
 
+/**
+ * Suma un gusto al perfil (`on`) o lo saca (cuando dice que algo no le gusta). Los gustos
+ * nuevos van al final: el orden lo eligió el viajero (onboarding o "Editar mis gustos").
+ */
+export function setInterest(db: SupabaseClient, tag: (typeof INTEREST_TAGS)[number], on: boolean): Promise<Result<null>> {
+  return guarded("interest", async () => {
+    if (!(INTEREST_TAGS as readonly string[]).includes(tag)) return fail("Gusto inválido.")
+    const uid = await userId(db)
+    if (!uid) return fail("Sin sesión.")
+    const { error } = on
+      ? await db.from("interests").upsert({ user_id: uid, tag }, { onConflict: "user_id,tag", ignoreDuplicates: true })
+      : await db.from("interests").delete().eq("user_id", uid).eq("tag", tag)
+    if (error) throw new Error(error.message)
+    return ok(null)
+  })
+}
+
 /** Guarda algo que el agente aprendió ("soy vegetariana") y actualiza el resumen del perfil. */
 export function rememberFact(db: SupabaseClient, input: FactInput): Promise<Result<{ id: string; summary: string | null }>> {
   return guarded("remember", async () => {
@@ -118,6 +148,18 @@ export function rememberFact(db: SupabaseClient, input: FactInput): Promise<Resu
     const v = parsed.data
     const uid = await userId(db)
     if (!uid) return fail("Sin sesión.")
+
+    // Si ya lo sabía (lo repitió en otra charla), no se duplica.
+    const { data: current, error: readError } = await db
+      .from("profile_facts")
+      .select("id, statement")
+      .eq("user_id", uid)
+      .eq("kind", v.kind)
+      .eq("polarity", v.polarity)
+      .is("superseded_by", null)
+    if (readError) throw new Error(readError.message)
+    const known = (current ?? []).find((f) => sameStatement(f.statement as string, v.statement))
+    if (known && !v.supersedes) return ok({ id: known.id as string, summary: await recompileSummary(db, uid) })
 
     const { data, error } = await db
       .from("profile_facts")

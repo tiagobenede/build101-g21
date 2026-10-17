@@ -23,3 +23,13 @@ describe("fillMissingNulls", () => {
     expect(fillMissingNulls("get_place", { place_name: "Louvre" })).toEqual({ place_name: "Louvre" })
   })
 })
+
+describe("remember con gusto", () => {
+  it("acepta el gusto de la lista y, si falta, queda null", () => {
+    const withTag = { statement: "Le encantan los autos clásicos", kind: "preference", avoid: false, diet: null, interest: "autos" }
+    expect(toolSchemas.remember.safeParse(withTag).success).toBe(true)
+    const filled = fillMissingNulls("remember", { statement: "Le encantan los autos", kind: "preference", avoid: false }) as Record<string, unknown>
+    expect(filled.interest).toBeNull()
+    expect(toolSchemas.remember.safeParse({ ...withTag, interest: "yates" }).success).toBe(false)
+  })
+})

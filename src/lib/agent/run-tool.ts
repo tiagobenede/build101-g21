@@ -20,7 +20,7 @@ import {
   undoItinerary,
   updateItineraryItem,
 } from "@/lib/data/itinerary"
-import { rememberFact, updateProfile } from "@/lib/data/profile"
+import { rememberFact, setInterest, updateProfile } from "@/lib/data/profile"
 import type { Result } from "@/lib/data/result"
 import {
   getTravelerContext,
@@ -521,6 +521,13 @@ async function rememberTool(args: ToolArgs<"remember">, location: LatLng | null)
   })
   if (!saved.ok) return fail(saved.error)
 
+  // "Me encantan los autos" también suma el gusto al perfil: así pesa en recommend_nearby,
+  // en el mapa ("para vos") y en la home. "No me gustan los museos" lo saca.
+  if (args.interest) {
+    const updated = await setInterest(db, args.interest, !args.avoid)
+    if (!updated.ok) return fail(updated.error)
+  }
+
   // Una dieta también va a las restricciones del perfil, así el ranking la filtra en el server.
   if (args.diet) {
     const ctx = await getTravelerContext({ location })
@@ -607,7 +614,10 @@ export async function runTool(
       return args.success ? editItinerary(args.data, location) : invalid
     }
     case "remember": {
-      const args = toolSchemas.remember.safeParse(json)
+      // El modelo a veces manda kind "avoid": es un gusto en negativo, no un error para descartar lo que contó.
+      const kind = (json as { kind?: unknown } | null)?.kind
+      const fixed = kind === "constraint" || kind === "preference" ? json : { ...(json as object), kind: "preference" }
+      const args = toolSchemas.remember.safeParse(fixed)
       return args.success ? rememberTool(args.data, location) : invalid
     }
     case "translation_transcript":
