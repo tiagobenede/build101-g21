@@ -10,6 +10,8 @@ import "./globals.css"
 export const metadata: Metadata = {
   title: "Rumbo",
   description: "Asistente de viaje por voz que conoce tus gustos, tu ubicación y tu tiempo.",
+  // iPhone: al agregarla a la pantalla de inicio abre a pantalla completa, como una app.
+  appleWebApp: { capable: true, title: "Rumbo", statusBarStyle: "default" },
 }
 
 export const viewport: Viewport = {

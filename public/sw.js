@@ -26,8 +26,8 @@ self.addEventListener("push", (event) => {
       return self.registration.showNotification(data.title || "Rumbo", {
         body: data.body || "",
         tag: data.tag, // el mismo lugar reemplaza al aviso anterior en vez de apilarse
-        icon: "/favicon.ico",
-        badge: "/favicon.ico",
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
         data: { url: data.url || "/talk" },
       })
     })

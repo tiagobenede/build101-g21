@@ -1,13 +1,13 @@
 import { createBrowserClient } from "@supabase/ssr"
 import type { RealtimePostgresChangesPayload, SupabaseClient } from "@supabase/supabase-js"
 
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./env"
+import { browserSupabaseUrl, SUPABASE_AUTH_COOKIE, SUPABASE_PUBLISHABLE_KEY } from "./env"
 
 let client: SupabaseClient | null = null
 
 /** Cliente de Supabase para el navegador (sesión por cookies). Una sola instancia. */
 export function createClient(): SupabaseClient {
-  client ??= createBrowserClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+  client ??= createBrowserClient(browserSupabaseUrl(), SUPABASE_PUBLISHABLE_KEY, { cookieOptions: { name: SUPABASE_AUTH_COOKIE } })
   return client
 }
 
@@ -27,7 +27,8 @@ export async function onTableChange(table: string, onChange: (change: TableChang
   if (session) await supabase.realtime.setAuth(session.access_token)
 
   const channel = supabase
-    .channel(`${table}:${crypto.randomUUID()}`)
+    // crypto.randomUUID solo existe en HTTPS (o localhost): por la IP de la red no.
+    .channel(`${table}:${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`)
     .on("postgres_changes", { event: "*", schema: "public", table }, onChange)
     .subscribe((status: string, err?: Error) => {
       if (status !== "SUBSCRIBED") console.warn(`[realtime] ${table}`, status, err?.message ?? "")
