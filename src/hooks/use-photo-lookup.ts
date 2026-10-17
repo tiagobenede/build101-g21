@@ -26,6 +26,8 @@ export type PhotoMatch = {
   description: string | null
   /** El lugar de `places` (para la pantalla y "Al plan"), si se pudo ubicar. */
   place: PlaceCard | null
+  /** La foto que sacó (URL blob: local, para mostrarla en pantalla). */
+  photoUrl: string
 }
 
 async function postJson<T>(url: string, init: RequestInit): Promise<T> {
@@ -76,7 +78,14 @@ export function usePhotoLookup(getLocation: () => LatLng | null, onMatch: (match
             .catch(() => null)
         }
         toast.dismiss(toastId)
-        onMatch({ name: place?.name ?? seen.name, kind, where: seen.where, description: seen.description ?? place?.description ?? null, place })
+        onMatch({
+          name: place?.name ?? seen.name,
+          kind,
+          where: seen.where,
+          description: seen.description ?? place?.description ?? null,
+          place,
+          photoUrl: URL.createObjectURL(photo),
+        })
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "No pude reconocer la foto.", { id: toastId })
       } finally {

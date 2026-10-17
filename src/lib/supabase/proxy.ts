@@ -6,6 +6,11 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./env"
 const PUBLIC_PATHS = ["/login"]
 
 export async function updateSession(request: NextRequest) {
+  // Galerías de desarrollo (/dev/*): sin sesión, y en producción dan 404.
+  if (process.env.NODE_ENV === "development" && request.nextUrl.pathname.startsWith("/dev")) {
+    return NextResponse.next({ request })
+  }
+
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {

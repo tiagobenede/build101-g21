@@ -76,6 +76,8 @@ export type RankInput = {
   maxWalkMinutes: number
   /** Dietas del viajero (`profiles.dietary`); las que no conocemos se ignoran acá y van en las instrucciones. */
   dietary?: string[]
+  /** Cuántos devolver (por defecto MAX_RECOMMENDATIONS). */
+  limit?: number
 }
 
 /**
@@ -105,6 +107,7 @@ export function rankPlaces({
   alreadyRecommended,
   maxWalkMinutes,
   dietary = [],
+  limit = MAX_RECOMMENDATIONS,
 }: RankInput): Ranked[] {
   const weights = interestWeights(interests)
   const diets = dietary.filter((d): d is Diet => (DIETS as readonly string[]).includes(d))
@@ -127,5 +130,5 @@ export function rankPlaces({
     })
     .filter((r) => r.stayMinutes >= MIN_STAY_MINUTES && r.matchedTags.length > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_RECOMMENDATIONS)
+    .slice(0, limit)
 }

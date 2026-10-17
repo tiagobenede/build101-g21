@@ -68,7 +68,7 @@ contexto del viajero), `src/lib/realtime/*`, `src/hooks/use-realtime-call.ts`, `
 
 Mientras Rumbo habla, la pantalla de `/talk` la arma un modelo de texto chico con
 [OpenUI](https://www.openui.com/) y nuestros componentes (tarjeta destacada, lista, ruta en el mapa,
-comparación, plan con horarios, clima).
+comparación, plan con horarios, clima, frase para decir, historia del lugar y lo que reconoció la cámara).
 
 - **Un solo agente:** la pantalla muestra exactamente los lugares que devolvió el último tool de lugares del
   agente (`recommend_nearby`, `search_places`, `search_events`, `get_place`), en su orden y en el mismo
@@ -85,6 +85,11 @@ comparación, plan con horarios, clima).
   `GENUI_MODEL` lo cambia; con `GROQ_API_KEY` usa Groq.
 - **Archivos:** `src/lib/genui/library.ts` (esquemas, compartidos server/cliente),
   `src/components/genui/*` (componentes y `<Renderer>`), `src/app/api/genui/route.ts`.
+- **Galería:** `/dev/genui` (solo en desarrollo, sin sesión) dibuja cada componente con datos de ejemplo, sin llamar al modelo.
+- **Fotos y horarios:** la foto principal sale de Google vía `/api/places/photo/[id]` (se busca una vez y queda en
+  `places.data.photo`); abierto / cierra pronto / cerrado sale de Place Details (cacheado 6 h, 1,5 s máx. por pantalla).
+- **Frases:** el agente llama a `show_phrase`; "Decilo por mí" la lee con ElevenLabs (`/api/tts`, voz Sarah,
+  `ELEVENLABS_TTS_VOICE` la cambia) y, si falla, con la voz del sistema.
 - Las devtools de OpenUI quedan apagadas (`src/lib/genui/no-devtools.ts`): bajan código de un CDN.
 - En desarrollo: `window.rumboShow("llevame al Picasso")` en `/talk` prueba una pantalla sin micrófono.
 

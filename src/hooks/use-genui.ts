@@ -26,7 +26,7 @@ export function useGenUi(getLocation: () => LatLng | null) {
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const show = useCallback(async ({ request, placeIds }: GenUiRequest) => {
+  const show = useCallback(async ({ request, placeIds, story = null, seen = null, phrase = null }: GenUiRequest) => {
     abortRef.current?.abort()
     const abort = new AbortController()
     abortRef.current = abort
@@ -37,7 +37,15 @@ export function useGenUi(getLocation: () => LatLng | null) {
       const res = await fetch("/api/genui", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request, placeIds, location: locationRef.current() }),
+        // La foto del viajero (blob:) no viaja: se le vuelve a poner a los datos que llegan.
+        body: JSON.stringify({
+          request,
+          placeIds,
+          location: locationRef.current(),
+          story,
+          seen: seen && { ...seen, photoUrl: undefined },
+          phrase,
+        }),
         signal: abort.signal,
       })
       if (!res.ok || !res.body) throw new Error(`genui ${res.status}`)
@@ -53,6 +61,7 @@ export function useGenUi(getLocation: () => LatLng | null) {
           const newline = raw.indexOf("\n")
           if (newline < 0) continue
           data = JSON.parse(raw.slice(GENUI_DATA_PREFIX.length, newline)) as GenUiData
+          if (data.seen && seen?.photoUrl) data = { ...data, seen: { ...data.seen, photoUrl: seen.photoUrl } }
           raw = raw.slice(newline + 1)
         }
         const response = raw

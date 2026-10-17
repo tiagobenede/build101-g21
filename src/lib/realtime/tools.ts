@@ -51,6 +51,16 @@ export const toolSchemas = {
       .describe("De qué: el lugar, la obra, el barrio o lo de la foto, con su nombre propio ('Centre Pompidou', 'La Gioconda, Louvre', 'el Marais')."),
     question: z.string().max(200).nullable().describe("Lo que preguntó, si fue algo puntual ('¿por qué tiene tubos?'). null para que le cuentes en general."),
   }),
+  show_phrase: z.object({
+    text: z.string().min(1).max(300).describe("La frase en el idioma local, lista para decir: 'Bonjour, un croissant, s'il vous plaît.'"),
+    translation: z.string().min(1).max(300).describe("Qué significa, en castellano."),
+    pronunciation: z
+      .string()
+      .max(300)
+      .nullable()
+      .describe("Cómo se lee para un hispanohablante, simple: 'bonyúr, an cruasán, sil vu plé'. null si se lee como se escribe."),
+    lang: z.string().min(2).max(20).describe("Idioma BCP 47 para leerla en voz alta: 'fr-FR', 'it-IT', 'pt-BR'."),
+  }),
   get_place: z.object({
     place_name: z.string().min(2).max(120).describe("Nombre del lugar, como aparece en la lista o en un resultado."),
   }),
@@ -97,7 +107,9 @@ const descriptions: Record<ToolName, string> = {
   web_search:
     "Busca en Google lo que no sabés de un lugar o del momento: el menú, si tienen algo puntual, precios, eventos, noticias. Es rápido; decí algo corto como 'me fijo' antes de llamarlo. Lo que encuentres puede estar desactualizado. No leas nombres de sitios web en voz alta.",
   place_facts:
-    "Datos de guía seguros (quién, cuándo, para qué, una anécdota) de un lugar, una obra, un barrio o lo de la foto. Usalo siempre que pregunte qué es algo, pida que le cuentes más, la historia o un dato curioso. No muestra nada en pantalla.",
+    "Datos de guía seguros (quién, cuándo, para qué, una anécdota) de un lugar, una obra, un barrio o lo de la foto. Usalo siempre que pregunte qué es algo, pida que le cuentes más, la historia o un dato curioso. Los datos también aparecen en la pantalla.",
+  show_phrase:
+    "Muestra en la pantalla una frase en el idioma local para que la diga (o la toque y suene), con la traducción y cómo se lee. Usalo cuando pregunte cómo se dice algo o qué decirle a alguien (pedir, preguntar, agradecer). Decí la frase vos también.",
   get_place:
     "Datos prácticos de un lugar: si está abierto ahora, el horario de hoy, minutos a pie y de visita. Usalo cuando pregunte eso de un lugar puntual; para contar su historia no hace falta.",
   show_route:
