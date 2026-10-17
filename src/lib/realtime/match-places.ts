@@ -1,15 +1,24 @@
 import type { PlaceCard } from "@/hooks/voice-session-types"
 
+/**
+ * Palabras separadas por un espacio, con un espacio en cada punta: así se busca el nombre
+ * entero (" av " no aparece en " estudio wav ") y sin signos ("McDonald’s" = "mcdonalds").
+ */
 const normalize = (s: string) =>
-  s
+  ` ${s
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/['’`´]/g, "")
+    .replace(/[^a-z0-9ñ]+/g, " ")
+    .trim()} `
 
 /** Lugares conocidos que aparecen en el texto y todavía no se mostraron, en orden de aparición. */
 export function findNewPlaces(text: string, places: readonly PlaceCard[], seen: ReadonlySet<string>): PlaceCard[] {
   const haystack = normalize(text)
-  return places
+  // El mismo lugar puede venir del tool y de los cercanos: uno por id (el primero, el del tool).
+  const unique = places.filter((p, i) => places.findIndex((q) => q.id === p.id) === i)
+  return unique
     .filter((p) => !seen.has(p.id))
     .map((p) => ({ place: p, index: haystack.indexOf(normalize(p.name)) }))
     .filter(({ index }) => index >= 0)
@@ -22,8 +31,8 @@ function mentionIndex(haystack: string, name: string): number {
   const full = normalize(name)
   const at = haystack.indexOf(full)
   if (at >= 0) return at
-  const words = full.split(/\s+/)
-  return words.length >= 3 ? haystack.indexOf(words.slice(0, 2).join(" ")) : -1
+  const words = full.trim().split(" ")
+  return words.length >= 3 ? haystack.indexOf(` ${words.slice(0, 2).join(" ")} `) : -1
 }
 
 /**
