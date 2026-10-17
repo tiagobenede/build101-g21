@@ -1,0 +1,64 @@
+[
+  {
+    "name": "OpenAI Realtime (gpt-realtime-2.1)",
+    "turns": [
+      {
+        "prompt": "Hi! What should I see in Madrid tomorrow?",
+        "firstAudioMs": 1043,
+        "text": "For a perfect day, start in the historic center: Puerta del Sol, Plaza Mayor, and the Royal Palace. Then stroll through the Prado area and the Retiro Park. If you want a fun evening, check out tapas in La Latina.",
+        "cost": 0.019344,
+        "usage": {
+          "input": 66,
+          "cached": 0,
+          "output": 355,
+          "audio_out": 264
+        },
+        "totalMs": 3723,
+        "audioSec": 13.2
+      },
+      {
+        "prompt": "¿Dónde puedo comer buenas tapas cerca de la Puerta del Sol?",
+        "firstAudioMs": 855,
+        "text": "Muy cerca de Sol tienes varias opciones buenas: Casa Labras es clásica y famosa por sus croquetas de bacalao, y Lhardy es una tasca histórica. También puedes picar algo en el Mercado de San Miguel, con muchos puestos y ambiente animado.",
+        "cost": 0.02324,
+        "usage": {
+          "input": 140,
+          "cached": 0,
+          "output": 415,
+          "audio_out": 318
+        },
+        "totalMs": 3933,
+        "audioSec": 15.9
+      },
+      {
+        "prompt": "Is the metro or a taxi better from the airport to the city center?",
+        "firstAudioMs": 921,
+        "text": "It depends on your priorities. The metro is usually cheaper and pretty straightforward, but it can take longer and you’ll handle your luggage. A taxi is faster, more comfortable, and has a flat fare to the center, but it costs more.",
+        "cost": 0.0198672,
+        "usage": {
+          "input": 220,
+          "cached": 128,
+          "output": 362,
+          "audio_out": 269
+        },
+        "totalMs": 3491,
+        "audioSec": 13.4
+      },
+      {
+        "prompt": "¿Qué me recomiendas hacer en Barcelona si llueve?",
+        "firstAudioMs": 908,
+        "text": "Ve a museos como el Picasso o el MUHBA, o disfruta de la Sagrada Familia por dentro. También puedes recorrer mercados como la Boquería o el de Santa Caterina, y terminar con tapas y vermut en un bar acogedor.",
+        "cost": 0.0199592,
+        "usage": {
+          "input": 291,
+          "cached": 128,
+          "output": 359,
+          "audio_out": 266
+        },
+        "totalMs": 3763,
+        "audioSec": 13.3
+      }
+    ],
+    "totalCost": 0.0824104
+  }
+]

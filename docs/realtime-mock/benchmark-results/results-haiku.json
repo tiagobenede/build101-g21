@@ -1,0 +1,184 @@
+[
+  {
+    "name": "ElevenLabs Agents (claude-haiku-5-5)",
+    "turns": [
+      {
+        "prompt": "Hi! What should I see in Madrid tomorrow?",
+        "firstAudioMs": 1439,
+        "firstTextMs": 1549,
+        "text": "[excited] Madrid has so much to offer! [happy] I'd suggest the Prado Museum for world-class art, then a stroll through Retiro Park. Finish with tapas around Plaza Mayor. Are you more into art, food, or history?",
+        "audioSec": 13,
+        "totalMs": 3550
+      },
+      {
+        "prompt": "¿Dónde puedo comer buenas tapas cerca de la Puerta del Sol?",
+        "firstAudioMs": 2222,
+        "firstTextMs": 2388,
+        "text": "[happy] Cerca de la Puerta del Sol tienes el Mercado de San Miguel, perfecto para probar tapas variadas. [excited] También te recomiendo Casa Labra, un bar clásico, y la calle Cava Baja, a un paseo corto, llena de tabernas con mucho ambiente.",
+        "audioSec": 13.7,
+        "totalMs": 4842
+      },
+      {
+        "prompt": "Is the metro or a taxi better from the airport to the city center?",
+        "firstAudioMs": 1819,
+        "firstTextMs": 3951,
+        "text": "[happy] The metro is usually the cheaper and easier choice, with a direct line from the airport toward the center. [slow] A taxi is more comfortable if you have lots of luggage or want to go straight to your hotel.",
+        "audioSec": 11.5,
+        "totalMs": 3953
+      },
+      {
+        "prompt": "¿Qué me recomiendas hacer en Barcelona si llueve?",
+        "firstAudioMs": 1630,
+        "firstTextMs": 3660,
+        "text": "[happy] Si llueve en Barcelona, te recomiendo visitar el Museo Picasso o el Palau de la Música Catalana. [excited] Y el Mercado de la Boquería es perfecto para [happy] pasar la tarde probando cosas ricas bajo techo.",
+        "audioSec": 11.4,
+        "totalMs": 3662
+      }
+    ],
+    "conversationId": "conv_6901m555r9vpezzb1cvkdpxn4pha",
+    "sessionMin": 0.43,
+    "estimatedCost": 0.0347,
+    "reported": {
+      "status": "done",
+      "cost": 180,
+      "call_duration_secs": 27,
+      "charging": {
+        "dev_discount": false,
+        "is_burst": false,
+        "tier": "starter",
+        "llm_usage": {
+          "irreversible_generation": {
+            "model_usage": {
+              "claude-haiku-5-5": {
+                "input": {
+                  "tokens": 1475,
+                  "price": 0.00016225
+                },
+                "input_cache_read": {
+                  "tokens": 1714,
+                  "price": 0.000018854
+                },
+                "input_cache_write": {
+                  "tokens": 1714,
+                  "price": 0.00023567500000000002
+                },
+                "output_total": {
+                  "tokens": 900,
+                  "price": 0.000495
+                }
+              }
+            },
+            "detailed_model_usage": [
+              {
+                "config": {
+                  "model": "claude-haiku-5-5",
+                  "service_tier": "standard"
+                },
+                "usage": {
+                  "input": {
+                    "tokens": 1475,
+                    "price": 0.00016225
+                  },
+                  "input_cache_read": {
+                    "tokens": 1714,
+                    "price": 0.000018854
+                  },
+                  "input_cache_write": {
+                    "tokens": 1714,
+                    "price": 0.00023567500000000002
+                  },
+                  "output_total": {
+                    "tokens": 900,
+                    "price": 0.000495
+                  }
+                }
+              }
+            ]
+          },
+          "initiated_generation": {
+            "model_usage": {
+              "claude-haiku-5-5": {
+                "input": {
+                  "tokens": 1475,
+                  "price": 0.00016225
+                },
+                "input_cache_read": {
+                  "tokens": 1714,
+                  "price": 0.000018854
+                },
+                "input_cache_write": {
+                  "tokens": 1714,
+                  "price": 0.00023567500000000002
+                },
+                "output_total": {
+                  "tokens": 900,
+                  "price": 0.000495
+                }
+              }
+            },
+            "detailed_model_usage": [
+              {
+                "config": {
+                  "model": "claude-haiku-5-5",
+                  "service_tier": "standard"
+                },
+                "usage": {
+                  "input": {
+                    "tokens": 1475,
+                    "price": 0.00016225
+                  },
+                  "input_cache_read": {
+                    "tokens": 1714,
+                    "price": 0.000018854
+                  },
+                  "input_cache_write": {
+                    "tokens": 1714,
+                    "price": 0.00023567500000000002
+                  },
+                  "output_total": {
+                    "tokens": 900,
+                    "price": 0.000495
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "llm_price": 0.000911779,
+        "llm_charge": 4,
+        "call_charge": 176,
+        "platform_charge": 176,
+        "platform_usage": {
+          "category_usage": {
+            "voice": {
+              "credits": 176,
+              "price": 0.03517889114903907,
+              "quantity": 0.4397361393629884
+            }
+          }
+        },
+        "platform_price": 0.03517889114903907,
+        "free_minutes_consumed": 0,
+        "free_llm_dollars_consumed": 0,
+        "tts_usage": {
+          "primary_tts_model": "eleven_v4_turbo",
+          "total_audio_output_seconds": 49.52000000000002,
+          "total_characters": 881,
+          "per_voice_usage": [
+            {
+              "voice_id": "cjVigY5qzO86Huf0OWal",
+              "audio_output_seconds": 49.52000000000002
+            }
+          ]
+        },
+        "asr_usage": {
+          "asr_model": "scribe_realtime",
+          "total_transcription_calls": 0,
+          "total_audio_input_seconds": 0
+        },
+        "analysis": null,
+        "subagent_charge": 0
+      }
+    }
+  }
+]

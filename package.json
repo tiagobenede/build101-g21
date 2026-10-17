@@ -1,0 +1,9 @@
+{
+  "name": "travel-voice-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "mock": "node --env-file-if-exists=.env --watch docs/realtime-mock/server.mjs",
+    "dev": "npm run mock"
+  }
+}
