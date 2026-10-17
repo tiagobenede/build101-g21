@@ -18,6 +18,8 @@ const KINDS: [type: string, kind: Kind][] = [
   ["cafe", { category: "Café", tags: ["café"], minutes: 25 }],
   ["coffee_shop", { category: "Café", tags: ["café"], minutes: 20 }],
   ["ice_cream_shop", { category: "Heladería", tags: ["comida"], minutes: 15 }],
+  ["dessert_shop", { category: "Postres", tags: ["comida"], minutes: 20 }],
+  ["confectionery", { category: "Postres", tags: ["comida"], minutes: 15 }],
   ["bar", { category: "Bar", tags: ["comida"], minutes: 45 }],
   ["restaurant", { category: "Restaurante", tags: ["comida"], minutes: 45 }],
   ["book_store", { category: "Librería", tags: ["libros"], minutes: 20 }],
@@ -30,6 +32,13 @@ const KINDS: [type: string, kind: Kind][] = [
   ["shopping_mall", { category: "Pasaje", tags: ["compras"], minutes: 30 }],
   ["clothing_store", { category: "Pasaje", tags: ["compras", "diseño"], minutes: 20 }],
   ["department_store", { category: "Pasaje", tags: ["compras"], minutes: 30 }],
+  // Lo práctico que se busca por nombre ("una farmacia", "un súper").
+  ["pharmacy", { category: "Farmacia", tags: [], minutes: 10 }],
+  ["drugstore", { category: "Farmacia", tags: [], minutes: 10 }],
+  ["supermarket", { category: "Supermercado", tags: [], minutes: 15 }],
+  ["hypermarket", { category: "Supermercado", tags: [], minutes: 20 }],
+  ["grocery_store", { category: "Supermercado", tags: [], minutes: 10 }],
+  ["convenience_store", { category: "Supermercado", tags: [], minutes: 10 }],
   // Al final: solo gana si el lugar no es de otro tipo (un hotel con restaurante es Restaurante en Nearby).
   ["hotel", { category: "Hotel", tags: [], minutes: 15 }],
   ["hostel", { category: "Hotel", tags: [], minutes: 15 }],
@@ -60,6 +69,8 @@ export type GooglePlace = {
   websiteUri?: string
   /** Solo lo pide Text Search (`searchPlaces`). */
   internationalPhoneNumber?: string
+  /** Solo lo pide Text Search: OPERATIONAL, CLOSED_TEMPORARILY o CLOSED_PERMANENTLY. */
+  businessStatus?: string
 }
 
 export const GOOGLE_FIELD_MASK = [

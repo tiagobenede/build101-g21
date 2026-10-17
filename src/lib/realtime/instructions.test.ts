@@ -42,6 +42,13 @@ const base = {
 }
 
 describe("buildInstructions", () => {
+  it("investiga por defecto: busca antes de decir que no sabe", () => {
+    const text = buildInstructions({ ...base, nextCommitment: null })
+    expect(text).toContain("Por defecto, investigá")
+    expect(text).toContain("sin decir \"no tengo información\"")
+    expect(text).not.toContain("si no hay datos seguros, decíselo")
+  })
+
   it("incluye nombre, gustos y ubicación", () => {
     const text = buildInstructions({ ...base, nextCommitment: null })
     expect(text).toContain("Sofía")

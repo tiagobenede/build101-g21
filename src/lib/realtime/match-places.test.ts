@@ -16,6 +16,23 @@ const card = (id: string, name: string): PlaceCard => ({
 const places = [card("arts", "Musée des Arts et Métiers"), card("pompidou", "Centre Pompidou"), card("louvre", "Museo del Louvre")]
 
 describe("findNewPlaces", () => {
+  it("un lugar que está en dos listas (el del tool y el cercano) sale una sola vez", () => {
+    const route = card("pompidou", "Centre Pompidou")
+    const found = findNewPlaces("Vamos al Centre Pompidou", [route, ...places], new Set())
+    expect(found.map((p) => p.id)).toEqual(["pompidou"])
+  })
+
+  it("un nombre corto no aparece adentro de otra palabra (AV en Estudio.wav)", () => {
+    const shops = [card("av", "AV"), card("wav", "Estudio.wav"), card("bar", "Bar")]
+    const found = findNewPlaces("Tenés Estudio.wav a 4 minutos, es tu favorito, pasá por la barra", shops, new Set())
+    expect(found.map((p) => p.id)).toEqual(["wav"])
+  })
+
+  it("encuentra el nombre entre signos (McDonald’s al final de la frase)", () => {
+    const found = findNewPlaces("Andá a McDonald’s.", [card("mc", "McDonald's")], new Set())
+    expect(found.map((p) => p.id)).toEqual(["mc"])
+  })
+
   it("encuentra lugares nombrados, sin importar tildes ni mayúsculas", () => {
     const found = findNewPlaces("Andá al musee des arts et metiers, está cerca", places, new Set())
     expect(found.map((p) => p.id)).toEqual(["arts"])

@@ -21,6 +21,7 @@ import { createContext, useContext, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 
 import { CategoryIcon, categoryColor } from "@/components/rumbo/category-icon"
+import { PlaceThumb } from "@/components/rumbo/place-thumb"
 import { Button } from "@/components/ui/button"
 import { useLocation } from "@/components/location/location-provider"
 import { useWalkingRoute } from "@/hooks/use-walking-route"
@@ -170,7 +171,8 @@ const PlaceHero: ComponentRenderer<Props<"PlaceHero">> = ({ props }) => {
 
 const PlaceList: ComponentRenderer<Props<"PlaceList">> = ({ props }) => {
   const { data, ask } = useEnv()
-  const places = props.placeIds.map((id) => data.places[id]).filter((p): p is GenUiPlace => Boolean(p))
+  // El modelo a veces repite un id: cada lugar una vez.
+  const places = [...new Set(props.placeIds)].map((id) => data.places[id]).filter((p): p is GenUiPlace => Boolean(p))
   if (places.length === 0) return null
   return (
     <div className="bg-card divide-border divide-y overflow-hidden rounded-[18px]">
@@ -181,7 +183,7 @@ const PlaceList: ComponentRenderer<Props<"PlaceList">> = ({ props }) => {
           onClick={() => ask(`Llevame a ${p.name}`, [p.id])}
           className="hover:bg-muted/60 flex w-full cursor-pointer items-center gap-3 px-3.5 py-2.5 text-left transition-colors"
         >
-          <CategoryIcon category={p.category} className="size-8" />
+          <PlaceThumb category={p.category} photoUrl={p.photoUrl} />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[15px]">{p.name}</span>
             <PlaceMeta place={p} />
@@ -276,7 +278,8 @@ function RouteMapCard({ place }: { place: GenUiPlace }) {
 
 const Compare: ComponentRenderer<Props<"Compare">> = ({ props }) => {
   const { data } = useEnv()
-  const places = props.placeIds.map((id) => data.places[id]).filter((p): p is GenUiPlace => Boolean(p))
+  // El modelo a veces repite un id: cada lugar una vez.
+  const places = [...new Set(props.placeIds)].map((id) => data.places[id]).filter((p): p is GenUiPlace => Boolean(p))
   if (places.length < 2) return null
   const closest = Math.min(...places.map((p) => p.walkMinutes))
   const best = Math.max(...places.map((p) => p.rating ?? 0))

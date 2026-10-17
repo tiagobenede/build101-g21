@@ -1,6 +1,7 @@
 import {
   BedDoubleIcon,
   BookOpenIcon,
+  CakeSliceIcon,
   CarIcon,
   ChurchIcon,
   CoffeeIcon,
@@ -8,8 +9,10 @@ import {
   IceCreamConeIcon,
   LandmarkIcon,
   MapPinIcon,
+  PillIcon,
   ShoppingBagIcon,
   ShoppingBasketIcon,
+  ShoppingCartIcon,
   TreesIcon,
   UtensilsIcon,
   WineIcon,
@@ -34,6 +37,9 @@ const CATEGORIES: Record<string, { icon: LucideIcon; color: string }> = {
   Librería: { icon: BookOpenIcon, color: "#32ADE6" },
   Pasaje: { icon: ShoppingBagIcon, color: "#FF2D55" },
   Hotel: { icon: BedDoubleIcon, color: "#5AC8FA" },
+  Postres: { icon: CakeSliceIcon, color: "#FF2D55" },
+  Farmacia: { icon: PillIcon, color: "#30B0C7" },
+  Supermercado: { icon: ShoppingCartIcon, color: "#34C759" },
 }
 
 const FALLBACK = { icon: MapPinIcon, color: "#8E8E93" }
