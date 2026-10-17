@@ -1,0 +1,184 @@
+[
+  {
+    "name": "ElevenLabs Agents (gpt-6-luna)",
+    "turns": [
+      {
+        "prompt": "Hi! What should I see in Madrid tomorrow?",
+        "firstAudioMs": 1887,
+        "firstTextMs": 2093,
+        "text": "For a great day in Madrid, visit the Prado Museum in the morning, then stroll through Retiro Park and see the Crystal Palace. In the afternoon, explore the Royal Palace, Plaza Mayor, and the nearby old town; check opening hours before you go.",
+        "audioSec": 15,
+        "totalMs": 4316
+      },
+      {
+        "prompt": "¿Dónde puedo comer buenas tapas cerca de la Puerta del Sol?",
+        "firstAudioMs": 3393,
+        "firstTextMs": 3504,
+        "text": "Cerca de Sol, Casa Labra es una buena opción para probar croquetas de bacalao; La Casa del Abuelo es conocida por sus gambas al ajillo. Comprueba los horarios antes de ir, porque pueden variar.",
+        "audioSec": 12.1,
+        "totalMs": 5528
+      },
+      {
+        "prompt": "Is the metro or a taxi better from the airport to the city center?",
+        "firstAudioMs": 2177,
+        "firstTextMs": 2484,
+        "text": "The metro is usually the better value and avoids traffic, though you may need to change lines depending on where you’re staying. A taxi is more convenient with luggage or for a direct door-to-door trip; check the current airport fare and any extra charges before you set off.",
+        "audioSec": 16,
+        "totalMs": 5036
+      },
+      {
+        "prompt": "¿Qué me recomiendas hacer en Barcelona si llueve?",
+        "firstAudioMs": 1816,
+        "firstTextMs": 2007,
+        "text": "Si llueve, visita el Museo Picasso o el Palau de la Música Catalana; también puedes recorrer la Sagrada Familia por dentro. Reserva con antelación y comprueba los horarios, que pueden variar.",
+        "audioSec": 11.6,
+        "totalMs": 4014
+      }
+    ],
+    "conversationId": "conv_7901m555pf2kfeh8dzgrjg8qayex",
+    "sessionMin": 0.48,
+    "estimatedCost": 0.0385,
+    "reported": {
+      "status": "done",
+      "cost": 202,
+      "call_duration_secs": 30,
+      "charging": {
+        "dev_discount": false,
+        "is_burst": false,
+        "tier": "starter",
+        "llm_usage": {
+          "irreversible_generation": {
+            "model_usage": {
+              "gpt-6-luna": {
+                "input": {
+                  "tokens": 3614,
+                  "price": 0.0003614
+                },
+                "input_cache_read": {
+                  "tokens": 0,
+                  "price": 0
+                },
+                "input_cache_write": {
+                  "tokens": 0,
+                  "price": 0
+                },
+                "output_total": {
+                  "tokens": 633,
+                  "price": 0.00031649999999999994
+                }
+              }
+            },
+            "detailed_model_usage": [
+              {
+                "config": {
+                  "model": "gpt-6-luna",
+                  "service_tier": "standard"
+                },
+                "usage": {
+                  "input": {
+                    "tokens": 3614,
+                    "price": 0.0003614
+                  },
+                  "input_cache_read": {
+                    "tokens": 0,
+                    "price": 0
+                  },
+                  "input_cache_write": {
+                    "tokens": 0,
+                    "price": 0
+                  },
+                  "output_total": {
+                    "tokens": 633,
+                    "price": 0.00031649999999999994
+                  }
+                }
+              }
+            ]
+          },
+          "initiated_generation": {
+            "model_usage": {
+              "gpt-6-luna": {
+                "input": {
+                  "tokens": 3614,
+                  "price": 0.0003614
+                },
+                "input_cache_read": {
+                  "tokens": 0,
+                  "price": 0
+                },
+                "input_cache_write": {
+                  "tokens": 0,
+                  "price": 0
+                },
+                "output_total": {
+                  "tokens": 633,
+                  "price": 0.00031649999999999994
+                }
+              }
+            },
+            "detailed_model_usage": [
+              {
+                "config": {
+                  "model": "gpt-6-luna",
+                  "service_tier": "standard"
+                },
+                "usage": {
+                  "input": {
+                    "tokens": 3614,
+                    "price": 0.0003614
+                  },
+                  "input_cache_read": {
+                    "tokens": 0,
+                    "price": 0
+                  },
+                  "input_cache_write": {
+                    "tokens": 0,
+                    "price": 0
+                  },
+                  "output_total": {
+                    "tokens": 633,
+                    "price": 0.00031649999999999994
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "llm_price": 0.0006778999999999999,
+        "llm_charge": 4,
+        "call_charge": 198,
+        "platform_charge": 198,
+        "platform_usage": {
+          "category_usage": {
+            "voice": {
+              "credits": 198,
+              "price": 0.039580641746521,
+              "quantity": 0.49475802183151246
+            }
+          }
+        },
+        "platform_price": 0.039580641746521,
+        "free_minutes_consumed": 0,
+        "free_llm_dollars_consumed": 0,
+        "tts_usage": {
+          "primary_tts_model": "eleven_v4_turbo",
+          "total_audio_output_seconds": 54.640000000000015,
+          "total_characters": 901,
+          "per_voice_usage": [
+            {
+              "voice_id": "cjVigY5qzO86Huf0OWal",
+              "audio_output_seconds": 54.640000000000015
+            }
+          ]
+        },
+        "asr_usage": {
+          "asr_model": "scribe_realtime",
+          "total_transcription_calls": 0,
+          "total_audio_input_seconds": 0
+        },
+        "analysis": null,
+        "subagent_charge": 0
+      }
+    }
+  }
+]

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "mock": "node --env-file-if-exists=.env --watch docs/realtime-mock/server.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

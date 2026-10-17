@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Travel Agent Test</title>
+  <style>
+    :root { --bg:#f6f6f4; --card:#fff; --text:#1d1d1f; --muted:#6b6b70; --line:#e3e3e0; --accent:#0a66ff; --ok:#14a44d; --err:#d93025; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#141416; --card:#1e1e21; --text:#ececee; --muted:#9a9aa0; --line:#2e2e33; --accent:#4c8dff; } }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, sans-serif; }
+    main { max-width:760px; margin:0 auto; padding:16px; display:grid; gap:16px; }
+    h1 { font-size:20px; margin:8px 0 0; }
+    section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+    h2 { font-size:16px; margin:0 0 4px; }
+    p.hint { color:var(--muted); margin:0 0 12px; font-size:13px; }
+    .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+    button, select { font:inherit; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); cursor:pointer; }
+    button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+    button.active { background:var(--ok); border-color:var(--ok); color:#fff; }
+    button:disabled { opacity:.5; cursor:default; }
+    .status { font-size:13px; color:var(--muted); }
+    .status.ok { color:var(--ok); } .status.err { color:var(--err); }
+    .log { height:200px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:8px; font-size:13px; background:var(--bg); white-space:pre-wrap; }
+    .log .you { color:var(--accent); } .log .sys { color:var(--muted); font-size:12px; } .log .err { color:var(--err); }
+    .cost { font-size:13px; color:var(--muted); padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--card); }
+    .cost.live { color:var(--err); border-color:var(--err); }
+    details summary { cursor:pointer; color:var(--muted); font-size:13px; margin-top:8px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Travel voice agent: infra test</h1>
+  <div id="cost" class="cost"></div>
+
+  <section>
+    <h2>1. Realtime agent</h2>
+    <p class="hint">Talk to the assistant in English or Spanish. It should answer in the language you use.</p>
+    <div class="row">
+      <button id="agentStart" class="primary">Start agent</button>
+      <button id="agentStop" disabled>Stop</button>
+      <button id="agentMute" disabled>Mute mic</button>
+      <span id="agentStatus" class="status">Idle</span>
+    </div>
+    <div id="agentLog" class="log"></div>
+    <details><summary>Raw events</summary><div id="agentEvents" class="log"></div></details>
+  </section>
+
+  <section>
+    <h2>1b. ElevenLabs agent (for comparison)</h2>
+    <p class="hint">Same instructions, but speech-to-text → LLM → ElevenLabs voice. Pick the LLM.</p>
+    <div class="row">
+      <select id="elAgent">
+        <option value="luna">GPT-6 Luna</option>
+        <option value="haiku">Claude Haiku 5.5</option>
+      </select>
+      <button id="elStart" class="primary">Start agent</button>
+      <button id="elStop" disabled>Stop</button>
+      <span id="elStatus" class="status">Idle</span>
+    </div>
+    <div id="elLog" class="log"></div>
+  </section>
+
+  <section>
+    <h2>2. Face-to-face translator</h2>
+    <p class="hint">Billed per minute a session is open, silence included. A session opens only while a button is active: hold it while someone speaks (or tap to start/stop), and it closes a few seconds after the translation finishes. Auto-stops after a minute without speech.</p>
+    <div class="row">
+      <label>Me <select id="myLang"></select></label>
+      <label>Them <select id="theirLang"></select></label>
+      <button id="trStart" class="primary">Enable mic</button>
+      <button id="trStop" disabled>Stop</button>
+    </div>
+    <div class="row">
+      <button id="speakMe" disabled>🎙 I'm speaking</button>
+      <button id="speakThem" disabled>🎙 They're speaking</button>
+      <span id="trStatus" class="status">Idle</span>
+    </div>
+    <div id="trLog" class="log"></div>
+    <details><summary>Raw events</summary><div id="trEvents" class="log"></div></details>
+  </section>
+</main>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
