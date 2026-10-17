@@ -85,6 +85,7 @@ export const toolSchemas = {
       .nullable()
       .describe("Si es una restricción de comida, cuál. null si no es de comida."),
   }),
+  translation_transcript: z.object({}),
 } as const
 
 export type ToolResult = {
@@ -118,6 +119,8 @@ const descriptions: Record<ToolName, string> = {
     "Cambia el plan del viaje: add (agrega un lugar o actividad), move (cambia el horario), remove, done, skip, undo (deshace el último cambio). Devuelve el plan de hoy actualizado. Las reservas no se pueden cambiar.",
   remember:
     "Guarda algo que contó de sí y sirve para después: qué come, qué evita, qué le gusta, cómo se mueve. Las restricciones de comida se respetan en las próximas recomendaciones.",
+  translation_transcript:
+    "La charla entera que el viajero tuvo hace un rato con una persona local usando el traductor (lo que dijo cada uno, en el original y traducido). Usalo cuando necesites lo que se dijo exactamente y el resumen no alcanza.",
 }
 
 export const isToolName = (name: string): name is ToolName => Object.hasOwn(toolSchemas, name)

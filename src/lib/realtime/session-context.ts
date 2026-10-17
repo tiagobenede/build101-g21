@@ -4,6 +4,8 @@ import { getTravelerContext, nextCommitment, type TravelerContext } from "@/lib/
 import type { LatLng } from "@/lib/geo"
 import { getStreetAddress } from "@/lib/location/reverse"
 import { createClient } from "@/lib/supabase/server"
+import { recentTranslationLine } from "@/lib/translate/recent"
+import { recentTranslation } from "@/lib/translate/server"
 import { getWeatherSummary } from "@/lib/weather"
 
 import { buildInstructions, type LocalTipLine } from "./instructions"
@@ -43,10 +45,11 @@ async function recentLocalTips(tripId: string | null): Promise<LocalTipLine[]> {
 export async function buildSessionInstructions(location: LatLng | null): Promise<{ ctx: TravelerContext; instructions: string }> {
   const ctx = await getTravelerContext({ location })
   const now = new Date()
-  const [weather, localTips, address] = await Promise.all([
+  const [weather, localTips, address, translation] = await Promise.all([
     getWeatherSummary(ctx.location),
     recentLocalTips(ctx.trip?.id ?? null),
     getStreetAddress(ctx.location),
+    createClient().then((supabase) => recentTranslation(supabase, now)),
   ])
   const instructions = buildInstructions({
     ctx,
@@ -54,6 +57,7 @@ export async function buildSessionInstructions(location: LatLng | null): Promise
     weather,
     address,
     localTips,
+    recentTranslation: translation ? recentTranslationLine(translation, now) : null,
     now,
     timeZone: ctx.timeZone,
   })

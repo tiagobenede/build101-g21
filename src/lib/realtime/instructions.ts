@@ -19,6 +19,8 @@ interface InstructionsInput {
   address?: string | null
   /** Lo que le recomendaron personas locales en el traductor (lo más nuevo primero). */
   localTips?: LocalTipLine[]
+  /** La charla con el traductor que terminó hace un rato (`recentTranslationLine`), o null. */
+  recentTranslation?: string | null
   now: Date
   timeZone: string
 }
@@ -140,7 +142,16 @@ export const greetingPrompt = (firstName: string) =>
  * Instrucciones compactas: todo el contexto va acá (no por tools) para que se
  * cachee entre turnos y cada respuesta lea pocos tokens nuevos.
  */
-export function buildInstructions({ ctx, nextCommitment, weather, address = null, localTips = [], now, timeZone }: InstructionsInput): string {
+export function buildInstructions({
+  ctx,
+  nextCommitment,
+  weather,
+  address = null,
+  localTips = [],
+  recentTranslation = null,
+  now,
+  timeZone,
+}: InstructionsInput): string {
   const companions = ctx.companions ?? []
   const places = pickContextPlaces(ctx.nearby, MAX_PLACES_IN_CONTEXT)
     .map((p) => `- ${p.name} (${p.category}; ${p.tags.join(", ")}; ${p.walkMinutes} min a pie${p.rating ? `; ★${p.rating}` : ""}; visita ~${p.typical_visit_minutes} min)`)
@@ -159,6 +170,7 @@ ${[
   constraintsLine(ctx.constraints),
   ctx.profileSummary ? `Lo que aprendiste de ${ctx.firstName}: ${ctx.profileSummary}` : null,
   localTipsLine(localTips),
+  recentTranslation,
   companionsLine(companions, ctx.firstName),
 ]
   .filter(Boolean)

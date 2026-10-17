@@ -40,6 +40,8 @@ import { formatTodayPlan, itemRef } from "@/lib/realtime/instructions"
 import { fillMissingNulls, isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
+import { transcriptText } from "@/lib/translate/recent"
+import { recentTranslation } from "@/lib/translate/server"
 import { WALK } from "@/lib/tuning"
 import { zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
 import { readMenu } from "@/lib/web-page"
@@ -538,6 +540,16 @@ async function rememberTool(args: ToolArgs<"remember">, location: LatLng | null)
   return { output: JSON.stringify({ ok: true, profile: saved.data.summary }), cards: [] }
 }
 
+/** La última charla con el traductor, entera, si terminó hace poco. */
+async function translationTranscriptTool(): Promise<ToolResult> {
+  const translation = await recentTranslation(await createClient())
+  if (!translation) return fail("No hay una charla reciente con el traductor.")
+  return {
+    output: JSON.stringify({ lang_pair: translation.langPair, transcript: transcriptText(translation.turns) }),
+    cards: [],
+  }
+}
+
 /** Ejecuta un tool del agente con los permisos del usuario logueado. */
 export async function runTool(
   name: string,
@@ -598,5 +610,7 @@ export async function runTool(
       const args = toolSchemas.remember.safeParse(json)
       return args.success ? rememberTool(args.data, location) : invalid
     }
+    case "translation_transcript":
+      return translationTranscriptTool()
   }
 }

@@ -44,10 +44,13 @@ Nada de lugares que solo menciona sin recomendar, ni de recomendaciones genéric
 
 const label = (s: Speaker) => (s === "me" ? "Viajero" : "Local")
 
+/** "Local: Allez au marché (traducido: Andá al mercado)". */
+export const turnLine = (t: Turn) =>
+  `${label(t.speaker)}: ${t.original || t.translated}${t.original && t.translated ? ` (traducido: ${t.translated})` : ""}`
+
 /** Mensaje del usuario para el modelo: los turnos con original y traducción. */
 export function buildTipsPrompt(turns: Turn[], city: string): string {
-  const lines = turns.map((t) => `${label(t.speaker)}: ${t.original || t.translated}${t.original && t.translated ? ` (traducido: ${t.translated})` : ""}`)
-  return `Ciudad: ${city}\n\n${lines.join("\n")}`
+  return `Ciudad: ${city}\n\n${turns.map(turnLine).join("\n")}`
 }
 
 /** Las que valen la pena: con nombre y confianza razonable, hasta 3. */
