@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { NearbyPlace } from "@/lib/data/session"
 
 import { MAX_PLACES_IN_CONTEXT } from "./config"
-import { buildInstructions, companionsLine, formatTodayPlan, localTipsLine, locationLine } from "./instructions"
+import { buildInstructions, companionsLine, formatTodayPlan, localTipsLine, locationLine, nowLine } from "./instructions"
 
 const PLANNED = { place_id: null, status: "planned", source: "user", locked: false, created_by: null } as const
 
@@ -48,6 +48,13 @@ describe("buildInstructions", () => {
     expect(text).toContain("autos, diseño")
     expect(text).toContain("Centre Pompidou, París")
     expect(text).toContain("12:00") // 10:00 UTC = 12:00 en París
+  })
+
+  it("dice el día, la fecha y el momento del día en la zona del viaje", () => {
+    const text = buildInstructions({ ...base, nextCommitment: null })
+    expect(text).toContain("sábado 17 de octubre, 12:00 (mediodía)")
+    // 23:30 UTC del 17 = 01:30 del domingo en París.
+    expect(nowLine(new Date("2026-10-17T23:30:00Z"), "Europe/Paris")).toBe("domingo 18 de octubre, 01:30 (madrugada)")
   })
 
   it("limita la cantidad de lugares para ahorrar tokens", () => {
