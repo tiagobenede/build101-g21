@@ -15,7 +15,7 @@ const place = (id: string, tags: string[], walkMinutes: number, visit = 30, rati
   walkMinutes,
 })
 
-const base = { interests: ["comida", "mercados", "parques"], requestedTag: null, availableMinutes: 60, alreadyRecommended: [] }
+const base = { interests: ["comida", "mercados", "parques"], requestedTag: null, availableMinutes: 60, maxWalkMinutes: 20, alreadyRecommended: [] }
 
 describe("resolveAvailableMinutes", () => {
   const now = new Date("2026-10-17T10:00:00Z")
@@ -34,6 +34,11 @@ describe("resolveAvailableMinutes", () => {
 })
 
 describe("rankPlaces", () => {
+  it("no recomienda nada más lejos que el tope de caminata", () => {
+    const ranked = rankPlaces({ ...base, maxWalkMinutes: 10, places: [place("lejos", ["comida"], 20), place("cerca", ["comida"], 8)] })
+    expect(ranked.map((r) => r.place.id)).toEqual(["cerca"])
+  })
+
   it("prioriza el primer gusto", () => {
     const ranked = rankPlaces({ ...base, places: [place("parque", ["parques"], 5), place("mercado", ["comida"], 5)] })
     expect(ranked.map((r) => r.place.id)).toEqual(["mercado", "parque"])

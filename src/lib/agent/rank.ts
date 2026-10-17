@@ -24,6 +24,10 @@ export const INTEREST_TAGS = [
   "compras",
   "ciencia",
 ] as const
+export type InterestTag = (typeof INTEREST_TAGS)[number]
+
+/** Para comer o tomar algo se camina poco: por defecto, solo lo que está cerca. */
+export const NEAR_ONLY_TAGS: readonly InterestTag[] = ["comida", "café"]
 
 /** Restricciones de comida que el ranking sabe respetar (con los tipos de Google). */
 export const DIETS = ["vegetariano", "vegano", "sin gluten", "sin lactosa", "halal", "kosher"] as const
@@ -68,6 +72,8 @@ export type RankInput = {
   requestedTag: string | null
   availableMinutes: number
   alreadyRecommended: string[]
+  /** Minutos a pie como mucho: más lejos no se recomienda. */
+  maxWalkMinutes: number
   /** Dietas del viajero (`profiles.dietary`); las que no conocemos se ignoran acá y van en las instrucciones. */
   dietary?: string[]
 }
@@ -97,6 +103,7 @@ export function rankPlaces({
   requestedTag,
   availableMinutes,
   alreadyRecommended,
+  maxWalkMinutes,
   dietary = [],
 }: RankInput): Ranked[] {
   const weights = interestWeights(interests)
@@ -104,6 +111,7 @@ export function rankPlaces({
   const excluded = new Set(diets.flatMap((d) => DIET_EXCLUDES[d] ?? []))
   const boosted = new Set(diets.flatMap((d) => DIET_BOOSTS[d] ?? []))
   return places
+    .filter((p) => p.walkMinutes <= maxWalkMinutes)
     .filter((p) => !requestedTag || p.tags.includes(requestedTag))
     .filter((p) => !p.googleTypes?.some((t) => excluded.has(t)))
     .map((place) => {
