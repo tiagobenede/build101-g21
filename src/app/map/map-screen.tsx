@@ -14,7 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { distanceMeters, walkMinutes, type LatLng } from "@/lib/geo"
 import { SPEED_MULTIPLIERS, type SpeedMultiplier } from "@/lib/location/simulate"
 
-// Leaflet usa `window`: solo en el cliente.
+// Google Maps usa `window`: solo en el cliente.
 const MapView = dynamic(() => import("@/components/location/map-view"), {
   ssr: false,
   loading: () => <div className="bg-muted size-full animate-pulse" />,

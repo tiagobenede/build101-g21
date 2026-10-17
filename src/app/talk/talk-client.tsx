@@ -45,7 +45,7 @@ import { LANGUAGES, type Lang } from "@/lib/translate/config"
 import type { Utterance } from "@/lib/translate/utterances"
 import { cn } from "@/lib/utils"
 
-// Leaflet usa `window`: solo en el cliente.
+// Google Maps usa `window`: solo en el cliente.
 const MapView = dynamic(() => import("@/components/location/map-view"), {
   ssr: false,
   loading: () => <div className="bg-muted size-full animate-pulse" />,

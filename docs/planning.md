@@ -293,9 +293,9 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 
 ### Dev B — App y UX
 
-- [x] **B-1** Mapa y GPS simulado (H1–3). **Hecho**, más: salto a cualquier lugar del mundo (buscador con Nominatim, pin arrastrable) y mini mapa con joystick en `/talk` para caminar mientras hablás (ubicación en vivo a los tools y aviso a la llamada cada 150 m).
+- [x] **B-1** Mapa y GPS simulado (H1–3). **Hecho**, más: salto a cualquier lugar del mundo (buscador con Google Places, pin arrastrable) y mini mapa con joystick en `/talk` para caminar mientras hablás (ubicación en vivo a los tools y aviso a la llamada cada 150 m).
   - **`LocationProvider` en el layout raíz** con un único hook `useLocation()`. **Nadie llama a `navigator.geolocation` directamente.** Fuente simulada por defecto, real con un toggle. Al vivir en el layout, el joystick sigue moviendo el pin aunque cambies de pantalla.
-  - **Pantalla `/map`** a pantalla completa con react-leaflet y tiles de OpenStreetMap (no pide key): pin del usuario, lugares cercanos (los "para vos" destacados), itinerario de hoy. La home tiene un acceso al mapa.
+  - **Pantalla `/map`** a pantalla completa con Google Maps (Maps JavaScript API, key pública restringida por dominio): pin del usuario, lugares cercanos (los "para vos" destacados), itinerario de hoy. La home tiene un acceso al mapa.
   - Joystick (nipplejs) flotante sobre el mapa que mueve el pin a 1,4 m/s con multiplicador x1, x5 y x20. Tocar el mapa teletransporta. B-7 reutiliza este mismo joystick, no se duplica.
   - **`savePing({ lat, lng, heading, source })` lo escribe B** (server action que inserta en `pings`), cada 5 s o cada 25 m. C-1 crea la tabla y hace que `getTravelerContext()` use el último ping.
   - Cuando te movés más de ~100 m, `router.refresh()` para que la home, `/talk` y el contexto del agente se actualicen.

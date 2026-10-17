@@ -3,6 +3,7 @@ import type { ItineraryItem, TravelerContext } from "@/lib/data/session"
 import { zonedDateKey } from "@/lib/time/zoned"
 
 import { MAX_ITINERARY_IN_CONTEXT, MAX_PLACES_IN_CONTEXT } from "./config"
+import { pickContextPlaces } from "./context-places"
 
 interface InstructionsInput {
   ctx: Pick<
@@ -126,9 +127,8 @@ export const greetingPrompt = (firstName: string) =>
  */
 export function buildInstructions({ ctx, nextCommitment, weather, address = null, localTips = [], now, timeZone }: InstructionsInput): string {
   const companions = ctx.companions ?? []
-  const places = ctx.nearby
-    .slice(0, MAX_PLACES_IN_CONTEXT)
-    .map((p) => `- ${p.name} (${p.category}; ${p.tags.join(", ")}; ${p.walkMinutes} min a pie; visita ~${p.typical_visit_minutes} min)`)
+  const places = pickContextPlaces(ctx.nearby, MAX_PLACES_IN_CONTEXT)
+    .map((p) => `- ${p.name} (${p.category}; ${p.tags.join(", ")}; ${p.walkMinutes} min a pie${p.rating ? `; ★${p.rating}` : ""}; visita ~${p.typical_visit_minutes} min)`)
     .join("\n")
 
   const commitment = nextCommitment

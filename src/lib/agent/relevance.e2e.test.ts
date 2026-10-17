@@ -42,9 +42,45 @@ describe.skipIf(!enabled)("relevancia de lugares", () => {
   for (const c of CASES) {
     it(`Nearby Search: ${c.name} → ${c.expected}`, async () => {
       const { searchNearby } = await import("@/lib/places/nearby")
-      const found = await searchNearby(process.env.GOOGLE_API_KEY ?? "", c.at, c.nearbyTypes)
+      const found = await searchNearby(process.env.GOOGLE_API_KEY ?? "", c.at, {
+        includedTypes: c.nearbyTypes,
+        radius: 1_500,
+        rankPreference: "POPULARITY",
+      })
       const names = found.map((g) => g.displayName?.text ?? "")
       expect(names).toContain(c.expected)
+    })
+
+    it(`contexto del agente: ${c.name} → ${c.expected} entre los lugares que conoce y primero al recomendar`, async () => {
+      const { searchNearby } = await import("@/lib/places/nearby")
+      const { nearbyQueries } = await import("@/lib/places/nearby-plan")
+      const { toPlaceRow } = await import("@/lib/places/google-types")
+      const { distanceMeters, walkMinutes } = await import("@/lib/geo")
+      const { pickContextPlaces } = await import("@/lib/realtime/context-places")
+      const { MAX_PLACES_IN_CONTEXT } = await import("@/lib/realtime/config")
+
+      // Lo mismo que guarda ensureNearbyPlaces y arma getTravelerContext, sin pasar por la base.
+      const results = await Promise.all(nearbyQueries(c.at).map((q) => searchNearby(process.env.GOOGLE_API_KEY ?? "", c.at, q)))
+      const byId = new Map(
+        results
+          .flat()
+          .map((g) => toPlaceRow(g, c.city))
+          .filter((r) => r !== null)
+          .map((r) => [r.id, { ...r, distanceMeters: distanceMeters(c.at, r), walkMinutes: walkMinutes(c.at, r) }])
+      )
+      const names = pickContextPlaces([...byId.values()], MAX_PLACES_IN_CONTEXT).map((p) => p.name)
+      expect(names).toContain(c.expected)
+
+      // Y recommend_nearby con lo guardado lo pone primero.
+      const { rankPlaces } = await import("./rank")
+      const ranked = rankPlaces({
+        places: [...byId.values()],
+        interests: [],
+        requestedTag: c.interest,
+        availableMinutes: 120,
+        alreadyRecommended: [],
+      })
+      expect(ranked[0]?.place.name).toBe(c.expected)
     })
 
     it(`fallback de Text Search: ${c.name} → ${c.expected} primero en el ranking`, async () => {

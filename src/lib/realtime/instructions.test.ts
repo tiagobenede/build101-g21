@@ -27,7 +27,7 @@ const base = {
     interests: ["autos", "diseño"],
     travelStyle: null,
     locationLabel: "Centre Pompidou, París",
-    nearby: Array.from({ length: 12 }, (_, i) => place(i + 1)),
+    nearby: Array.from({ length: 30 }, (_, i) => place(i + 1)),
     constraints: { dietary: [], mobility: null, dailyBudget: null, pace: null, schedule: null },
     profileSummary: null,
     itinerary: [

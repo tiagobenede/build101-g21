@@ -1,6 +1,6 @@
 /**
  * Ranking de lugares cercanos para el tool `recommend_nearby`: gustos × distancia
- * × tiempo libre × próximo compromiso. Puro, sin base de datos, para testearlo solo.
+ * × qué tan conocido es × tiempo libre × próximo compromiso. Puro, sin base de datos, para testearlo solo.
  */
 import type { Place } from "./types"
 
@@ -41,7 +41,16 @@ const DIET_BOOSTS: Partial<Record<Diet, string[]>> = {
 }
 const DIET_BOOST = 6
 
-export type RankablePlace = Place & { walkMinutes: number; googleTypes?: string[] }
+/** `rating_count`: reseñas en Google (qué tan conocido es); null si no se sabe. */
+export type RankablePlace = Place & { walkMinutes: number; googleTypes?: string[]; rating_count?: number | null }
+
+/** Sin dato de reseñas, cuenta como un lugar con ~100 (ni muy conocido ni desconocido). */
+const UNKNOWN_FAME = 2
+/** log10 de las reseñas: 20 → 1,3; 1.000 → 3; 50.000 → 4,7. */
+const fame = (ratingCount: number | null | undefined) => (ratingCount == null ? UNKNOWN_FAME : Math.log10(ratingCount + 1))
+const FAME_WEIGHT = 1.5
+/** Si pidió algo puntual ("compras"), manda el pedido: que coincida con sus gustos solo desempata. */
+const PROFILE_TIEBREAK = 0.5
 
 export type Ranked = {
   place: RankablePlace
@@ -101,10 +110,11 @@ export function rankPlaces({
       const walk = place.walkMinutes
       const stay = Math.min(place.typical_visit_minutes, availableMinutes - walk)
       const matchedTags = place.tags.filter((t) => weights.has(t) || t === requestedTag)
-      const interestScore = matchedTags.reduce((sum, t) => sum + (weights.get(t) ?? 0), 0)
+      const profileScore = matchedTags.reduce((sum, t) => sum + (weights.get(t) ?? 0), 0)
+      const interestScore = requestedTag ? (profileScore > 0 ? PROFILE_TIEBREAK : 0) : profileScore
       const penalty = alreadyRecommended.includes(place.id) ? 100 : 0
       const dietBoost = place.googleTypes?.some((t) => boosted.has(t)) ? DIET_BOOST : 0
-      const score = interestScore + dietBoost + (place.rating ?? 4) - walk / 10 - penalty
+      const score = interestScore + dietBoost + (place.rating ?? 4) + FAME_WEIGHT * fame(place.rating_count) - walk / 10 - penalty
       return { place, walkMinutes: walk, stayMinutes: stay, matchedTags, score }
     })
     .filter((r) => r.stayMinutes >= MIN_STAY_MINUTES && r.matchedTags.length > 0)

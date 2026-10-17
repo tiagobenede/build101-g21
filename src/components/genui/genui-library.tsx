@@ -15,7 +15,7 @@ import { formatDistance, distanceMeters } from "@/lib/geo"
 import { cn } from "@/lib/utils"
 import type { z } from "zod"
 
-// Leaflet usa `window`: solo en el cliente.
+// Google Maps usa `window`: solo en el cliente.
 const RouteMapView = dynamic(() => import("./route-map"), {
   ssr: false,
   loading: () => <div className="bg-muted size-full animate-pulse" />,

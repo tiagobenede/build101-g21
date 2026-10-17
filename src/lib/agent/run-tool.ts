@@ -35,6 +35,9 @@ import { pickReadableUrl, webSearch } from "@/lib/web-search"
 
 const fail = (error: string): ToolResult => ({ output: JSON.stringify({ error }), cards: [] })
 
+/** Lugares cercanos que entran al ranking de recommend_nearby. */
+const MAX_RANK_CANDIDATES = 150
+
 async function recommendNearby(
   args: ToolArgs<"recommend_nearby">,
   conversationId: string,
@@ -56,8 +59,10 @@ async function recommendNearby(
     commitment ? new Date(commitment.starts_at) : null,
     now
   )
+  // Los más cercanos (vienen ordenados): con la zona llena de lugares, la lista de ids no entra en la URL.
+  const candidates = ctx.nearby.slice(0, MAX_RANK_CANDIDATES)
   // Los tipos de Google (en `places.data`) sirven para respetar la dieta.
-  const { data: typed } = await supabase.from("places").select("id, data").in("id", ctx.nearby.map((p) => p.id))
+  const { data: typed } = await supabase.from("places").select("id, data").in("id", candidates.map((p) => p.id))
   const typesById = new Map((typed ?? []).map((p) => [p.id as string, (p.data as { types?: string[] } | null)?.types ?? []]))
 
   const rank = (places: RankablePlace[]) =>
@@ -70,7 +75,7 @@ async function recommendNearby(
       // En un viaje compartido se respeta la dieta de todos.
       dietary: [...new Set([...ctx.constraints.dietary, ...ctx.companions.flatMap((c) => c.dietary)])],
     })
-  let ranked = rank(ctx.nearby.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
+  let ranked = rank(candidates.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
   // Nada guardado para lo que pidió (p. ej. "compras" sin shoppings en caché): se busca en Google.
   if (ranked.length === 0 && args.interest) {
     const found = await searchPlaces(interestQuery(args.interest), null, ctx.location, ctx.city ?? "").catch(
