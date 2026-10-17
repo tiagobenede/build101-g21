@@ -1,10 +1,9 @@
 "use client"
 
-import { CameraIcon, ImageUpIcon } from "lucide-react"
+import { ImageUpIcon, XIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { fileToJpeg, toJpeg } from "@/lib/camera/resize"
 
 interface CameraSheetProps {
@@ -15,8 +14,8 @@ interface CameraSheetProps {
 }
 
 /**
- * "¿Qué estoy viendo?": la cámara trasera en vivo o una foto del carrete. La cámara
- * se prende solo mientras el panel está abierto.
+ * "¿Qué estoy viendo?": la cámara trasera en vivo a pantalla completa, como la cámara del
+ * teléfono, o una foto del carrete. La cámara se prende solo mientras está abierta.
  */
 export function CameraSheet({ open, onOpenChange, onPhoto }: CameraSheetProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -50,10 +49,20 @@ export function CameraSheet({ open, onOpenChange, onPhoto }: CameraSheetProps) {
     }
   }, [open])
 
-  // El video se monta con el panel (que anima): el stream se engancha cuando ya está.
+  // El video se monta al abrir: el stream se engancha cuando ya está.
   useEffect(() => {
     if (camera === "on" && videoRef.current) videoRef.current.srcObject = streamRef.current
   }, [camera])
+
+  // Escape cierra (en la compu).
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onOpenChange(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [open, onOpenChange])
 
   const take = async () => {
     const video = videoRef.current
@@ -72,51 +81,67 @@ export function CameraSheet({ open, onOpenChange, onPhoto }: CameraSheetProps) {
     }
   }
 
+  if (!open) return null
+
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
-        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-          <DrawerHeader className="px-0">
-            <DrawerTitle>¿Qué estás viendo?</DrawerTitle>
-            <DrawerDescription>Sacale una foto y te digo qué es.</DrawerDescription>
-          </DrawerHeader>
+    <div role="dialog" aria-modal aria-label="¿Qué estás viendo?" className="animate-in fade-in fixed inset-0 z-50 bg-black duration-200">
+      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 size-full object-cover" />
+      {camera !== "on" && (
+        <p className="absolute inset-0 flex items-center justify-center p-8 text-center text-[15px] text-white/80">
+          {camera === "starting" ? "Prendiendo la cámara…" : "No hay cámara disponible. Subí una foto."}
+        </p>
+      )}
 
-          <div className="bg-muted relative aspect-[3/4] max-h-[50vh] overflow-hidden rounded-2xl">
-            <video ref={videoRef} autoPlay playsInline muted className="size-full object-cover" />
-            {camera !== "on" && (
-              <p className="text-muted-foreground absolute inset-0 flex items-center justify-center p-6 text-center text-[15px]">
-                {camera === "starting" ? "Prendiendo la cámara…" : "No hay cámara disponible. Subí una foto."}
-              </p>
-            )}
-          </div>
+      {/* Arriba: cerrar y el título, sobre un degradé para que se lean con cualquier imagen. */}
+      <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-8">
+        <Button
+          variant="secondary"
+          size="icon"
+          aria-label="Cerrar cámara"
+          className="rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
+          onClick={() => onOpenChange(false)}
+        >
+          <XIcon className="size-5" />
+        </Button>
+        <p className="text-[17px] font-semibold text-white">¿Qué estás viendo?</p>
+        <span className="size-9" />
+      </div>
 
-          <div className="flex gap-3">
-            <Button size="lg" className="h-14 flex-1 rounded-full text-base" disabled={camera !== "on"} onClick={() => void take()}>
-              <CameraIcon className="size-5" />
-              Sacar foto
-            </Button>
-            <Button
-              size="icon"
-              variant="secondary"
-              aria-label="Subir foto"
-              className="size-14 shrink-0 rounded-full [&_svg]:size-5"
-              onClick={() => fileRef.current?.click()}
-            >
-              <ImageUpIcon />
-            </Button>
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              void upload(e.target.files?.[0])
-              e.target.value = ""
-            }}
-          />
+      {/* Abajo: la pista, el carrete a la izquierda y el disparador en el medio. */}
+      <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-5 bg-gradient-to-t from-black/70 to-transparent px-6 pt-16 pb-[max(2rem,env(safe-area-inset-bottom))]">
+        <p className="rounded-full bg-black/40 px-3 py-1.5 text-[14px] text-white backdrop-blur">Sacale una foto y te digo qué es</p>
+        <div className="grid w-full grid-cols-3 items-center">
+          <button
+            type="button"
+            aria-label="Subir foto"
+            onClick={() => fileRef.current?.click()}
+            className="flex size-12 items-center justify-center justify-self-start rounded-full bg-white/20 text-white backdrop-blur"
+          >
+            <ImageUpIcon className="size-5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Sacar foto"
+            disabled={camera !== "on"}
+            onClick={() => void take()}
+            className="size-[76px] justify-self-center rounded-full border-4 border-white p-1 disabled:opacity-50"
+          >
+            <span className="block size-full rounded-full bg-white transition-transform active:scale-90" />
+          </button>
+          <span />
         </div>
-      </DrawerContent>
-    </Drawer>
+      </div>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          void upload(e.target.files?.[0])
+          e.target.value = ""
+        }}
+      />
+    </div>
   )
 }
