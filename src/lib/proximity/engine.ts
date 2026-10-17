@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { boundingBox, nearestPlaceLabel, type LatLng } from "@/lib/geo"
 import { askJevChoice } from "@/lib/jev"
 import { timeZoneAt } from "@/lib/location/locale"
+import { sendPushToUser } from "@/lib/push/send"
 import { activeTrip } from "@/lib/translate/server"
 import { PROXIMITY } from "@/lib/tuning"
 
@@ -198,5 +199,13 @@ async function save(db: SupabaseClient, userId: string, c: Candidate, reason: st
     .select("id, place_id, reason_text, candidate_type")
     .maybeSingle()
   if (error) throw new Error(`No se pudo guardar el aviso: ${error.message}`)
-  return data as Notification | null
+  // null: ya se había avisado de este lugar (otro ping llegó primero).
+  if (!data) return null
+
+  // Push al sistema (si el viajero activó los avisos). Si falla, el aviso igual quedó guardado
+  // y la página lo muestra por Realtime.
+  await sendPushToUser(db, userId, { title: c.name, body: reason, url: "/talk", tag: c.placeId }).catch((err: unknown) =>
+    console.error("[proximity] push", err instanceof Error ? err.message : err)
+  )
+  return data as Notification
 }

@@ -4,6 +4,7 @@ import { Suspense } from "react"
 
 import { ItinerarySection } from "@/components/itinerary/itinerary-section"
 import { TripSharing } from "@/components/trip/trip-sharing"
+import { PushToggle } from "@/components/notifications/push-toggle"
 import { AppHeader } from "@/components/rumbo/app-header"
 import { CategoryIcon } from "@/components/rumbo/category-icon"
 import { PageSkeleton } from "@/components/rumbo/page-skeleton"
@@ -80,6 +81,7 @@ async function HomeContent() {
             </ItemActions>
           </Link>
         </Item>
+        <PushToggle />
       </GroupedList>
 
       <Section title="Tus gustos">
