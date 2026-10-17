@@ -3,8 +3,7 @@
 import "leaflet/dist/leaflet.css"
 
 import L from "leaflet"
-import { useEffect, useMemo } from "react"
-import { MapContainer, Marker, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet"
+import { useEffect, useRef } from "react"
 
 import { categoryColor } from "@/components/rumbo/category-icon"
 import type { LatLng } from "@/lib/geo"
@@ -59,57 +58,88 @@ function stopIcon(stop: MapStop) {
   })
 }
 
-function Interactions({ position, follow, onTeleport, onUserPan }: Omit<MapViewProps, "heading" | "places" | "stops">) {
-  const map = useMap()
-  useMapEvents({
-    click: (e) => onTeleport({ lat: e.latlng.lat, lng: e.latlng.lng }),
-    dragstart: onUserPan,
-  })
-  useEffect(() => {
-    if (follow) map.panTo([position.lat, position.lng], { animate: false })
-  }, [follow, map, position])
-  return null
+/** Tooltip con texto plano (los nombres vienen de Google: nunca como HTML). */
+function textTooltip(text: string): HTMLElement {
+  const el = document.createElement("span")
+  el.textContent = text
+  return el
 }
 
-/** Mapa con la ubicación (simulada o real), los lugares cercanos y el itinerario de hoy. */
-export default function MapView({ position, heading, places, stops, follow, onTeleport, onUserPan }: MapViewProps) {
-  const icon = useMemo(() => userIcon(heading), [heading])
+function drawOverlays(layer: L.LayerGroup, places: MapPlace[], stops: MapStop[]) {
+  layer.clearLayers()
+  for (const p of places) {
+    L.marker([p.lat, p.lng], { icon: placeIcon(p) })
+      .bindTooltip(textTooltip(p.name), { direction: "top", offset: [0, -6] })
+      .addTo(layer)
+  }
+  for (const s of stops) {
+    L.marker([s.lat, s.lng], { icon: stopIcon(s) })
+      .bindTooltip(textTooltip(s.title), { direction: "top", offset: [0, -10] })
+      .addTo(layer)
+  }
+}
 
-  return (
-    <MapContainer
-      center={[position.lat, position.lng]}
-      zoom={INITIAL_ZOOM}
-      zoomControl={false}
-      className="size-full"
-    >
-      <TileLayer url={TILES_URL} attribution={ATTRIBUTION} maxZoom={19} className="rumbo-tiles" />
-      {places.map((p) => (
-        <Marker key={p.id} position={[p.lat, p.lng]} icon={placeIcon(p)}>
-          <Tooltip direction="top" offset={[0, -6]}>
-            {p.name}
-          </Tooltip>
-        </Marker>
-      ))}
-      {stops.map((s) => (
-        <Marker key={s.id} position={[s.lat, s.lng]} icon={stopIcon(s)}>
-          <Tooltip direction="top" offset={[0, -10]}>
-            {s.title}
-          </Tooltip>
-        </Marker>
-      ))}
-      <Marker
-        position={[position.lat, position.lng]}
-        icon={icon}
-        zIndexOffset={1000}
-        draggable
-        eventHandlers={{
-          dragend: (e) => {
-            const { lat, lng } = (e.target as L.Marker).getLatLng()
-            onTeleport({ lat, lng })
-          },
-        }}
-      />
-      <Interactions position={position} follow={follow} onTeleport={onTeleport} onUserPan={onUserPan} />
-    </MapContainer>
-  )
+/**
+ * Mapa con la ubicación (simulada o real), los lugares cercanos y el itinerario de hoy.
+ *
+ * Leaflet directo (sin react-leaflet): el mapa se crea y se destruye en un solo efecto.
+ * Next 16 "duerme" las pantallas que dejaste y al volver re-ejecuta los efectos sin
+ * remontar; con react-leaflet eso agregaba capas a un mapa ya destruido.
+ */
+export default function MapView(props: MapViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<L.Map | null>(null)
+  const userRef = useRef<L.Marker | null>(null)
+  const overlaysRef = useRef<L.LayerGroup | null>(null)
+  const latest = useRef(props)
+
+  useEffect(() => {
+    latest.current = props
+  })
+
+  // Crear y destruir el mapa (también al despertar la pantalla).
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const { position, heading, places, stops } = latest.current
+    const map = L.map(el, { zoomControl: false, center: [position.lat, position.lng], zoom: INITIAL_ZOOM })
+    L.tileLayer(TILES_URL, { attribution: ATTRIBUTION, maxZoom: 19, className: "rumbo-tiles" }).addTo(map)
+    const overlays = L.layerGroup().addTo(map)
+    drawOverlays(overlays, places, stops)
+    const user = L.marker([position.lat, position.lng], { icon: userIcon(heading), draggable: true, zIndexOffset: 1000 }).addTo(map)
+
+    user.on("dragend", () => {
+      const { lat, lng } = user.getLatLng()
+      latest.current.onTeleport({ lat, lng })
+    })
+    map.on("click", (e: L.LeafletMouseEvent) => latest.current.onTeleport({ lat: e.latlng.lat, lng: e.latlng.lng }))
+    map.on("dragstart", () => latest.current.onUserPan())
+
+    mapRef.current = map
+    userRef.current = user
+    overlaysRef.current = overlays
+    return () => {
+      map.remove()
+      mapRef.current = null
+      userRef.current = null
+      overlaysRef.current = null
+    }
+  }, [])
+
+  const { position, heading, places, stops, follow } = props
+
+  useEffect(() => {
+    if (overlaysRef.current) drawOverlays(overlaysRef.current, places, stops)
+  }, [places, stops])
+
+  useEffect(() => {
+    userRef.current?.setIcon(userIcon(heading))
+  }, [heading])
+
+  useEffect(() => {
+    userRef.current?.setLatLng([position.lat, position.lng])
+    if (follow) mapRef.current?.panTo([position.lat, position.lng], { animate: false })
+  }, [position, follow])
+
+  return <div ref={containerRef} className="size-full" />
 }

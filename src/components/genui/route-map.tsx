@@ -3,8 +3,7 @@
 import "leaflet/dist/leaflet.css"
 
 import L from "leaflet"
-import { useMemo } from "react"
-import { MapContainer, Marker, Polyline, TileLayer } from "react-leaflet"
+import { useEffect, useRef } from "react"
 
 import { categoryColor } from "@/components/rumbo/category-icon"
 import type { LatLng } from "@/lib/geo"
@@ -26,24 +25,40 @@ interface RouteMapViewProps {
   category: string
 }
 
-/** Mapa chico con la caminata en línea recta desde donde estás hasta el lugar. */
+/**
+ * Mapa chico con la caminata en línea recta desde donde estás hasta el lugar.
+ * Leaflet directo: se crea y se destruye en un solo efecto (ver MapView).
+ */
 export default function RouteMapView({ from, to, category }: RouteMapViewProps) {
-  const bounds = useMemo(
-    () => L.latLngBounds([from.lat, from.lng], [to.lat, to.lng]).pad(0.35),
-    [from.lat, from.lng, to.lat, to.lng]
-  )
-  return (
-    <MapContainer bounds={bounds} zoomControl={false} attributionControl={false} dragging={false} scrollWheelZoom={false} className="size-full">
-      <TileLayer url={TILES_URL} attribution={ATTRIBUTION} className="rumbo-tiles" />
-      <Polyline
-        positions={[
-          [from.lat, from.lng],
-          [to.lat, to.lng],
-        ]}
-        pathOptions={{ color: "#0071E3", weight: 5, opacity: 0.9, dashArray: "1 10", lineCap: "round" }}
-      />
-      <Marker position={[from.lat, from.lng]} icon={dot("#0071E3", 18)} interactive={false} />
-      <Marker position={[to.lat, to.lng]} icon={dot(categoryColor(category), 22)} interactive={false} />
-    </MapContainer>
-  )
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const map = L.map(el, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      touchZoom: false,
+      keyboard: false,
+    })
+    L.tileLayer(TILES_URL, { attribution: ATTRIBUTION, className: "rumbo-tiles" }).addTo(map)
+    L.polyline(
+      [
+        [from.lat, from.lng],
+        [to.lat, to.lng],
+      ],
+      { color: "#0071E3", weight: 5, opacity: 0.9, dashArray: "1 10", lineCap: "round" }
+    ).addTo(map)
+    L.marker([from.lat, from.lng], { icon: dot("#0071E3", 18), interactive: false }).addTo(map)
+    L.marker([to.lat, to.lng], { icon: dot(categoryColor(category), 22), interactive: false }).addTo(map)
+    map.fitBounds(L.latLngBounds([from.lat, from.lng], [to.lat, to.lng]).pad(0.35))
+    return () => {
+      map.remove()
+    }
+  }, [from.lat, from.lng, to.lat, to.lng, category])
+
+  return <div ref={containerRef} className="size-full" />
 }
