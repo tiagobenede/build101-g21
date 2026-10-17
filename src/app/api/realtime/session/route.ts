@@ -12,6 +12,7 @@ import { buildInstructions } from "@/lib/realtime/instructions"
 import { allowSessionMint } from "@/lib/realtime/rate-limit"
 import { TOOL_DEFINITIONS } from "@/lib/realtime/tools"
 import { createClient } from "@/lib/supabase/server"
+import { getWeatherSummary } from "@/lib/weather"
 
 const CLIENT_SECRETS_URL = "https://api.openai.com/v1/realtime/client_secrets"
 
@@ -33,9 +34,11 @@ export async function POST() {
   if (!allowSessionMint(ctx.userId)) return fail(429, "Demasiadas sesiones seguidas. Esperá un minuto.")
 
   const now = new Date()
+  const weather = await getWeatherSummary(ctx.location)
   const instructions = buildInstructions({
     ctx,
     nextCommitment: nextCommitment(ctx.itinerary, now),
+    weather,
     now,
     timeZone: TRIP_TIME_ZONE,
   })

@@ -32,3 +32,12 @@ describe("toPlaceRow", () => {
     expect(toPlaceRow(g({ primaryType: "cafe", location: undefined }), "París")).toBeNull()
   })
 })
+
+describe("toPlaceRow con keepUnknown", () => {
+  it("guarda lo buscado por nombre aunque no sea de un tipo que usamos", () => {
+    expect(toPlaceRow(g({ primaryType: "hotel", types: ["hotel"] }), "París", { keepUnknown: true })).toMatchObject({
+      category: "Lugar",
+      tags: [],
+    })
+  })
+})

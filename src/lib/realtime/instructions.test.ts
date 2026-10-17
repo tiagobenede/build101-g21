@@ -26,7 +26,13 @@ const base = {
     travelStyle: null,
     locationLabel: "Centre Pompidou, París",
     nearby: Array.from({ length: 12 }, (_, i) => place(i + 1)),
+    itinerary: [
+      { id: "a", title: "Desayuno", notes: null, starts_at: "2026-10-17T07:00:00Z", ends_at: "2026-10-17T08:00:00Z", lat: null, lng: null },
+      { id: "b", title: "Louvre", notes: null, starts_at: "2026-10-17T13:00:00Z", ends_at: "2026-10-17T16:00:00Z", lat: null, lng: null },
+      { id: "c", title: "Vuelo", notes: null, starts_at: "2026-10-18T09:00:00Z", ends_at: null, lat: null, lng: null },
+    ],
   },
+  weather: null,
   now: new Date("2026-10-17T10:00:00Z"),
   timeZone: "Europe/Paris",
 }
@@ -52,5 +58,17 @@ describe("buildInstructions", () => {
       nextCommitment: { id: "i", title: "Almuerzo", notes: null, starts_at: "2026-10-17T11:00:00Z", ends_at: null, lat: null, lng: null },
     })
     expect(text).toContain('"Almuerzo" a las 13:00')
+  })
+
+  it("incluye el plan de hoy marcando lo que ya pasó, sin otros días", () => {
+    const text = buildInstructions({ ...base, nextCommitment: null })
+    expect(text).toContain("- 09:00–10:00 Desayuno (ya pasó)")
+    expect(text).toContain("- 15:00–18:00 Louvre\n")
+    expect(text).not.toContain("Vuelo")
+  })
+
+  it("incluye el clima si lo hay", () => {
+    expect(buildInstructions({ ...base, nextCommitment: null, weather: "14°C, nublado." })).toContain("Clima: 14°C, nublado.")
+    expect(buildInstructions({ ...base, nextCommitment: null })).not.toContain("Clima:")
   })
 })

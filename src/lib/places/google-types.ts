@@ -30,6 +30,8 @@ const KINDS: [type: string, kind: Kind][] = [
 ]
 
 const KIND_BY_TYPE = new Map(KINDS)
+/** Para lo que se busca por nombre (Text Search): se guarda aunque no sea de un tipo que usamos. */
+const OTHER: Kind = { category: "Lugar", tags: [], minutes: 30 }
 const MAX_TAGGED_TYPES = 3
 
 /** Tipos que se piden a Nearby Search, en dos búsquedas para que no gane siempre la comida. */
@@ -45,6 +47,7 @@ export type GooglePlace = {
   location?: { latitude?: number; longitude?: number }
   rating?: number
   editorialSummary?: { text?: string }
+  currentOpeningHours?: { openNow?: boolean }
 }
 
 export const GOOGLE_FIELD_MASK = [
@@ -57,8 +60,13 @@ export const GOOGLE_FIELD_MASK = [
   "places.editorialSummary",
 ].join(",")
 
-/** Fila de `places` para un lugar de Google, o null si no tiene datos o no es de un tipo que usamos. */
-export function toPlaceRow(g: GooglePlace, city: string): (Place & { city: string; data: Record<string, unknown> }) | null {
+export type PlaceRow = Place & { city: string; data: Record<string, unknown> }
+
+/**
+ * Fila de `places` para un lugar de Google, o null si no tiene datos o no es de un
+ * tipo que usamos (salvo `keepUnknown`, para lo que el viajero buscó por nombre).
+ */
+export function toPlaceRow(g: GooglePlace, city: string, { keepUnknown = false } = {}): PlaceRow | null {
   const name = g.displayName?.text
   const lat = g.location?.latitude
   const lng = g.location?.longitude
@@ -68,7 +76,7 @@ export function toPlaceRow(g: GooglePlace, city: string): (Place & { city: strin
   // Cualquier "*_restaurant" (french_restaurant, ...) cuenta como restaurante.
   const normalized = [...new Set(types.map((t) => (t.endsWith("_restaurant") ? "restaurant" : t)))]
   const known = normalized.flatMap((t) => KIND_BY_TYPE.get(t) ?? [])
-  const main = known[0]
+  const main = known[0] ?? (keepUnknown ? OTHER : null)
   if (!main) return null
 
   // Solo los primeros tipos: Google suma muchos secundarios (un pasaje "es" restaurante y librería).

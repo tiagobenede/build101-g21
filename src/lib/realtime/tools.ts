@@ -21,6 +21,10 @@ export const toolSchemas = {
       .nullable()
       .describe("Lo que quiere hacer ahora, si lo pidió (ej. 'tengo hambre' → comida). null para usar sus gustos."),
   }),
+  search_places: z.object({
+    query: z.string().min(2).max(120).describe("Qué buscar, como lo diría en Google: 'crêperie', 'farmacia', 'el Louvre'."),
+    open_now: z.boolean().nullable().describe("true si lo necesita abierto ahora. null si no importa."),
+  }),
 } as const
 
 export type ToolResult = {
@@ -36,6 +40,8 @@ export type ToolArgs<N extends ToolName> = z.infer<(typeof toolSchemas)[N]>
 const descriptions: Record<ToolName, string> = {
   recommend_nearby:
     "Busca hasta 3 lugares cercanos que entran en el tiempo libre y van con sus gustos. Usalo siempre que pida qué hacer o adónde ir.",
+  search_places:
+    "Busca en Google un lugar puntual o un tipo de lugar que no está en la lista de cercanos (una farmacia, una crêperie, un lugar por su nombre). Tarda unos segundos: antes de llamarlo decí una frase corta como 'dejame buscar'.",
 }
 
 export const isToolName = (name: string): name is ToolName => Object.hasOwn(toolSchemas, name)

@@ -14,6 +14,9 @@ export const EPHEMERAL_KEY_TTL_SECONDS = 60
 /** Cantidad de lugares cercanos que van en las instrucciones (más = más tokens por turno). */
 export const MAX_PLACES_IN_CONTEXT = 8
 
+/** Actividades de hoy que van en las instrucciones. */
+export const MAX_ITINERARY_IN_CONTEXT = 8
+
 /**
  * Detección de turnos del servidor: el modelo responde cuando dejás de hablar y
  * se corta solo si lo interrumpís. Solo se factura el audio que el VAD detecta como voz.
@@ -26,6 +29,9 @@ export const TURN_DETECTION = {
   create_response: true,
   interrupt_response: true,
 } as const
+
+/** Un tool que tarda más que esto devuelve error y la charla sigue. */
+export const TOOL_TIMEOUT_MS = 12_000
 
 /** Límites del lado del cliente. */
 export const SESSION_IDLE_MS = 60_000

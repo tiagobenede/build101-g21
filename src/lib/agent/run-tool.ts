@@ -2,6 +2,7 @@ import "server-only"
 
 import { rankPlaces, resolveAvailableMinutes } from "@/lib/agent/rank"
 import { getTravelerContext, nextCommitment } from "@/lib/data/session"
+import { searchPlaces } from "@/lib/places/search"
 import { isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
 import { createClient } from "@/lib/supabase/server"
 
@@ -67,6 +68,40 @@ async function recommendNearby(args: ToolArgs<"recommend_nearby">, conversationI
   }
 }
 
+const SUMMARY_MAX_CHARS = 90
+
+async function searchPlacesTool(args: ToolArgs<"search_places">): Promise<ToolResult> {
+  const ctx = await getTravelerContext()
+  const found = await searchPlaces(args.query, args.open_now, ctx.location, ctx.trip?.destination ?? "París").catch(
+    (err: unknown) => {
+      console.error("[tools] search_places failed", err instanceof Error ? err.message : err)
+      return null
+    }
+  )
+  if (!found) return fail("No pude buscar en Google ahora.")
+
+  return {
+    output: JSON.stringify({
+      places: found.map((p) => ({
+        name: p.name,
+        category: p.category,
+        walk_min: p.walkMinutes,
+        open_now: p.openNow,
+        rating: p.rating,
+        summary: p.description?.slice(0, SUMMARY_MAX_CHARS) ?? null,
+      })),
+    }),
+    cards: found.map((p) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      description: p.description,
+      walkMinutes: p.walkMinutes,
+      stayMinutes: p.typical_visit_minutes,
+    })),
+  }
+}
+
 /** Ejecuta un tool del agente con los permisos del usuario logueado. */
 export async function runTool(name: string, rawArgs: string, conversationId: string): Promise<ToolResult> {
   if (!isToolName(name)) return fail(`Tool desconocido: ${name}.`)
@@ -77,11 +112,16 @@ export async function runTool(name: string, rawArgs: string, conversationId: str
   } catch {
     return fail("Argumentos inválidos.")
   }
-  const parsed = toolSchemas[name].safeParse(json)
-  if (!parsed.success) return fail("Argumentos inválidos.")
+  const invalid = fail("Argumentos inválidos.")
 
   switch (name) {
-    case "recommend_nearby":
-      return recommendNearby(parsed.data, conversationId)
+    case "recommend_nearby": {
+      const args = toolSchemas.recommend_nearby.safeParse(json)
+      return args.success ? recommendNearby(args.data, conversationId) : invalid
+    }
+    case "search_places": {
+      const args = toolSchemas.search_places.safeParse(json)
+      return args.success ? searchPlacesTool(args.data) : invalid
+    }
   }
 }

@@ -8,6 +8,8 @@ type PendingCall = {
   responseDone: boolean
   output: string | null
   onSubmit: (() => void) | null
+  /** La charla siguió (hubo otra respuesta) mientras el tool corría. */
+  late: boolean
 }
 
 type ResponseDone = { id?: string; status?: string }
@@ -20,7 +22,9 @@ type ResponseDone = { id?: string; status?: string }
  * - manda el `function_call_output` recién cuando la respuesta que pidió el tool
  *   terminó; si el usuario la interrumpió, el resultado se descarta;
  * - pide `response.create` solo cuando no hay una respuesta activa, nadie está
- *   hablando y no queda ningún tool pendiente (una sola respuesta para todos).
+ *   hablando y no queda ningún tool pendiente (una sola respuesta para todos);
+ * - si la charla siguió mientras el tool corría, marca el resultado con
+ *   `late: true` para que el agente lo retome ("ya tengo lo que buscabas").
  *
  * Así el tool corre en segundo plano y la charla sigue mientras tanto.
  */
@@ -52,6 +56,7 @@ export class ResponseQueue {
         // Esa respuesta ya ve los resultados enviados hasta acá.
         this.active = true
         this.needsResponse = false
+        for (const call of this.calls.values()) if (call.responseDone) call.late = true
         break
       case "response.done":
         this.active = false
@@ -69,7 +74,7 @@ export class ResponseQueue {
 
   /** El modelo pidió un tool (`response.function_call_arguments.done`). */
   begin(callId: string, responseId: string): void {
-    this.calls.set(callId, { responseId, responseDone: false, output: null, onSubmit: null })
+    this.calls.set(callId, { responseId, responseDone: false, output: null, onSubmit: null, late: false })
   }
 
   /** Llegó el resultado. `onSubmit` corre cuando entra a la conversación (no si se descarta). */
@@ -101,7 +106,11 @@ export class ResponseQueue {
     this.calls.delete(callId)
     this.send({
       type: "conversation.item.create",
-      item: { type: "function_call_output", call_id: callId, output: call.output },
+      item: {
+        type: "function_call_output",
+        call_id: callId,
+        output: call.late ? `{"late":true,"result":${call.output}}` : call.output,
+      },
     })
     this.needsResponse = true
     call.onSubmit?.()

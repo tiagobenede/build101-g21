@@ -185,7 +185,7 @@ Hoy `getTravelerContext()` usa **el centro del destino como ubicación fija**, y
 recommend_nearby(available_minutes: number|null, interest: tag|null)   ✅ hecho
                                          → usa rank.ts; devuelve hasta 3 lugares
 get_place(place_id: string)              → descripción, horarios, minutos a pie
-search_places(query: string, open_now: boolean|null)
+search_places(query: string, open_now: boolean|null)   ✅ hecho
                                          → Google Places; guarda en places; hasta 3
 search_events(when: 'now'|'today'|'tomorrow', interest: tag|null)
                                          → proveedor París; hasta 3
@@ -270,11 +270,11 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 
 - [x] **A-1** Tools en la sesión (H1–3). Registro de tools, `/api/realtime/tools`, `ResponseQueue`, `recommend_nearby` con `rank.ts` y tarjetas desde el resultado del tool. Probado con voz real (~US$0,01 por pregunta).
   - *Terminado:* "tengo una hora, ¿qué hago?" responde con un lugar que entra en el tiempo, y aparece la card.
-- [ ] **A-1b** Tareas en segundo plano (H3–4). Tools que responden "lo estoy buscando" al instante y meten el resultado después por la cola. Base para `search_places`, `search_events` y `plan_day`.
-- [ ] **A-2** Contexto ampliado (H3–4). Extender `buildInstructions()` con lo de la sección 5, los eventos de hoy y mañana del calendario (cuando C-8 esté) y el clima de Open-Meteo. Actualizar `instructions.test.ts`.
+- [x] **A-1b** Tareas en segundo plano (H3–4). Hecho: los tools lentos piden decir "dejame buscar" antes, hay timeout de 12 s, y si la charla siguió mientras corría el resultado llega con `late: true` para que el agente lo retome. Tools que responden "lo estoy buscando" al instante y meten el resultado después por la cola. Base para `search_places`, `search_events` y `plan_day`.
+- [ ] **A-2** Contexto ampliado (H3–4). **Hecho:** clima de Open-Meteo y plan completo de hoy (con lo que ya pasó marcado). **Falta** (espera la migración de C-1): restricciones, perfil compilado, recomendaciones de residentes, último ping y eventos del calendario. Extender `buildInstructions()` con lo de la sección 5, los eventos de hoy y mañana del calendario (cuando C-8 esté) y el clima de Open-Meteo. Actualizar `instructions.test.ts`.
 - [ ] **A-3** Tools de itinerario y memoria (H4–6). `edit_itinerary`, `remember`, `get_place`. `session.update` cuando la ubicación cambia más de 300 m, cuando cambia el itinerario o cuando entra un evento del calendario con la llamada abierta.
   - *Terminado:* "agregá el mercado a las cuatro" aparece en el itinerario de la home; "soy vegetariana" queda guardado y la siguiente recomendación lo respeta.
-- [ ] **A-3b** `search_places` y `search_events` (después del checkpoint 1). Usan el módulo de Google de C y el proveedor de eventos de París. Resultados recortados a 3 y guardados en `places`.
+- [ ] **A-3b** `search_places` ✅ (Google Text Search, probado con voz) y `search_events` (después del checkpoint 1). Usan el módulo de Google de C y el proveedor de eventos de París. Resultados recortados a 3 y guardados en `places`.
 - [ ] **A-3c** `add_to_calendar` (cuando C-8 esté). "Agendame la clase de cocina" o "pasá el plan de hoy a mi calendario".
 - [ ] **A-4** Foto en la sesión (H6–8). Cuando la cámara devuelve un resultado, inyectarlo como texto en la sesión (`conversation.item.create`) para poder repreguntar.
   - *Terminado:* después de la foto, "¿cuánto tarda la visita?" responde sobre ese lugar.

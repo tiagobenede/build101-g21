@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { saveTurn } from "@/app/talk/actions"
-import { SESSION_BUDGET_USD, SESSION_IDLE_MS } from "@/lib/realtime/config"
+import { SESSION_BUDGET_USD, SESSION_IDLE_MS, TOOL_TIMEOUT_MS } from "@/lib/realtime/config"
 import { connectRealtime, type RealtimeConnection, type RealtimeEvent } from "@/lib/realtime/connection"
 import { estimateUsageCost, type RealtimeUsage } from "@/lib/realtime/cost"
 import { findNewPlaces } from "@/lib/realtime/match-places"
@@ -93,6 +93,7 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: ev.name, arguments: ev.arguments, conversationId: conn.conversationId }),
+        signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
       })
         .then((res) => (res.ok ? (res.json() as Promise<ToolResult>) : Promise.reject(new Error(String(res.status)))))
         .catch((err: unknown) => {

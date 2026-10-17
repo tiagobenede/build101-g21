@@ -73,6 +73,15 @@ describe("ResponseQueue", () => {
     expect(types()).toEqual(["conversation.item.create", "conversation.item.create", "response.create"])
   })
 
+  it("marca el resultado como tardío si la charla siguió mientras corría", () => {
+    queue.begin("c1", "r1")
+    done("r1")
+    queue.handle({ type: "response.created" })
+    done("r2")
+    queue.resolve("c1", '{"places":[]}')
+    expect(sent[0].item).toMatchObject({ output: '{"late":true,"result":{"places":[]}}' })
+  })
+
   it("reintenta si chocó con una respuesta activa", () => {
     queue.handle({ type: "error", error: { code: "conversation_already_has_active_response" } })
     done("r9")
