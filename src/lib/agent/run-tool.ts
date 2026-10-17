@@ -3,7 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { interestQuery, tagWithInterest } from "@/lib/agent/interest-fallback"
-import { INTEREST_TAGS, rankPlaces, resolveAvailableMinutes, type RankablePlace } from "@/lib/agent/rank"
+import { INTEREST_TAGS, NEAR_ONLY_TAGS, rankPlaces, resolveAvailableMinutes, type RankablePlace } from "@/lib/agent/rank"
 import {
   addItineraryItem,
   removeItineraryItem,
@@ -30,6 +30,7 @@ import { formatTodayPlan, itemRef } from "@/lib/realtime/instructions"
 import { fillMissingNulls, isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
+import { WALK } from "@/lib/tuning"
 import { zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
 import { readMenu } from "@/lib/web-page"
 import { pickReadableUrl, webSearch } from "@/lib/web-search"
@@ -60,6 +61,10 @@ async function recommendNearby(
     commitment ? new Date(commitment.starts_at) : null,
     now
   )
+  // Caminando: para comer o un café, cerca; para lo demás, un poco más. El agente lo sube si
+  // el viajero dice que no le importa caminar.
+  const maxWalkMinutes =
+    args.max_walk_minutes ?? (args.interest && NEAR_ONLY_TAGS.includes(args.interest) ? WALK.nearMinutes : WALK.defaultMaxMinutes)
   // Los más cercanos (vienen ordenados): con la zona llena de lugares, la lista de ids no entra en la URL.
   const candidates = ctx.nearby.slice(0, MAX_RANK_CANDIDATES)
   // Los tipos de Google (en `places.data`) sirven para respetar la dieta.
@@ -72,6 +77,7 @@ async function recommendNearby(
       interests: ctx.interests,
       requestedTag: args.interest,
       availableMinutes,
+      maxWalkMinutes,
       alreadyRecommended: previous.map((r) => r.place_id as string),
       // En un viaje compartido se respeta la dieta de todos.
       dietary: [...new Set([...ctx.constraints.dietary, ...ctx.companions.flatMap((c) => c.dietary)])],
@@ -79,7 +85,7 @@ async function recommendNearby(
   let ranked = rank(candidates.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
   // Nada guardado para lo que pidió (p. ej. "compras" sin shoppings en caché): se busca en Google.
   if (ranked.length === 0 && args.interest) {
-    const found = await searchPlaces(interestQuery(args.interest), null, ctx.location, ctx.city ?? "").catch(
+    const found = await searchPlaces(interestQuery(args.interest), null, ctx.location, ctx.city ?? "", { maxWalkMinutes }).catch(
       (err: unknown) => {
         console.error("[tools] recommend_nearby fallback failed", err instanceof Error ? err.message : err)
         return []
@@ -105,7 +111,9 @@ async function recommendNearby(
   return {
     output: JSON.stringify({
       available_minutes: availableMinutes,
+      max_walk_min: maxWalkMinutes,
       next_commitment: commitment?.title ?? null,
+      ...(ranked.length === 0 ? { note: `Nada a menos de ${maxWalkMinutes} min a pie. Decíselo y preguntá si quiere caminar más.` } : {}),
       places: ranked.map((r) => ({
         name: r.place.name,
         category: r.place.category,
@@ -129,7 +137,8 @@ const SUMMARY_MAX_CHARS = 90
 
 async function searchPlacesTool(args: ToolArgs<"search_places">, location: LatLng | null): Promise<ToolResult> {
   const ctx = await getTravelerContext({ location })
-  const found = await searchPlaces(args.query, args.open_now, ctx.location, ctx.city ?? "").catch(
+  const maxWalkMinutes = args.max_walk_minutes
+  const found = await searchPlaces(args.query, args.open_now, ctx.location, ctx.city ?? "", { maxWalkMinutes }).catch(
     (err: unknown) => {
       console.error("[tools] search_places failed", err instanceof Error ? err.message : err)
       return null
@@ -147,6 +156,9 @@ async function searchPlacesTool(args: ToolArgs<"search_places">, location: LatLn
         rating: p.rating,
         summary: p.description?.slice(0, SUMMARY_MAX_CHARS) ?? null,
       })),
+      ...(found.length === 0 && maxWalkMinutes !== null
+        ? { note: `Nada a menos de ${maxWalkMinutes} min a pie. Decíselo y preguntá si quiere caminar más.` }
+        : {}),
     }),
     cards: found.map((p) => ({
       id: p.id,

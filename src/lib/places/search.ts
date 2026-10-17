@@ -1,6 +1,6 @@
 import "server-only"
 
-import { distanceMeters, walkMinutes, type LatLng } from "@/lib/geo"
+import { distanceMeters, walkMinutes, walkRadiusMeters, type LatLng } from "@/lib/geo"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 import { GOOGLE_FIELD_MASK, toPlaceRow, type GooglePlace, type PlaceRow } from "./google-types"
@@ -21,11 +21,17 @@ const cache = new Map<string, { at: number; places: FoundPlace[] }>()
  * Busca por texto en Google Places (New) cerca de la ubicación ("una crêperie",
  * "el Louvre") y guarda lo encontrado en `places`, para poder sumarlo al plan.
  */
-export async function searchPlaces(query: string, openNow: boolean | null, location: LatLng, city: string): Promise<FoundPlace[]> {
+export async function searchPlaces(
+  query: string,
+  openNow: boolean | null,
+  location: LatLng,
+  city: string,
+  { maxWalkMinutes = null }: { maxWalkMinutes?: number | null } = {}
+): Promise<FoundPlace[]> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) throw new Error("Falta GOOGLE_API_KEY.")
 
-  const key = `${query.toLowerCase().trim()}|${openNow}|${location.lat.toFixed(2)},${location.lng.toFixed(2)}`
+  const key = `${query.toLowerCase().trim()}|${openNow}|${maxWalkMinutes}|${location.lat.toFixed(2)},${location.lng.toFixed(2)}`
   const hit = cache.get(key)
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.places
 
@@ -39,10 +45,14 @@ export async function searchPlaces(query: string, openNow: boolean | null, locat
     body: JSON.stringify({
       textQuery: query,
       languageCode: "es",
-      maxResultCount: 5,
+      // Con tope de caminata se piden más: varios de los primeros pueden quedar lejos.
+      maxResultCount: maxWalkMinutes === null ? 5 : 10,
       ...(openNow ? { openNow: true } : {}),
       locationBias: {
-        circle: { center: { latitude: location.lat, longitude: location.lng }, radius: BIAS_RADIUS_METERS },
+        circle: {
+          center: { latitude: location.lat, longitude: location.lng },
+          radius: maxWalkMinutes === null ? BIAS_RADIUS_METERS : Math.max(300, walkRadiusMeters(maxWalkMinutes)),
+        },
       },
     }),
   })
@@ -53,6 +63,7 @@ export async function searchPlaces(query: string, openNow: boolean | null, locat
     .map((g) => ({ g, row: toPlaceRow(g, city, { keepUnknown: true }) }))
     .filter((r): r is { g: GooglePlace; row: PlaceRow } => r.row !== null)
     .filter(({ row }) => distanceMeters(location, row) <= MAX_RESULT_DISTANCE_METERS)
+    .filter(({ row }) => maxWalkMinutes === null || walkMinutes(location, row) <= maxWalkMinutes)
     .slice(0, MAX_RESULTS)
 
   if (rows.length > 0) {

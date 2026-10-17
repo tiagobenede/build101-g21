@@ -20,6 +20,11 @@ export function walkMinutes(a: LatLng, b: LatLng): number {
   return Math.max(1, Math.round((distanceMeters(a, b) * 1.3) / WALK_METERS_PER_MINUTE))
 }
 
+/** Distancia en línea recta que se camina en esos minutos (la inversa de `walkMinutes`). */
+export function walkRadiusMeters(minutes: number): number {
+  return (minutes * WALK_METERS_PER_MINUTE) / 1.3
+}
+
 /** Más lejos que esto, un lugar ya no sirve para decir dónde estás. */
 export const LABEL_RADIUS_METERS = 300
 

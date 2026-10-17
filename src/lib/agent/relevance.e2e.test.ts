@@ -10,6 +10,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { SHOP_TYPES } from "@/lib/places/google-types"
+import { WALK } from "@/lib/tuning"
 
 vi.mock("server-only", () => ({}))
 // supabase-js pide WebSocket al crear el cliente; Node 20 no lo trae y acá no usamos Realtime.
@@ -78,6 +79,7 @@ describe.skipIf(!enabled)("relevancia de lugares", () => {
         interests: [],
         requestedTag: c.interest,
         availableMinutes: 120,
+        maxWalkMinutes: WALK.defaultMaxMinutes,
         alreadyRecommended: [],
       })
       expect(ranked[0]?.place.name).toBe(c.expected)
@@ -94,6 +96,7 @@ describe.skipIf(!enabled)("relevancia de lugares", () => {
         interests: [],
         requestedTag: c.interest,
         availableMinutes: 120,
+        maxWalkMinutes: WALK.defaultMaxMinutes,
         alreadyRecommended: [],
       })
       expect(ranked[0]?.place.name).toBe(c.expected)

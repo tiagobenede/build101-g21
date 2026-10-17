@@ -14,6 +14,14 @@ function num(envVar: string, fallback: number): number {
   return Number.isFinite(value) ? value : fallback
 }
 
+/** Cuánto camina como mucho lo que recomienda el agente (src/lib/agent). */
+export const WALK = {
+  /** "Cerca", "por acá" y comida o café: más que esto ya no es cerca. */
+  nearMinutes: num("TUNE_WALK_NEAR_MIN", 10),
+  /** Qué hacer o adónde ir, sin decir cuánto quiere caminar. */
+  defaultMaxMinutes: num("TUNE_WALK_DEFAULT_MAX_MIN", 20),
+} as const
+
 /** "¿Qué estoy viendo?" (C-3, src/lib/vision). */
 export const VISION = {
   /** Lugares a esta distancia de la foto se le ofrecen a Jev como opciones. */
