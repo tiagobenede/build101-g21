@@ -8,7 +8,7 @@
 import { z } from "zod"
 
 import type { PlaceCard } from "@/hooks/voice-session-types"
-import { INTEREST_TAGS } from "@/lib/agent/rank"
+import { DIETS, INTEREST_TAGS } from "@/lib/agent/rank"
 
 export const toolSchemas = {
   recommend_nearby: z.object({
@@ -24,6 +24,31 @@ export const toolSchemas = {
   search_places: z.object({
     query: z.string().min(2).max(120).describe("Qué buscar, como lo diría en Google: 'crêperie', 'farmacia', 'el Louvre'."),
     open_now: z.boolean().nullable().describe("true si lo necesita abierto ahora. null si no importa."),
+  }),
+  web_search: z.object({
+    question: z.string().min(3).max(200).describe("Qué querés averiguar, corto: 'menú', 'tienen medialunas', 'horario de brunch'."),
+    place_name: z.string().max(120).nullable().describe("El lugar del que se habla, si es sobre uno. null si es una pregunta general."),
+  }),
+  get_place: z.object({
+    place_name: z.string().min(2).max(120).describe("Nombre del lugar, como aparece en la lista o en un resultado."),
+  }),
+  edit_itinerary: z.object({
+    op: z.enum(["add", "move", "remove", "done", "skip", "undo"]),
+    item_ref: z.string().max(36).nullable().describe("Ref entre corchetes del plan (para move, remove, done, skip)."),
+    place_name: z.string().max(120).nullable().describe("Para add: el lugar a agregar, si es uno conocido."),
+    title: z.string().max(120).nullable().describe("Para add sin lugar conocido: qué es ('Cena con amigos')."),
+    start_time: z.string().max(5).nullable().describe("Hora local HH:MM (para add y move)."),
+    end_time: z.string().max(5).nullable().describe("Hora local HH:MM de fin. null = la duración típica."),
+    date: z.string().max(10).nullable().describe("YYYY-MM-DD si no es hoy. null = hoy."),
+  }),
+  remember: z.object({
+    statement: z.string().min(3).max(300).describe("Lo que hay que recordar, en tercera persona: 'Es vegetariana'."),
+    kind: z.enum(["constraint", "preference"]).describe("constraint = no negociable (dieta, movilidad); preference = gusto."),
+    avoid: z.boolean().describe("true si es algo que evita o no le gusta."),
+    diet: z
+      .enum(DIETS)
+      .nullable()
+      .describe("Si es una restricción de comida, cuál. null si no es de comida."),
   }),
 } as const
 
@@ -42,6 +67,14 @@ const descriptions: Record<ToolName, string> = {
     "Busca hasta 3 lugares cercanos que entran en el tiempo libre y van con sus gustos. Usalo siempre que pida qué hacer o adónde ir.",
   search_places:
     "Busca en Google un lugar puntual o un tipo de lugar que no está en la lista de cercanos (una farmacia, una crêperie, un lugar por su nombre). Tarda unos segundos: antes de llamarlo decí una frase corta como 'dejame buscar'.",
+  web_search:
+    "Busca en Google lo que no sabés de un lugar o del momento: el menú, si tienen algo puntual, precios, eventos, noticias. Es rápido; decí algo corto como 'me fijo' antes de llamarlo. Lo que encuentres puede estar desactualizado: decí de dónde lo sacaste.",
+  get_place:
+    "Detalle de un lugar: descripción, si está abierto ahora, el horario de hoy, minutos a pie y de visita. Usalo cuando pregunte por un lugar puntual.",
+  edit_itinerary:
+    "Cambia el plan del viaje: add (agrega un lugar o actividad), move (cambia el horario), remove, done, skip, undo (deshace el último cambio). Devuelve el plan de hoy actualizado. Las reservas no se pueden cambiar.",
+  remember:
+    "Guarda algo que contó de sí y sirve para después: qué come, qué evita, qué le gusta, cómo se mueve. Las restricciones de comida se respetan en las próximas recomendaciones.",
 }
 
 export const isToolName = (name: string): name is ToolName => Object.hasOwn(toolSchemas, name)

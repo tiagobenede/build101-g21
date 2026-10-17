@@ -60,4 +60,12 @@ describe("rankPlaces", () => {
     expect(ranked).toHaveLength(3)
     expect(ranked.map((r) => r.place.id)).not.toContain("a")
   })
+
+  it("con dieta vegetariana descarta parrillas y sube los vegetarianos", () => {
+    const parrilla = { ...place("parrilla", ["comida"], 2, 30, 4.9), googleTypes: ["steak_house", "restaurant"] }
+    const veggie = { ...place("veggie", ["comida"], 9, 30, 4.0), googleTypes: ["vegetarian_restaurant", "restaurant"] }
+    const comun = { ...place("comun", ["comida"], 2, 30, 4.5), googleTypes: ["restaurant"] }
+    const ranked = rankPlaces({ ...base, dietary: ["vegetariano"], places: [parrilla, veggie, comun] })
+    expect(ranked.map((r) => r.place.id)).toEqual(["veggie", "comun"])
+  })
 })

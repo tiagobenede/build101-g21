@@ -28,6 +28,8 @@ const base = {
     travelStyle: null,
     locationLabel: "Centre Pompidou, París",
     nearby: Array.from({ length: 12 }, (_, i) => place(i + 1)),
+    constraints: { dietary: [], mobility: null, dailyBudget: null, pace: null, schedule: null },
+    profileSummary: null,
     itinerary: [
       { id: "a", title: "Desayuno", notes: null, starts_at: "2026-10-17T07:00:00Z", ends_at: "2026-10-17T08:00:00Z", lat: null, lng: null, ...PLANNED },
       { id: "b", title: "Louvre", notes: null, starts_at: "2026-10-17T13:00:00Z", ends_at: "2026-10-17T16:00:00Z", lat: null, lng: null, ...PLANNED },
@@ -64,13 +66,31 @@ describe("buildInstructions", () => {
 
   it("incluye el plan de hoy marcando lo que ya pasó, sin otros días", () => {
     const text = buildInstructions({ ...base, nextCommitment: null })
-    expect(text).toContain("- 09:00–10:00 Desayuno (ya pasó)")
-    expect(text).toContain("- 15:00–18:00 Louvre\n")
+    expect(text).toContain("- [a] 09:00–10:00 Desayuno (ya pasó)")
+    expect(text).toContain("- [b] 15:00–18:00 Louvre\n")
     expect(text).not.toContain("Vuelo")
   })
 
   it("incluye el clima si lo hay", () => {
     expect(buildInstructions({ ...base, nextCommitment: null, weather: "14°C, nublado." })).toContain("Clima: 14°C, nublado.")
     expect(buildInstructions({ ...base, nextCommitment: null })).not.toContain("Clima:")
+  })
+
+  it("incluye restricciones no negociables y lo aprendido", () => {
+    const text = buildInstructions({
+      ...base,
+      nextCommitment: null,
+      ctx: {
+        ...base.ctx,
+        constraints: { dietary: ["vegetariano"], mobility: "sin escaleras", dailyBudget: 80, pace: "tranquilo", schedule: null },
+        profileSummary: "Evita: museos largos.",
+      },
+    })
+    expect(text).toContain("No negociable: dieta vegetariano; movilidad: sin escaleras; presupuesto 80 € por día. Prefiere: ritmo tranquilo.")
+    expect(text).toContain("Lo que aprendiste de Sofía: Evita: museos largos.")
+  })
+
+  it("sin restricciones no agrega la línea", () => {
+    expect(buildInstructions({ ...base, nextCommitment: null })).not.toContain("No negociable:")
   })
 })

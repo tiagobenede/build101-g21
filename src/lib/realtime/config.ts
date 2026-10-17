@@ -30,6 +30,14 @@ export const TURN_DETECTION = {
   interrupt_response: true,
 } as const
 
+/**
+ * Refresco del contexto con la llamada abierta (`session.update`): al moverte esta
+ * distancia o al cambiar el itinerario, y no más seguido que esto (cada refresco
+ * hace que la siguiente respuesta relea las instrucciones sin cache).
+ */
+export const CONTEXT_REFRESH_DISTANCE_M = 300
+export const CONTEXT_REFRESH_MIN_MS = 30_000
+
 /** Un tool que tarda más que esto devuelve error y la charla sigue. */
 export const TOOL_TIMEOUT_MS = 12_000
 

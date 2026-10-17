@@ -25,7 +25,23 @@ export const INTEREST_TAGS = [
   "ciencia",
 ] as const
 
-export type RankablePlace = Place & { walkMinutes: number }
+/** Restricciones de comida que el ranking sabe respetar (con los tipos de Google). */
+export const DIETS = ["vegetariano", "vegano", "sin gluten", "sin lactosa", "halal", "kosher"] as const
+export type Diet = (typeof DIETS)[number]
+
+/** Tipos de Google que chocan con una dieta: esos lugares no se recomiendan. */
+const DIET_EXCLUDES: Partial<Record<Diet, string[]>> = {
+  vegetariano: ["steak_house", "barbecue_restaurant", "seafood_restaurant"],
+  vegano: ["steak_house", "barbecue_restaurant", "seafood_restaurant"],
+}
+/** Tipos de Google que van muy bien con una dieta: suben en el ranking. */
+const DIET_BOOSTS: Partial<Record<Diet, string[]>> = {
+  vegetariano: ["vegetarian_restaurant", "vegan_restaurant"],
+  vegano: ["vegan_restaurant"],
+}
+const DIET_BOOST = 6
+
+export type RankablePlace = Place & { walkMinutes: number; googleTypes?: string[] }
 
 export type Ranked = {
   place: RankablePlace
@@ -43,6 +59,8 @@ export type RankInput = {
   requestedTag: string | null
   availableMinutes: number
   alreadyRecommended: string[]
+  /** Dietas del viajero (`profiles.dietary`); las que no conocemos se ignoran acá y van en las instrucciones. */
+  dietary?: string[]
 }
 
 /**
@@ -64,17 +82,29 @@ function interestWeights(interests: string[]): Map<string, number> {
 }
 
 /** Lo ya recomendado en la conversación queda al final: solo vuelve si no hay otra cosa. */
-export function rankPlaces({ places, interests, requestedTag, availableMinutes, alreadyRecommended }: RankInput): Ranked[] {
+export function rankPlaces({
+  places,
+  interests,
+  requestedTag,
+  availableMinutes,
+  alreadyRecommended,
+  dietary = [],
+}: RankInput): Ranked[] {
   const weights = interestWeights(interests)
+  const diets = dietary.filter((d): d is Diet => (DIETS as readonly string[]).includes(d))
+  const excluded = new Set(diets.flatMap((d) => DIET_EXCLUDES[d] ?? []))
+  const boosted = new Set(diets.flatMap((d) => DIET_BOOSTS[d] ?? []))
   return places
     .filter((p) => !requestedTag || p.tags.includes(requestedTag))
+    .filter((p) => !p.googleTypes?.some((t) => excluded.has(t)))
     .map((place) => {
       const walk = place.walkMinutes
       const stay = Math.min(place.typical_visit_minutes, availableMinutes - walk)
       const matchedTags = place.tags.filter((t) => weights.has(t) || t === requestedTag)
       const interestScore = matchedTags.reduce((sum, t) => sum + (weights.get(t) ?? 0), 0)
       const penalty = alreadyRecommended.includes(place.id) ? 100 : 0
-      const score = interestScore + (place.rating ?? 4) - walk / 10 - penalty
+      const dietBoost = place.googleTypes?.some((t) => boosted.has(t)) ? DIET_BOOST : 0
+      const score = interestScore + dietBoost + (place.rating ?? 4) - walk / 10 - penalty
       return { place, walkMinutes: walk, stayMinutes: stay, matchedTags, score }
     })
     .filter((r) => r.stayMinutes >= MIN_STAY_MINUTES && r.matchedTags.length > 0)

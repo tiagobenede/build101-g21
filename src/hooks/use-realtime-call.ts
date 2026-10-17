@@ -4,14 +4,21 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { saveTurn } from "@/app/talk/actions"
-import type { LatLng } from "@/lib/geo"
+import { distanceMeters, type LatLng } from "@/lib/geo"
 import { locationUpdateText, shouldAnnounce } from "@/lib/location/announce"
-import { SESSION_BUDGET_USD, SESSION_IDLE_MS, TOOL_TIMEOUT_MS } from "@/lib/realtime/config"
+import {
+  CONTEXT_REFRESH_DISTANCE_M,
+  CONTEXT_REFRESH_MIN_MS,
+  SESSION_BUDGET_USD,
+  SESSION_IDLE_MS,
+  TOOL_TIMEOUT_MS,
+} from "@/lib/realtime/config"
 import { connectRealtime, type RealtimeConnection, type RealtimeEvent } from "@/lib/realtime/connection"
 import { estimateUsageCost, type RealtimeUsage } from "@/lib/realtime/cost"
 import { findNewPlaces } from "@/lib/realtime/match-places"
 import { ResponseQueue } from "@/lib/realtime/response-queue"
 import type { ToolResult } from "@/lib/realtime/tools"
+import { onTableChange } from "@/lib/supabase/browser"
 
 import type { CallState, MentionedPlace, PlaceCard, VoiceCall } from "./voice-session-types"
 
@@ -51,6 +58,11 @@ export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | nul
   /** Ubicación en vivo (joystick o GPS) y la última que se le avisó a la llamada. */
   const locationRef = useRef(location)
   const announcedRef = useRef<LatLng | null>(null)
+  /** Ubicación con la que se armaron las instrucciones vigentes, y cuándo. */
+  const contextAtRef = useRef<LatLng | null>(null)
+  const contextRefreshedAtRef = useRef(0)
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const unsubscribeRef = useRef<(() => void) | null>(null)
   /** Lugares que devolvieron los tools: se muestran si el agente los nombra. */
   const toolPlacesRef = useRef<PlaceCard[]>([])
 
@@ -63,6 +75,10 @@ export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | nul
   }
 
   const end = useCallback((reason?: string) => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+    refreshTimerRef.current = null
+    unsubscribeRef.current?.()
+    unsubscribeRef.current = null
     connRef.current?.close()
     connRef.current = null
     queueRef.current = null
@@ -189,6 +205,42 @@ export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | nul
     [finishResponse, revealPlaces, runToolCall]
   )
 
+  /**
+   * Rearma las instrucciones en el server (ubicación en vivo, plan de ahora) y las
+   * manda con `session.update`. No pide respuesta: no genera audio.
+   */
+  const refreshContext = useCallback(async () => {
+    const conn = connRef.current
+    if (!conn) return
+    contextRefreshedAtRef.current = Date.now()
+    contextAtRef.current = locationRef.current
+    try {
+      const res = await fetch("/api/realtime/instructions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ location: locationRef.current }),
+      })
+      const { instructions } = (await res.json()) as { instructions?: string }
+      if (!instructions || connRef.current !== conn) return
+      conn.send({ type: "session.update", session: { type: "realtime", instructions } })
+    } catch (err) {
+      console.error("[realtime] refresh context failed", err)
+    }
+  }, [])
+
+  /** Refresca ya si pasó el mínimo; si no, una sola vez cuando se cumpla. */
+  const scheduleRefresh = useCallback(
+    (delayMs = 0) => {
+      if (refreshTimerRef.current) return
+      const wait = Math.max(delayMs, contextRefreshedAtRef.current + CONTEXT_REFRESH_MIN_MS - Date.now())
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null
+        void refreshContext()
+      }, wait)
+    },
+    [refreshContext]
+  )
+
   const start = useCallback(async () => {
     if (connRef.current) return
     setState("connecting")
@@ -201,6 +253,14 @@ export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | nul
       })
       connRef.current = conn
       announcedRef.current = locationRef.current
+      contextAtRef.current = locationRef.current
+      contextRefreshedAtRef.current = Date.now()
+      // Cambios del itinerario (de la app, del agente o de otro dispositivo) → refrescar el contexto.
+      void onTableChange("itinerary_items", () => scheduleRefresh(2_000)).then((unsubscribe) => {
+        // Si la llamada se cortó mientras nos suscribíamos, soltamos el canal ya.
+        if (connRef.current === conn) unsubscribeRef.current = unsubscribe
+        else unsubscribe()
+      })
       conn.setMicOpen(!micMuted)
       conn.setMuted(speakerMuted)
       conn.send({ type: "response.create", response: { instructions: GREETING } })
@@ -210,7 +270,7 @@ export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | nul
       toast.error(err instanceof Error ? err.message : "No se pudo conectar la voz.")
       setState("off")
     }
-  }, [end, handleEvent, micMuted, speakerMuted])
+  }, [end, handleEvent, micMuted, scheduleRefresh, speakerMuted])
 
   // Si te movés con la llamada abierta, se lo contamos al agente con un mensaje de sistema.
   // No pide respuesta (no cuesta audio): el próximo recommend_nearby ya usa la ubicación nueva.
@@ -225,6 +285,13 @@ export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | nul
       item: { type: "message", role: "system", content: [{ type: "input_text", text: locationUpdateText(announced, location) }] },
     })
   }, [location])
+
+  // Lejos de donde se armaron las instrucciones: la lista de cercanos ya no sirve, se rearma.
+  useEffect(() => {
+    const at = contextAtRef.current
+    if (!connRef.current || !location || !at) return
+    if (distanceMeters(at, location) >= CONTEXT_REFRESH_DISTANCE_M) scheduleRefresh()
+  }, [location, scheduleRefresh])
 
   // Volúmenes para el blob, por frame.
   useEffect(() => {
@@ -252,6 +319,8 @@ export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | nul
     return () => {
       clearInterval(timer)
       window.removeEventListener("pagehide", onPageHide)
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      unsubscribeRef.current?.()
       connRef.current?.close()
       connRef.current = null
     }
