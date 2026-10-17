@@ -48,6 +48,7 @@ export type GooglePlace = {
   rating?: number
   editorialSummary?: { text?: string }
   currentOpeningHours?: { openNow?: boolean }
+  websiteUri?: string
 }
 
 export const GOOGLE_FIELD_MASK = [
@@ -58,6 +59,7 @@ export const GOOGLE_FIELD_MASK = [
   "places.location",
   "places.rating",
   "places.editorialSummary",
+  "places.websiteUri",
 ].join(",")
 
 export type PlaceRow = Place & { city: string; data: Record<string, unknown> }
@@ -92,6 +94,6 @@ export function toPlaceRow(g: GooglePlace, city: string, { keepUnknown = false }
     rating: g.rating !== undefined ? Math.round(g.rating * 10) / 10 : null,
     typical_visit_minutes: main.minutes,
     city,
-    data: { google_place_id: g.id, types },
+    data: { google_place_id: g.id, types, ...(g.websiteUri ? { website: g.websiteUri } : {}) },
   }
 }

@@ -7,6 +7,8 @@ export type RealtimeEvent = { type: string; [key: string]: unknown }
 
 export interface RealtimeConnection {
   conversationId: string
+  /** Pedido de saludo con el nombre del viajero (lo arma el server). */
+  greeting: string
   send: (event: RealtimeEvent) => void
   setMicOpen: (open: boolean) => void
   setMuted: (muted: boolean) => void
@@ -23,10 +25,10 @@ interface ConnectOptions {
 }
 
 type SessionResponse =
-  | { success: true; data: { key: string; conversationId: string } }
+  | { success: true; data: { key: string; conversationId: string; greeting: string } }
   | { success: false; error: string }
 
-async function mintSession(location: LatLng | null): Promise<{ key: string; conversationId: string }> {
+async function mintSession(location: LatLng | null): Promise<{ key: string; conversationId: string; greeting: string }> {
   const res = await fetch("/api/realtime/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -66,7 +68,7 @@ export async function connectRealtime({ onEvent, onDisconnect, location }: Conne
   }
 
   try {
-    const { key, conversationId } = await mintSession(location)
+    const { key, conversationId, greeting } = await mintSession(location)
 
     pc.ontrack = (e) => {
       audio.srcObject = e.streams[0]
@@ -101,6 +103,7 @@ export async function connectRealtime({ onEvent, onDisconnect, location }: Conne
 
     return {
       conversationId,
+      greeting,
       send: (event) => {
         if (dc.readyState === "open") dc.send(JSON.stringify(event))
       },
