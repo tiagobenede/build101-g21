@@ -27,7 +27,7 @@ export const toolSchemas = {
       .describe("Minutos a pie como mucho. 'Cerca' o 'por acá' → 10; si dice que no le importa caminar, más (ej. 30). null = 10 para comida o café, 20 para lo demás."),
   }),
   search_places: z.object({
-    query: z.string().min(2).max(120).describe("Qué buscar, como lo diría en Google: 'crêperie', 'farmacia', 'el Louvre'."),
+    query: z.string().min(2).max(120).describe("Qué buscar, como lo diría en Google: 'crêperie', 'farmacia', 'el Louvre'. Sin 'cerca', 'cercano' ni 'por acá': la cercanía va en max_walk_minutes."),
     open_now: z.boolean().nullable().describe("true si lo necesita abierto ahora. null si no importa."),
     max_walk_minutes: z
       .number()
