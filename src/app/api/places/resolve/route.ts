@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     return NextResponse.json<ResolveResponse>({ success: false, error: "Demasiados pedidos seguidos." }, { status: 429 })
   }
 
-  const known = await findPlaceByName(supabase, name, location)
+  const known = await findPlaceByName(supabase, name, location, { exact: true })
   const place =
     known ??
     (await placeNameAt(location)

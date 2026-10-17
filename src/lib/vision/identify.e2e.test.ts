@@ -169,6 +169,7 @@ describe.skipIf(!enabled)("identifyPhoto (e2e, APIs reales)", () => {
       { title: "Place des Vosges, espejada", where: VOSGES, photo: () => jpeg(sharp(vosges).flop()), expected: { via: "jev", name: /vosg/i } },
       { title: "Capitolio, original", where: CAPITOL, photo: async () => capitol, expected: { via: "jev", name: /capitol/i } },
       { title: "Capitolio, recorte de la cúpula", where: CAPITOL, photo: () => jpeg(sharp(capitol).extract({ left: 440, top: 0, width: 400, height: 330 })), expected: { via: "jev", name: /capitol/i } },
+      // La cámara es en vivo: este caso solo pasa con una foto de una pantalla o un póster.
       { title: "Capitolio, pero el GPS dice París", where: VOSGES, photo: async () => capitol, expected: { via: "llm", name: /capitol/i } },
       { title: "No es un lugar, en Place des Vosges", where: VOSGES, photo: async () => file("no-es-un-lugar.jpg"), expected: { via: "llm", name: null } },
     ]

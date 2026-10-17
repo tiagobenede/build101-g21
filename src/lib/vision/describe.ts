@@ -23,6 +23,7 @@ export type SeenKind = (typeof SEEN_KINDS)[number]
 
 const answerSchema = z.object({
   name: z.string().nullable(),
+  map_name: z.string().nullable(),
   kind: z.enum(SEEN_KINDS),
   where: z.string().nullable(),
   about: z.string().nullable(),
@@ -30,30 +31,40 @@ const answerSchema = z.object({
 
 export type PhotoSubject = {
   name: string
+  /** Para un lugar: como figura en Google Maps, en el idioma local ("Tour Eiffel"). */
+  mapName: string | null
   kind: SeenKind
   /** Dónde está (el museo de una obra); null para los lugares o si no se sabe. */
   where: string | null
-  /** Una línea con lo básico (autor, año, qué es) para que el agente no arranque de cero. */
+  /**
+   * Datos concretos (autor, año, encargo, una anécdota) para que el agente de voz, que es
+   * un modelo chico, cuente la historia sin inventar.
+   */
   about: string | null
 }
 
 const JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["name", "kind", "where", "about"],
+  required: ["name", "map_name", "kind", "where", "about"],
   properties: {
     name: {
       type: ["string", "null"],
       description:
         "Qué es, con su nombre propio en castellano: el lugar o monumento (como se busca en un mapa), la obra (ej. 'La Gioconda') o la cosa. null si no se puede saber o no hay nada para contar.",
     },
+    map_name: { type: ["string", "null"], description: "Para lugar: el nombre como figura en Google Maps, en el idioma local (ej. 'Tour Eiffel'). null si no es un lugar." },
     kind: {
       type: "string",
       enum: SEEN_KINDS,
       description: "lugar: edificio, monumento, plaza, calle, puente, paisaje. obra: pintura, escultura, vitral, mural, tapiz. otro: lo demás (un plato típico, un objeto de museo).",
     },
     where: { type: ["string", "null"], description: "Para obra u otro: dónde está (ej. 'Museo del Louvre'). null para lugar o si no se sabe." },
-    about: { type: ["string", "null"], description: "Una línea de máx. 20 palabras con lo básico: autor y año, o qué es. null si no estás seguro." },
+    about: {
+      type: ["string", "null"],
+      description:
+        "Máx. 50 palabras con datos concretos y seguros para que un guía lo cuente: quién lo hizo, cuándo, para quién o para qué, y una anécdota conocida. Nada que no sepas con certeza. null si no estás seguro.",
+    },
   },
 }
 
@@ -69,7 +80,7 @@ export async function describePhoto(photo: Photo, where: { label: string; city: 
     await callStructured({
       model: VISION_MODEL,
       effort: "none",
-      maxOutputTokens: 150,
+      maxOutputTokens: 250,
       timeoutMs: VISION.llmTimeoutMs,
       content: [
         { type: "input_text", text: context },
@@ -81,5 +92,5 @@ export async function describePhoto(photo: Photo, where: { label: string; city: 
   )
   const name = answer.name?.trim()
   if (!name) return null
-  return { name, kind: answer.kind, where: answer.where?.trim() || null, about: answer.about?.trim() || null }
+  return { name, mapName: answer.map_name?.trim() || null, kind: answer.kind, where: answer.where?.trim() || null, about: answer.about?.trim() || null }
 }
