@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeftRightIcon, Maximize2Icon, MicIcon, XIcon } from "lucide-react"
+import { ArrowLeftRightIcon, CircleHelpIcon, Maximize2Icon, MicIcon, XIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
@@ -47,6 +47,27 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
   const busy = t.state === "connecting" || t.state === "listening" || t.state === "finishing"
   /** Frase a pantalla completa para que la lea la persona local (B-5). */
   const [shown, setShown] = useState<Utterance | null>(null)
+  /** Las instrucciones se ven hasta que alguien habla; después quedan plegadas. */
+  const [helpOpen, setHelpOpen] = useState(true)
+  // Solo en desarrollo: simular la charla sin micrófono, por el mismo camino que un turno real
+  // (window.rumboTranslatorSay("them", "Allez au Breizh Café…", "Vayan al Breizh Café…")).
+  const { simulate } = t
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return
+    const w = window as unknown as { rumboTranslatorSay?: (who: Speaker, original: string, translated: string) => Promise<void> }
+    w.rumboTranslatorSay = (who, original, translated) => {
+      setHelpOpen(false)
+      return simulate(who, original, translated)
+    }
+    return () => {
+      delete w.rumboTranslatorSay
+    }
+  }, [simulate])
+
+  const press = (who: Speaker) => {
+    setHelpOpen(false)
+    void t.press(who)
+  }
   const { start } = t
   useEffect(() => {
     void start()
@@ -60,13 +81,24 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
 
   return (
     <>
-      <section className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col gap-2 px-4 pt-16">
-        <div className="flex items-end gap-2">
+      {/* Debajo de los botones flotantes de /talk (volver y mapa). */}
+      <section className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col gap-3 px-4 pt-[calc(max(0.75rem,env(safe-area-inset-top))+3.25rem)]">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h1 className="text-[28px] leading-tight font-bold tracking-tight">Traductor</h1>
+            <p className="text-muted-foreground text-[15px]">Para hablar con alguien del lugar</p>
+          </div>
+          <Button variant="secondary" size="icon" className="bg-card mt-1 rounded-full" aria-label="Cerrar traductor" onClick={onExit}>
+            <XIcon className="size-5" />
+          </Button>
+        </div>
+
+        <div className="bg-card flex items-center gap-1 rounded-2xl p-1.5">
           <LangSelect label="Yo hablo" value={myLang} onChange={setMyLang} disabled={busy} />
           <Button
             variant="ghost"
             size="icon"
-            className="rounded-full"
+            className="text-brand shrink-0 rounded-full"
             aria-label="Invertir idiomas"
             disabled={busy}
             onClick={() => {
@@ -77,15 +109,21 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
             <ArrowLeftRightIcon className="size-4" />
           </Button>
           <LangSelect label="La otra persona" value={theirLang} onChange={setTheirLang} disabled={busy} />
-          <Button variant="ghost" size="icon" className="rounded-full" aria-label="Cerrar traductor" onClick={onExit}>
-            <XIcon className="size-5" />
-          </Button>
         </div>
 
         <ScrollFade className="min-h-0 flex-1">
           <div className="flex flex-col gap-2 py-2">
-            {t.utterances.length === 0 && (
-              <p className="text-muted-foreground py-6 text-center text-[15px]">Lo que te recomienden aparece abajo y Rumbo se acuerda.</p>
+            {helpOpen ? (
+              <HowItWorks theirLang={LANGUAGES[theirLang]} />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setHelpOpen(true)}
+                className="text-muted-foreground inline-flex items-center gap-1 self-center text-[13px]"
+              >
+                <CircleHelpIcon className="size-3.5" />
+                ¿Cómo se usa?
+              </button>
             )}
             {t.utterances.map((u) => (
               <div
@@ -124,7 +162,10 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
           className="animate-in fade-in bg-background fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8 text-center duration-200"
         >
           <span className="text-muted-foreground text-[15px] font-medium">{LANGUAGES[theirLang]}</span>
-          <p className="text-[clamp(28px,8vw,52px)] leading-tight font-semibold text-balance">{shown.translated}</p>
+          <p className="text-[clamp(28px,8vw,52px)] leading-tight font-semibold text-balance">
+            {/* Francés: espacio antes de ? ! : ; » — que no corte la línea ahí. */}
+            {shown.translated.replace(/ ([?!:;»])/g, "\u00a0$1").replace(/« /g, "«\u00a0")}
+          </p>
           <span className="text-muted-foreground text-[13px]">Tocá para volver</span>
         </button>
       )}
@@ -135,15 +176,27 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
           {t.spentUsd > 0 && <span className="tabular-nums"> · US${t.spentUsd.toFixed(3)}</span>}
         </p>
         <div className="flex items-center gap-3">
-          <SpeakButton who="me" label="Hablo yo" lang={LANGUAGES[myLang]} t={t} />
-          <SpeakButton who="them" label="Habla la otra persona" lang={LANGUAGES[theirLang]} t={t} />
+          <SpeakButton who="me" label="Hablo yo" lang={LANGUAGES[myLang]} t={t} onPress={press} />
+          <SpeakButton who="them" label="Habla la otra persona" lang={LANGUAGES[theirLang]} t={t} onPress={press} />
         </div>
       </footer>
     </>
   )
 }
 
-function SpeakButton({ who, label, lang, t }: { who: Speaker; label: string; lang: string; t: ReturnType<typeof useTranslator> }) {
+function SpeakButton({
+  who,
+  label,
+  lang,
+  t,
+  onPress,
+}: {
+  who: Speaker
+  label: string
+  lang: string
+  t: ReturnType<typeof useTranslator>
+  onPress: (who: Speaker) => void
+}) {
   const active = t.speaker === who
   return (
     <Button
@@ -152,7 +205,7 @@ function SpeakButton({ who, label, lang, t }: { who: Speaker; label: string; lan
       aria-pressed={active}
       disabled={t.state === "off"}
       className={cn("h-14 flex-1 rounded-full text-[15px]", !active && "bg-card")}
-      onClick={() => void t.press(who)}
+      onClick={() => onPress(who)}
     >
       {active && t.state === "connecting" ? <Spinner className="size-4 shrink-0" /> : <MicIcon className="size-4 shrink-0" />}
       {/* Quién habla, y abajo en qué idioma: "Habla la otra persona / Français". */}
@@ -176,10 +229,10 @@ function LangSelect({
   disabled: boolean
 }) {
   return (
-    <label className="flex min-w-0 flex-1 flex-col gap-1 text-[13px]">
-      <span className="text-muted-foreground">{label}</span>
+    <label className="hover:bg-muted/60 flex min-w-0 flex-1 flex-col rounded-xl px-2.5 py-1.5 transition-colors">
+      <span className="text-muted-foreground text-[12px]">{label}</span>
       <select
-        className="bg-card h-10 rounded-xl px-3 text-[15px]"
+        className="-ml-1 bg-transparent text-[17px] font-semibold outline-none disabled:opacity-60"
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value as Lang)}
@@ -191,5 +244,24 @@ function LangSelect({
         ))}
       </select>
     </label>
+  )
+}
+
+/** Antes de la primera frase: cómo se usa, en tres pasos. */
+function HowItWorks({ theirLang }: { theirLang: string }) {
+  const steps = [
+    <>Cuando hable la otra persona ({theirLang}), tocá <b>Habla la otra persona</b> y otra vez al terminar.</>,
+    <>Para responder, <b>Hablo yo</b>. Con <b>Mostrar</b> le enseñás tu frase en grande.</>,
+    <>Si te recomienda un lugar, aparece abajo, queda guardado y te aviso cuando pases cerca.</>,
+  ]
+  return (
+    <ol className="bg-card flex flex-col gap-2.5 rounded-2xl p-4">
+      {steps.map((step, i) => (
+        <li key={i} className="flex gap-3 text-[15px] leading-snug">
+          <span className="bg-brand/10 text-brand flex size-6 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold">{i + 1}</span>
+          <span>{step}</span>
+        </li>
+      ))}
+    </ol>
   )
 }

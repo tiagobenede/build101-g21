@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { planSlots, recommendedBy } from "./view"
+import { planSlots, recommendedBy, splitRecommender } from "./view"
 
 describe("planSlots", () => {
   it("redondea a la próxima media hora y suma 1 h y 2 h", () => {
@@ -22,5 +22,13 @@ describe("recommendedBy", () => {
     expect(recommendedBy(null)).toBe("Te lo recomendó alguien del lugar")
     expect(recommendedBy("Camille, trabaja en la panadería. ")).toBe("Te lo recomendó Camille, trabaja en la panadería")
     expect(recommendedBy("  ")).toBe("Te lo recomendó alguien del lugar")
+  })
+})
+
+describe("splitRecommender", () => {
+  it("separa el nombre de quién es", () => {
+    expect(splitRecommender("Camille, la de la panadería de al lado.")).toEqual({ name: "Camille", detail: "la de la panadería de al lado" })
+    expect(splitRecommender("Camille")).toEqual({ name: "Camille", detail: null })
+    expect(splitRecommender(null)).toEqual({ name: null, detail: null })
   })
 })

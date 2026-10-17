@@ -99,6 +99,17 @@ export async function POST(req: Request) {
     return fail(502, "No pude entender la recomendación.")
   }
 
+  // Si en este turno no dijo quién es, es la misma persona que antes en esta charla.
+  const { data: earlier } = await supabase
+    .from("local_tips")
+    .select("recommender")
+    .eq("conversation_id", conversationId)
+    .not("recommender", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const knownRecommender = (earlier?.recommender as string | undefined) ?? null
+
   const tips = await Promise.all(
     extracted.map(async (tip) => {
       // Primero lo que ya conocemos; si no, Google (y queda guardado en `places`).
@@ -112,28 +123,47 @@ export async function POST(req: Request) {
             return null
           }))
 
-      const { data: row, error } = await supabase
-        .from("local_tips")
-        .insert({
-          user_id: user.id,
-          trip_id: trip?.id ?? null,
-          conversation_id: conversationId,
-          place_id: place?.id ?? null,
-          place_name_raw: tip.place_name,
-          what: tip.what,
-          why: tip.why,
-          when_to_go: tip.when_to_go,
-          price_hint: tip.price_hint,
-          recommender: tip.recommender,
-          original_quote: tip.original_quote,
-          original_lang: theirLang,
-          translated_quote: tip.translated_quote,
-          confidence: Math.min(1, Math.max(0, tip.confidence)),
-          // Guardada por defecto: así avisa al pasar cerca (C-6). La card ofrece descartarla.
-          status: "saved",
-        })
-        .select("id")
-        .single()
+      // Mismo lugar ya recomendado (y no descartado): no se duplica, se reusa esa.
+      const recommender = tip.recommender ?? knownRecommender
+      const { data: existing } = place
+        ? await supabase
+            .from("local_tips")
+            .select("id, recommender")
+            .eq("user_id", user.id)
+            .eq("place_id", place.id)
+            .neq("status", "dismissed")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : { data: null }
+      if (existing && !existing.recommender && recommender) {
+        await supabase.from("local_tips").update({ recommender }).eq("id", existing.id)
+      }
+
+      const { data: row, error } = existing
+        ? { data: { id: existing.id as string }, error: null }
+        : await supabase
+            .from("local_tips")
+            .insert({
+              user_id: user.id,
+              trip_id: trip?.id ?? null,
+              conversation_id: conversationId,
+              place_id: place?.id ?? null,
+              place_name_raw: tip.place_name,
+              what: tip.what,
+              why: tip.why,
+              when_to_go: tip.when_to_go,
+              price_hint: tip.price_hint,
+              recommender,
+              original_quote: tip.original_quote,
+              original_lang: theirLang,
+              translated_quote: tip.translated_quote,
+              confidence: Math.min(1, Math.max(0, tip.confidence)),
+              // Guardada por defecto: así avisa al pasar cerca (C-6). La card ofrece descartarla.
+              status: "saved",
+            })
+            .select("id")
+            .single()
       if (error) console.error("[translate] insert local tip failed", error.message)
 
       return {
@@ -145,7 +175,7 @@ export async function POST(req: Request) {
         why: tip.why,
         whenToGo: tip.when_to_go,
         priceHint: tip.price_hint,
-        recommender: tip.recommender,
+        recommender: recommender ?? (existing?.recommender as string | null | undefined) ?? null,
         originalQuote: tip.original_quote,
         translatedQuote: tip.translated_quote,
         walkMinutes: place ? walkMinutes(location, place) : null,

@@ -298,5 +298,28 @@ export function useTranslator({
     }
   }, [stop])
 
-  return { state, speaker, utterances, spentUsd, start, press, release, stop }
+  /**
+   * Solo para probar sin micrófono (desarrollo): un turno completo como si se hubiera
+   * hablado y traducido. Crea la conversación si hace falta y pasa por `save`, igual que
+   * un turno real (burbuja, `messages` y recomendaciones).
+   */
+  const simulate = useCallback(
+    async (who: Speaker, original: string, translated: string) => {
+      if (!conversationRef.current) {
+        const { myLang: mine, theirLang: theirs, location: here } = langsRef.current
+        const res = await fetch("/api/translate/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ targetLang: mine, myLang: mine, theirLang: theirs, conversationId: null, location: here }),
+        })
+        const body = (await res.json().catch(() => null)) as SessionResponse | null
+        if (!body?.success) throw new Error("No se pudo crear la conversación.")
+        conversationRef.current = body.data.conversationId
+      }
+      save({ id: `sim-${Date.now()}`, speaker: who, original, translated, final: true })
+    },
+    [save]
+  )
+
+  return { state, speaker, utterances, spentUsd, start, press, release, stop, simulate }
 }

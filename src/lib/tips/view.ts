@@ -35,3 +35,11 @@ export function planSlots(nowMs: number): string[] {
   const first = Math.ceil(nowMs / SLOT_MS) * SLOT_MS
   return [0, 60, 120].map((min) => new Date(first + min * 60_000).toISOString())
 }
+
+/** "Camille, la de la panadería." → nombre "Camille", detalle "la de la panadería". */
+export function splitRecommender(recommender: string | null): { name: string | null; detail: string | null } {
+  const clean = recommender?.trim().replace(/[.\s]+$/, "") ?? ""
+  if (!clean) return { name: null, detail: null }
+  const [name, ...rest] = clean.split(",")
+  return { name: name.trim(), detail: rest.join(",").trim() || null }
+}

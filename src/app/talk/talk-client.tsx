@@ -27,7 +27,7 @@ import type { MapPlace, MapStop } from "@/components/location/map-view"
 import { PlaceNotification } from "@/components/rumbo/place-notification"
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
 import { CameraSheet } from "@/components/camera/camera-sheet"
-import { LocalTipCard } from "@/components/translate/local-tip-card"
+import { TranslatorTips, type TipScan } from "@/components/translate/translator-tips"
 import { TranslatorPanel } from "@/components/translate/translator-panel"
 import { TALK_STATUS_IDLE, VoiceStage } from "@/components/rumbo/voice-stage"
 import { Button } from "@/components/ui/button"
@@ -128,6 +128,8 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   const [translating, setTranslating] = useState(false)
   /** Lo que recomendaron las personas locales en esta pantalla (cards de B-5). */
   const [localTips, setLocalTips] = useState<LocalTipView[]>([])
+  /** Si se está revisando lo que dijo la persona local, y qué salió la última vez. */
+  const [tipScan, setTipScan] = useState<TipScan>({ pending: 0, last: null, lastId: 0 })
   const { micMuted, setMicMuted } = call
   const mutedForTranslatorRef = useRef(false)
   const openTranslator = useCallback(() => {
@@ -138,6 +140,10 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   }, [micMuted, setMicMuted])
   const closeTranslator = useCallback(() => {
     setTranslating(false)
+    // Las recomendaciones se ven solo durante la charla: al salir del traductor se van de
+    // la pantalla (quedan guardadas y siguen avisando al pasar cerca).
+    setLocalTips([])
+    setTipScan({ pending: 0, last: null, lastId: 0 })
     if (mutedForTranslatorRef.current) setMicMuted(false)
     mutedForTranslatorRef.current = false
   }, [setMicMuted])
@@ -179,6 +185,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
       )
       if (turn.speaker !== "them") return
 
+      setTipScan((s) => ({ ...s, pending: s.pending + 1 }))
       const res = await fetch("/api/translate/tips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -198,6 +205,8 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
         data?: { tips: FoundTip[] }
       } | null
       const tips = body?.data?.tips ?? []
+      const result: TipScan["last"] = !body?.success ? "error" : tips.length > 0 ? "found" : "none"
+      setTipScan((s) => ({ pending: Math.max(0, s.pending - 1), last: result, lastId: s.lastId + 1 }))
       if (tips.length === 0) return
 
       // Cada recomendación es una card (B-5), la más nueva arriba.
@@ -296,15 +305,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
 
       {translating ? (
         <TranslatorPanel location={position} defaultTheirLang={location.localLang} onTurn={onTurn} onExit={closeTranslator}>
-          {localTips.length > 0 && (
-            <ScrollFade className="max-h-[50%] min-h-0 shrink-0">
-              <div className="flex flex-col gap-2 py-2">
-                {localTips.map((tip) => (
-                  <LocalTipCard key={tip.id} tip={tip} timeZone={location.timeZone} onChange={onTipChange} onGo={onTipGo} />
-                ))}
-              </div>
-            </ScrollFade>
-          )}
+          <TranslatorTips tips={localTips} scan={tipScan} timeZone={location.timeZone} onChange={onTipChange} onGo={onTipGo} />
           {genui.screen && (
             <ScrollFade className="max-h-[45%] min-h-0 shrink-0">
               <div className="py-2">
