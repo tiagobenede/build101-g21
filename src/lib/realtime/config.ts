@@ -43,6 +43,8 @@ export const TURN_DETECTION = {
  */
 export const CONTEXT_REFRESH_DISTANCE_M = 300
 export const CONTEXT_REFRESH_MIN_MS = 30_000
+/** Aunque nada cambie, se refresca cada tanto para que la hora no quede vieja. */
+export const CONTEXT_REFRESH_CLOCK_MS = 5 * 60_000
 
 /** Un tool que tarda más que esto devuelve error y la charla sigue. */
 export const TOOL_TIMEOUT_MS = 12_000

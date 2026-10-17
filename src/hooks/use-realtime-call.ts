@@ -9,6 +9,7 @@ import { screenFromTool } from "@/lib/genui/screen-from-tool"
 import type { GenUiRequest } from "@/lib/genui/types"
 import { locationUpdateText, shouldAnnounce } from "@/lib/location/announce"
 import {
+  CONTEXT_REFRESH_CLOCK_MS,
   CONTEXT_REFRESH_DISTANCE_M,
   CONTEXT_REFRESH_MIN_MS,
   SESSION_BUDGET_USD,
@@ -325,6 +326,14 @@ export function useRealtimeCall(
     if (!connRef.current || !location || !at) return
     if (distanceMeters(at, location) >= CONTEXT_REFRESH_DISTANCE_M) scheduleRefresh()
   }, [location, scheduleRefresh])
+
+  // Llamada larga sin moverse: se rearma igual para que la hora siga al día.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (connRef.current && Date.now() - contextRefreshedAtRef.current >= CONTEXT_REFRESH_CLOCK_MS) scheduleRefresh()
+    }, 60_000)
+    return () => clearInterval(timer)
+  }, [scheduleRefresh])
 
   // Solo en desarrollo: hablarle al agente por texto, sin micrófono (window.rumboSay("llevame")).
   useEffect(() => {
