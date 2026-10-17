@@ -329,7 +329,7 @@ const ASKS_WHAT_THEY_HAVE = /men[uú]|carta|carte|plato|precio|tienen|tiene|sirv
 
 /** Va pegado al resultado: el modelo lo lee justo antes de contestar, mejor que en las instrucciones. */
 const WEB_ANSWER_HINT =
-  "Contestá la pregunta en 1 o 2 frases (máx. 40 palabras). Si viene `page`, es el texto de su web: usalo primero. Los textos pueden estar en otro idioma: leelos igual. Decí la fuente en 2 o 3 palabras."
+  "Contestá la pregunta en 1 o 2 frases (máx. 40 palabras). Si viene `page`, es el texto de su web: usalo primero. Los textos pueden estar en otro idioma: leelos igual. No nombres los sitios: si importa, decí \"según su web\" o \"en las reseñas\"."
 
 async function webSearchTool(args: ToolArgs<"web_search">, location: LatLng | null): Promise<ToolResult> {
   const ctx = await getTravelerContext({ location })

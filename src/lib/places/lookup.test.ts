@@ -12,6 +12,12 @@ describe("namesMatch", () => {
 
   it("no confunde lugares distintos", () => {
     expect(namesMatch("Museo del Louvre", "Museo Picasso")).toBe(false)
+    expect(namesMatch("Centre Pompidou", "Place Georges Pompidou")).toBe(false)
+  })
+
+  it("el nombre en francés encuentra el de Google en castellano", () => {
+    expect(namesMatch("Centre Pompidou", "Centro Nacional de Arte y Cultura Georges Pompidou")).toBe(true)
+    expect(namesMatch("Musée du Louvre", "Museo del Louvre")).toBe(true)
   })
 })
 
