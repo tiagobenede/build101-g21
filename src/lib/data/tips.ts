@@ -6,16 +6,18 @@ import { z } from "zod"
 import { addItineraryItem, type Actor } from "@/lib/data/itinerary"
 import { fail, ok, type Result } from "@/lib/data/result"
 import type { ItineraryItem } from "@/lib/data/session"
+import { recommendedBy } from "@/lib/tips/view"
 
 /**
  * Recomendaciones de residentes (`local_tips`): las cards de B-5 y, si hace falta, los
  * tools del agente. Mismo patrón que `itinerary.ts`: cliente del usuario y `Result`.
  */
 
-type TipStatus = "saved" | "dismissed"
+/** Lo que el viajero puede elegir desde la card (al plan va por `addTipToPlan`). */
+type ChosenStatus = "saved" | "dismissed"
 
 /** Guarda o descarta una recomendación. */
-export async function setTipStatus(db: SupabaseClient, id: string, status: TipStatus): Promise<Result<{ id: string }>> {
+export async function setTipStatus(db: SupabaseClient, id: string, status: ChosenStatus): Promise<Result<{ id: string }>> {
   if (!z.uuid().safeParse(id).success || !["saved", "dismissed"].includes(status)) return fail("Pedido inválido.")
   const { data, error } = await db.from("local_tips").update({ status }).eq("id", id).select("id").maybeSingle()
   if (error) {
@@ -50,7 +52,7 @@ export async function addTipToPlan(db: SupabaseClient, id: string, startsAt: str
       placeId: tip.place_id as string,
       startsAt,
       endsAt: null,
-      notes: tip.recommender ? `Te lo recomendó ${tip.recommender}: ${tip.what}` : tip.what,
+      notes: `${recommendedBy(tip.recommender)}: ${tip.what}`,
       source: "local_tip",
       sourceRef: tip.id as string,
       locked: null,

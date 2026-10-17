@@ -11,8 +11,8 @@ import type { LatLng } from "@/lib/geo"
 
 import { reverseGeocode } from "./reverse"
 
-export type Locale = { timeZone: string; city: string | null; country: string | null }
-export type PlaceName = { city: string | null; country: string | null }
+export type Locale = { timeZone: string; city: string | null; country: string | null; countryCode: string | null }
+export type PlaceName = { city: string | null; country: string | null; countryCode: string | null }
 
 /** Celdas de ~1 km durante un día: moverse dentro de una no repite la consulta. */
 const CITY_CACHE = { decimals: 2, ttlMs: 24 * 60 * 60_000 }
@@ -28,10 +28,15 @@ export function timeZoneAt(location: LatLng): string {
 /** Ciudad y país donde está el viajero. */
 export async function placeNameAt(location: LatLng): Promise<PlaceName | null> {
   const parts = await reverseGeocode(location, CITY_CACHE)
-  return parts ? { city: parts.city, country: parts.country } : null
+  return parts ? { city: parts.city, country: parts.country, countryCode: parts.countryCode } : null
 }
 
 export async function localeAt(location: LatLng): Promise<Locale> {
   const name = await placeNameAt(location)
-  return { timeZone: timeZoneAt(location), city: name?.city ?? null, country: name?.country ?? null }
+  return {
+    timeZone: timeZoneAt(location),
+    city: name?.city ?? null,
+    country: name?.country ?? null,
+    countryCode: name?.countryCode ?? null,
+  }
 }

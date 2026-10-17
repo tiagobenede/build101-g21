@@ -3,11 +3,9 @@ import { Suspense } from "react"
 import { PageSkeleton } from "@/components/rumbo/page-skeleton"
 import { TripSharing, type TripPerson } from "@/components/trip/trip-sharing"
 import { getTravelerContext } from "@/lib/data/session"
-import { tripDay } from "@/lib/format"
 
 async function TripContent() {
   const ctx = await getTravelerContext()
-  const day = ctx.trip ? tripDay(ctx.trip.start_date, ctx.trip.end_date) : null
   // Viaje compartido: si nadie más es el dueño, el viaje es mío.
   const isOwner = !ctx.companions.some((c) => c.role === "owner")
   const limits = (dietary: string[], mobility: string | null) =>
@@ -28,7 +26,7 @@ async function TripContent() {
       isMe: false,
     })),
   ].sort((a, b) => Number(b.isOwner) - Number(a.isOwner))
-  const subtitle = [ctx.city, day && `Día ${day.day} de ${day.total}`].filter(Boolean).join(" · ")
+  const subtitle = ctx.city
 
   return (
     <main className="animate-in fade-in mx-auto flex w-full max-w-md flex-col gap-6 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[calc(6rem+env(safe-area-inset-bottom))] duration-300">

@@ -4,7 +4,14 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { placeFacts } from "@/lib/agent/facts"
 import { interestQuery, tagWithInterest } from "@/lib/agent/interest-fallback"
-import { NEAR_ONLY_TAGS, rankPlaces, resolveAvailableMinutes, type RankablePlace } from "@/lib/agent/rank"
+import {
+  MAX_RECOMMENDATIONS,
+  NEAR_ONLY_TAGS,
+  rankPlaces,
+  resolveAvailableMinutes,
+  type RankablePlace,
+  type Ranked,
+} from "@/lib/agent/rank"
 import {
   addItineraryItem,
   removeItineraryItem,
@@ -28,11 +35,14 @@ import { getWhere } from "@/lib/location/where"
 import { walkingRoute } from "@/lib/maps/walking-route"
 import { getOpeningInfo } from "@/lib/places/details"
 import { findPlaceByName } from "@/lib/places/lookup"
+import { openLongEnough } from "@/lib/places/opening"
 import { searchPlaces } from "@/lib/places/search"
 import { formatTodayPlan, itemRef } from "@/lib/realtime/instructions"
 import { fillMissingNulls, isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
+import { transcriptText } from "@/lib/translate/recent"
+import { recentTranslation } from "@/lib/translate/server"
 import { WALK } from "@/lib/tuning"
 import { zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
 import { readMenu } from "@/lib/web-page"
@@ -42,6 +52,30 @@ const fail = (error: string): ToolResult => ({ output: JSON.stringify({ error })
 
 /** Lugares cercanos que entran al ranking de recommend_nearby. */
 const MAX_RANK_CANDIDATES = 150
+/** Se rankean de más para poder descartar los cerrados sin quedarse cortos. */
+const OPENING_CANDIDATES = MAX_RECOMMENDATIONS * 2
+/** Lo mismo que en /api/genui: si Google tarda, el lugar pasa sin horario. */
+const OPENING_TIMEOUT_MS = 1_500
+
+type PlaceData = { types?: string[]; google_place_id?: string } | null
+
+/** Descarta los cerrados o que cierran antes de que termine la visita (horarios de Google, en paralelo). */
+async function keepOpen(ranked: Ranked[], googleIds: Map<string, string>, timeZone: string): Promise<Ranked[]> {
+  const now = new Date()
+  const localTime = zonedTimeValue(now.toISOString(), timeZone)
+  const keep = await Promise.all(
+    ranked.map(async (r) => {
+      const googleId = googleIds.get(r.place.id)
+      if (!googleId) return true
+      const info = await Promise.race([
+        getOpeningInfo(googleId, now, timeZone),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), OPENING_TIMEOUT_MS)),
+      ])
+      return openLongEnough(info, localTime, r.walkMinutes, r.stayMinutes)
+    })
+  )
+  return ranked.filter((_, i) => keep[i]).slice(0, MAX_RECOMMENDATIONS)
+}
 
 async function recommendNearby(
   args: ToolArgs<"recommend_nearby">,
@@ -72,10 +106,17 @@ async function recommendNearby(
   const candidates = ctx.nearby.slice(0, MAX_RANK_CANDIDATES)
   // Los tipos de Google (en `places.data`) sirven para respetar la dieta.
   const { data: typed } = await supabase.from("places").select("id, data").in("id", candidates.map((p) => p.id))
-  const typesById = new Map((typed ?? []).map((p) => [p.id as string, (p.data as { types?: string[] } | null)?.types ?? []]))
+  const typesById = new Map((typed ?? []).map((p) => [p.id as string, (p.data as PlaceData)?.types ?? []]))
+  // Para pedir el horario a Google; los lugares semilla no tienen y pasan igual.
+  const googleIds = new Map<string, string>()
+  for (const p of typed ?? []) {
+    const googleId = (p.data as PlaceData)?.google_place_id
+    if (googleId) googleIds.set(p.id as string, googleId)
+  }
 
-  const rank = (places: RankablePlace[]) =>
-    rankPlaces({
+  let closedDropped = false
+  const rank = async (places: RankablePlace[]) => {
+    const all = rankPlaces({
       places,
       interests: ctx.interests,
       requestedTag: args.interest,
@@ -84,8 +125,13 @@ async function recommendNearby(
       alreadyRecommended: previous.map((r) => r.place_id as string),
       // En un viaje compartido se respeta la dieta de todos.
       dietary: [...new Set([...ctx.constraints.dietary, ...ctx.companions.flatMap((c) => c.dietary)])],
+      limit: OPENING_CANDIDATES,
     })
-  let ranked = rank(candidates.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
+    const open = await keepOpen(all, googleIds, ctx.timeZone)
+    if (open.length === 0 && all.length > 0) closedDropped = true
+    return open
+  }
+  let ranked = await rank(candidates.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
   // Nada guardado para lo que pidió (p. ej. "compras" sin shoppings en caché): se busca en Google.
   if (ranked.length === 0 && args.interest) {
     const found = await searchPlaces(interestQuery(args.interest), null, ctx.location, ctx.city ?? "", { maxWalkMinutes }).catch(
@@ -94,8 +140,12 @@ async function recommendNearby(
         return []
       }
     )
-    ranked = rank(
-      tagWithInterest(found, args.interest).map((p) => ({ ...p, googleTypes: (p.data as { types?: string[] }).types }))
+    for (const p of found) {
+      const googleId = (p.data as PlaceData)?.google_place_id
+      if (googleId) googleIds.set(p.id, googleId)
+    }
+    ranked = await rank(
+      tagWithInterest(found, args.interest).map((p) => ({ ...p, googleTypes: (p.data as PlaceData)?.types }))
     )
   }
 
@@ -116,7 +166,13 @@ async function recommendNearby(
       available_minutes: availableMinutes,
       max_walk_min: maxWalkMinutes,
       next_commitment: commitment?.title ?? null,
-      ...(ranked.length === 0 ? { note: `Nada a menos de ${maxWalkMinutes} min a pie. Decíselo y preguntá si quiere caminar más.` } : {}),
+      ...(ranked.length === 0
+        ? {
+            note: closedDropped
+              ? "Lo que hay cerca está cerrado o cierra antes de que llegue a disfrutarlo. Decíselo y ofrecé otra cosa."
+              : `Nada a menos de ${maxWalkMinutes} min a pie. Decíselo y preguntá si quiere caminar más.`,
+          }
+        : {}),
       places: ranked.map((r) => ({
         name: r.place.name,
         category: r.place.category,
@@ -158,6 +214,7 @@ async function searchPlacesTool(args: ToolArgs<"search_places">, location: LatLn
         open_now: p.openNow,
         rating: p.rating,
         summary: p.description?.slice(0, SUMMARY_MAX_CHARS) ?? null,
+        phone: (p.data.phone as string | undefined) ?? null,
       })),
       ...(found.length === 0 && maxWalkMinutes !== null
         ? { note: `Nada a menos de ${maxWalkMinutes} min a pie. Decíselo y preguntá si quiere caminar más.` }
@@ -283,6 +340,7 @@ async function getPlaceTool(args: ToolArgs<"get_place">, location: LatLng | null
       description: place.description?.slice(0, DESCRIPTION_MAX_CHARS) ?? null,
       open_now: opening?.openNow ?? null,
       hours_today: opening?.hoursToday ?? null,
+      phone: place.data?.phone ?? null,
     }),
     cards: [
       {
@@ -312,6 +370,7 @@ async function showRouteTool(args: ToolArgs<"show_route">, location: LatLng | nu
       walk_meters: route?.meters ?? null,
       shown: "El mapa con la caminata ya está en la pantalla.",
     }),
+    destination: { name: place.name, lat: place.lat, lng: place.lng },
     cards: [
       {
         id: place.id,
@@ -499,6 +558,16 @@ async function whereAmITool(location: LatLng | null): Promise<ToolResult> {
   return { output: JSON.stringify({ where: whereLine(await getWhere(at)) }), cards: [] }
 }
 
+/** La última charla con el traductor, entera, si terminó hace poco. */
+async function translationTranscriptTool(): Promise<ToolResult> {
+  const translation = await recentTranslation(await createClient())
+  if (!translation) return fail("No hay una charla reciente con el traductor.")
+  return {
+    output: JSON.stringify({ lang_pair: translation.langPair, transcript: transcriptText(translation.turns) }),
+    cards: [],
+  }
+}
+
 /** Ejecuta un tool del agente con los permisos del usuario logueado. */
 export async function runTool(
   name: string,
@@ -538,6 +607,11 @@ export async function runTool(
       const args = toolSchemas.place_facts.safeParse(json)
       return args.success ? placeFactsTool(args.data, location) : invalid
     }
+    case "show_phrase": {
+      // La pantalla la arma el cliente con los mismos argumentos: acá solo se valida.
+      const args = toolSchemas.show_phrase.safeParse(json)
+      return args.success ? { output: JSON.stringify({ shown: true }), cards: [] } : invalid
+    }
     case "get_place": {
       const args = toolSchemas.get_place.safeParse(json)
       return args.success ? getPlaceTool(args.data, location) : invalid
@@ -553,8 +627,16 @@ export async function runTool(
       return args.success ? editItinerary(args.data, location) : invalid
     }
     case "remember": {
-      const args = toolSchemas.remember.safeParse(json)
+      // El modelo a veces manda kind "avoid": es un gusto en negativo, no un error para descartar lo que contó.
+      const kind = (json as { kind?: unknown } | null)?.kind
+      const fixed = kind === "constraint" || kind === "preference" ? json : { ...(json as object), kind: "preference" }
+      const args = toolSchemas.remember.safeParse(fixed)
       return args.success ? rememberTool(args.data, location) : invalid
     }
+    case "translation_transcript":
+      return translationTranscriptTool()
+    case "open_translator":
+      // Lo abre el cliente (use-realtime-call); acá no llega, pero el switch tiene que cubrirlo.
+      return { output: JSON.stringify({ opened: true }), cards: [] }
   }
 }

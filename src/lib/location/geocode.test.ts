@@ -47,7 +47,7 @@ const montevideo = {
         { long_name: "La Blanqueada", types: ["neighborhood", "political"] },
         { long_name: "Montevideo", types: ["locality", "political"] },
         { long_name: "Departamento de Montevideo", types: ["administrative_area_level_1", "political"] },
-        { long_name: "Uruguay", types: ["country", "political"] },
+        { long_name: "Uruguay", short_name: "UY", types: ["country", "political"] },
       ],
     },
   ],
@@ -60,6 +60,7 @@ describe("parseGoogleReverse", () => {
       barrio: "La Blanqueada",
       city: "Montevideo",
       country: "Uruguay",
+      countryCode: "UY",
     })
   })
 
@@ -76,7 +77,13 @@ describe("parseGoogleReverse", () => {
         },
       ],
     }
-    expect(parseGoogleReverse(raw)).toEqual({ street: "Ruta 10", barrio: null, city: "Maldonado", country: "Uruguay" })
+    expect(parseGoogleReverse(raw)).toEqual({
+      street: "Ruta 10",
+      barrio: null,
+      city: "Maldonado",
+      country: "Uruguay",
+      countryCode: null,
+    })
   })
 
   it("devuelve null sin resultados o con error", () => {
@@ -88,12 +95,12 @@ describe("parseGoogleReverse", () => {
 
 describe("streetLine", () => {
   it("arma calle, barrio y ciudad sin repetir", () => {
-    expect(streetLine({ street: "Place des Vosges", barrio: null, city: "Paris", country: "Francia" })).toBe("Place des Vosges, Paris")
-    expect(streetLine({ street: "A", barrio: "Paris", city: "Paris", country: null })).toBe("A, Paris")
+    expect(streetLine({ street: "Place des Vosges", barrio: null, city: "Paris", country: "Francia", countryCode: "FR" })).toBe("Place des Vosges, Paris")
+    expect(streetLine({ street: "A", barrio: "Paris", city: "Paris", country: null, countryCode: null })).toBe("A, Paris")
   })
 
   it("devuelve null sin calle ni barrio", () => {
-    expect(streetLine({ street: null, barrio: null, city: "Paris", country: "Francia" })).toBeNull()
+    expect(streetLine({ street: null, barrio: null, city: "Paris", country: "Francia", countryCode: "FR" })).toBeNull()
     expect(streetLine(null)).toBeNull()
   })
 })

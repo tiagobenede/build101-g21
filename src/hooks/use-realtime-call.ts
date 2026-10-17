@@ -7,7 +7,7 @@ import { saveTurn } from "@/app/talk/actions"
 import { distanceMeters, type LatLng } from "@/lib/geo"
 import { screenFromTool } from "@/lib/genui/screen-from-tool"
 import type { GenUiRequest } from "@/lib/genui/types"
-import { locationUpdateText, shouldAnnounce } from "@/lib/location/announce"
+import { ARRIVAL_METERS, arrivalText, locationUpdateText, shouldAnnounce } from "@/lib/location/announce"
 import {
   CONTEXT_REFRESH_CLOCK_MS,
   CONTEXT_REFRESH_DISTANCE_M,
@@ -18,7 +18,7 @@ import {
 } from "@/lib/realtime/config"
 import { connectRealtime, type RealtimeConnection, type RealtimeEvent } from "@/lib/realtime/connection"
 import { estimateUsageCost, type RealtimeUsage } from "@/lib/realtime/cost"
-import { findNewPlaces } from "@/lib/realtime/match-places"
+import { findNewPlaces, placeToFeature } from "@/lib/realtime/match-places"
 import { ResponseQueue } from "@/lib/realtime/response-queue"
 import type { ToolResult } from "@/lib/realtime/tools"
 import { onTableChange } from "@/lib/supabase/client"
@@ -26,6 +26,10 @@ import { onTableChange } from "@/lib/supabase/client"
 import type { CallState, MentionedPlace, PlaceCard, VoiceCall } from "./voice-session-types"
 
 const IDLE_CHECK_MS = 5_000
+/** Tools que no necesitan que el agente vuelva a hablar cuando terminan. */
+const SILENT_TOOLS = new Set(["remember"])
+/** Los corre el cliente: no pasan por /api/realtime/tools. */
+const CLIENT_TOOLS = new Set(["open_translator"])
 const MAX_PENDING_NOTES = 3
 /** Tablas que cambian lo que sabe el agente: si se tocan con la llamada abierta, se rearman las instrucciones. */
 const CONTEXT_TABLES = ["itinerary_items", "profiles", "interests", "local_tips", "trip_members"] as const
@@ -34,6 +38,21 @@ type ResponseDone = {
   usage?: RealtimeUsage
   status?: string
   status_details?: { error?: { message?: string } }
+}
+
+/** Corre un tool en el server; si falla, un error que el agente puede contar. */
+function fetchTool(ev: RealtimeEvent, conversationId: string, location: LatLng | null): Promise<ToolResult> {
+  return fetch("/api/realtime/tools", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: ev.name, arguments: ev.arguments, conversationId, location }),
+    signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
+  })
+    .then((res) => (res.ok ? (res.json() as Promise<ToolResult>) : Promise.reject(new Error(String(res.status)))))
+    .catch((err: unknown) => {
+      console.error("[realtime] tool failed", ev.name, err)
+      return { output: JSON.stringify({ error: "No pude buscar eso ahora." }), cards: [] }
+    })
 }
 
 /**
@@ -48,7 +67,9 @@ export function useRealtimeCall(
   knownPlaces: PlaceCard[],
   location: LatLng | null = null,
   /** La pantalla: lugares del último tool del agente, o null para vaciarla. */
-  onScreen?: (screen: GenUiRequest | null) => void
+  onScreen?: (screen: GenUiRequest | null) => void,
+  /** El agente abre el traductor (`open_translator`). */
+  onOpenTranslator?: () => void
 ): VoiceCall {
   const [state, setState] = useState<CallState>("off")
   const [places, setPlaces] = useState<MentionedPlace[]>([])
@@ -68,9 +89,13 @@ export function useRealtimeCall(
   const outputVolumeRef = useRef(0)
   const queueRef = useRef<ResponseQueue | null>(null)
   const onScreenRef = useRef(onScreen)
+  const onOpenTranslatorRef = useRef(onOpenTranslator)
   useEffect(() => {
     onScreenRef.current = onScreen
-  }, [onScreen])
+    onOpenTranslatorRef.current = onOpenTranslator
+  }, [onScreen, onOpenTranslator])
+  /** Adonde va (el último show_route): al llegar se le avisa al agente, una vez. */
+  const destinationRef = useRef<ToolResult["destination"] | null>(null)
   /** Ubicación en vivo (joystick o GPS) y la última que se le avisó a la llamada. */
   const locationRef = useRef(location)
   const announcedRef = useRef<LatLng | null>(null)
@@ -83,6 +108,10 @@ export function useRealtimeCall(
   const pendingNotesRef = useRef<string[]>([])
   /** Lugares que devolvieron los tools: se muestran si el agente los nombra. */
   const toolPlacesRef = useRef<PlaceCard[]>([])
+  /** La última pantalla con varios lugares: si la voz recomienda otro que el destacado, pasa adelante (una vez). */
+  const placesScreenRef = useRef<{ request: string; placeIds: string[]; followed: boolean } | null>(null)
+  /** Respuestas en las que el agente ya habló (un tool silencioso no pide otra). */
+  const spokenResponsesRef = useRef(new Set<string>())
 
   useEffect(() => {
     knownPlacesRef.current = knownPlaces
@@ -117,6 +146,15 @@ export function useRealtimeCall(
   const revealPlaces = useCallback(() => {
     const candidates = [...toolPlacesRef.current, ...knownPlacesRef.current]
     showPlaces(findNewPlaces(agentTextRef.current, candidates, seenRef.current))
+
+    // La pantalla destaca el primero que devolvió el tool, pero la voz a veces recomienda otro
+    // (el más cerca en vez del mejor puntuado): la pantalla lo sigue.
+    const screen = placesScreenRef.current
+    if (!screen || screen.followed) return
+    const id = placeToFeature(agentTextRef.current, screen.placeIds, toolPlacesRef.current)
+    if (!id) return
+    screen.followed = true
+    onScreenRef.current?.({ request: screen.request, placeIds: [id, ...screen.placeIds.filter((p) => p !== id)] })
   }, [showPlaces])
 
   /** Corre el tool en segundo plano; la cola decide cuándo entra el resultado a la charla. */
@@ -126,24 +164,12 @@ export function useRealtimeCall(
       const conn = connRef.current
       const queue = queueRef.current
       if (!callId || !conn || !queue) return
-      queue.begin(callId, typeof ev.response_id === "string" ? ev.response_id : "")
+      const responseId = typeof ev.response_id === "string" ? ev.response_id : ""
+      queue.begin(callId, responseId)
 
-      const result: ToolResult = await fetch("/api/realtime/tools", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: ev.name,
-          arguments: ev.arguments,
-          conversationId: conn.conversationId,
-          location: locationRef.current,
-        }),
-        signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
-      })
-        .then((res) => (res.ok ? (res.json() as Promise<ToolResult>) : Promise.reject(new Error(String(res.status)))))
-        .catch((err: unknown) => {
-          console.error("[realtime] tool failed", ev.name, err)
-          return { output: JSON.stringify({ error: "No pude buscar eso ahora." }), cards: [] }
-        })
+      const result = CLIENT_TOOLS.has(String(ev.name))
+        ? { output: JSON.stringify({ opened: true }), cards: [] }
+        : await fetchTool(ev, conn.conversationId, locationRef.current)
 
       // Si la llamada se cortó mientras corría el tool, la cola ya no es la misma.
       if (queueRef.current !== queue) return
@@ -151,13 +177,27 @@ export function useRealtimeCall(
 
       // Un solo agente: la pantalla cambia en el mismo momento en que el resultado entra a la
       // conversación, con exactamente esos lugares (o se vacía si no encontró nada).
-      const screen = screenFromTool(ev.name, ev.arguments, result.cards)
-      queue.resolve(callId, result.output, () => {
-        toolPlacesRef.current = [...result.cards, ...toolPlacesRef.current]
-        showPlaces(result.cards.slice(0, 1))
-        if (screen.kind === "show") onScreenRef.current?.({ request: screen.request, placeIds: screen.placeIds })
-        if (screen.kind === "clear") onScreenRef.current?.(null)
-      })
+      const screen = screenFromTool(ev.name, ev.arguments, result.cards, result.output)
+      // Guardar un gusto no merece otro turno: si el agente ya reaccionó en voz, entra en silencio.
+      // Con el traductor abierto el agente no habla: open_translator entra siempre en silencio.
+      const silent =
+        CLIENT_TOOLS.has(String(ev.name)) || (SILENT_TOOLS.has(String(ev.name)) && spokenResponsesRef.current.has(responseId))
+      queue.resolve(
+        callId,
+        result.output,
+        () => {
+          toolPlacesRef.current = [...result.cards, ...toolPlacesRef.current]
+          showPlaces(result.cards.slice(0, 1))
+          placesScreenRef.current =
+            screen.kind === "show" && screen.placeIds.length > 1 ? { request: screen.request, placeIds: screen.placeIds, followed: false } : null
+          if (screen.kind === "show")
+            onScreenRef.current?.({ request: screen.request, placeIds: screen.placeIds, story: screen.story, phrase: screen.phrase })
+          if (screen.kind === "clear") onScreenRef.current?.(null)
+          if (result.destination) destinationRef.current = result.destination
+          if (ev.name === "open_translator") onOpenTranslatorRef.current?.()
+        },
+        { silent }
+      )
     },
     [showPlaces]
   )
@@ -195,6 +235,7 @@ export function useRealtimeCall(
           setState("thinking")
           break
         case "response.output_audio_transcript.delta":
+          if (typeof ev.response_id === "string") spokenResponsesRef.current.add(ev.response_id)
           agentTextRef.current += typeof ev.delta === "string" ? ev.delta : ""
           revealPlaces()
           break
@@ -320,6 +361,19 @@ export function useRealtimeCall(
       type: "conversation.item.create",
       item: { type: "message", role: "system", content: [{ type: "input_text", text: locationUpdateText(announced, location) }] },
     })
+  }, [location])
+
+  // Llegó al lugar de show_route: el agente se lo dice (y ofrece el traductor si hace falta).
+  useEffect(() => {
+    const conn = connRef.current
+    const destination = destinationRef.current
+    if (!conn || !location || !destination || distanceMeters(location, destination) > ARRIVAL_METERS) return
+    destinationRef.current = null
+    conn.send({
+      type: "conversation.item.create",
+      item: { type: "message", role: "system", content: [{ type: "input_text", text: arrivalText(destination) }] },
+    })
+    queueRef.current?.request()
   }, [location])
 
   // Lejos de donde se armaron las instrucciones: la lista de cercanos ya no sirve, se rearma.

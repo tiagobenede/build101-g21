@@ -2,22 +2,23 @@ import { Suspense } from "react"
 
 import { TalkSkeleton } from "@/components/rumbo/talk-skeleton"
 import { getTravelerContext, nextCommitment } from "@/lib/data/session"
-import { formatTime, tripDay } from "@/lib/format"
+import { formatTime } from "@/lib/format"
 import { matchInterests } from "@/lib/profile/interests"
+import { localLanguage } from "@/lib/translate/config"
 
 import { TalkClient } from "./talk-client"
 
 async function TalkContent() {
   const ctx = await getTravelerContext()
   const commitment = nextCommitment(ctx.itinerary, new Date())
-  const day = ctx.trip ? tripDay(ctx.trip.start_date, ctx.trip.end_date) : null
 
   return (
     <TalkClient
       location={{
         city: [ctx.city, ctx.country].filter(Boolean).join(", "),
-        tripDay: day ? `Día ${day.day} de ${day.total}` : null,
         timeZone: ctx.timeZone,
+        // El traductor arranca en el idioma del país donde está (en francés en París).
+        localLang: localLanguage(ctx.countryCode, "es"),
       }}
       nextCommitment={commitment ? { title: commitment.title, startsAt: commitment.starts_at } : null}
       mapPlaces={ctx.nearby.map((p) => ({

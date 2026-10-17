@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { z } from "zod"
 
 import { fail, ok, type Result } from "@/lib/data/result"
-import { normalizeInterest } from "@/lib/profile/interests"
+import { MAX_INTEREST_LENGTH, normalizeInterest } from "@/lib/profile/interests"
 import { compileProfileSummary, type ProfileFact } from "@/lib/profile/summary"
 
 /**
@@ -60,6 +60,19 @@ async function guarded<T>(label: string, run: () => Promise<Result<T>>): Promise
     console.error(`[profile] ${label}`, err instanceof Error ? err.message : err)
     return fail("No pude guardar el perfil. Probá de nuevo.")
   }
+}
+
+/** Misma frase sin importar mayúsculas, tildes ni puntuación ("Es vegetariana." = "es vegetariana"). */
+export function sameStatement(a: string, b: string): boolean {
+  const norm = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9ñ ]+/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+  return norm(a) === norm(b)
 }
 
 /** Reescribe `compiled_summary` con los hechos vigentes. */
@@ -120,6 +133,9 @@ export function updateProfile(db: SupabaseClient, input: ProfileInput): Promise<
   })
 }
 
+/** Un gusto: los de `INTEREST_TAGS` o uno que escribió el viajero ("jazz", "vinos naturales"). */
+export const interestTagSchema = z.string().trim().toLowerCase().min(2).max(MAX_INTEREST_LENGTH)
+
 /**
  * Suma un gusto al perfil (`on`) o lo saca (cuando dice que algo no le gusta). Puede ser de
  * la lista ("autos") o propio ("mcdonald's"). Los nuevos van al final: el orden lo eligió el
@@ -147,6 +163,18 @@ export function rememberFact(db: SupabaseClient, input: FactInput): Promise<Resu
     const v = parsed.data
     const uid = await userId(db)
     if (!uid) return fail("Sin sesión.")
+
+    // Si ya lo sabía (lo repitió en otra charla), no se duplica.
+    const { data: current, error: readError } = await db
+      .from("profile_facts")
+      .select("id, statement")
+      .eq("user_id", uid)
+      .eq("kind", v.kind)
+      .eq("polarity", v.polarity)
+      .is("superseded_by", null)
+    if (readError) throw new Error(readError.message)
+    const known = (current ?? []).find((f) => sameStatement(f.statement as string, v.statement))
+    if (known && !v.supersedes) return ok({ id: known.id as string, summary: await recompileSummary(db, uid) })
 
     const { data, error } = await db
       .from("profile_facts")

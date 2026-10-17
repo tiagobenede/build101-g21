@@ -3,7 +3,19 @@
 import "@/lib/genui/no-devtools"
 
 import type { ComponentRenderer } from "@openuidev/react-lang"
-import { CalendarPlusIcon, CloudSunIcon, FootprintsIcon, LockIcon, NavigationIcon, StarIcon, XIcon } from "lucide-react"
+import {
+  BookOpenIcon,
+  CalendarPlusIcon,
+  CameraIcon,
+  CloudSunIcon,
+  FootprintsIcon,
+  LoaderCircleIcon,
+  LockIcon,
+  NavigationIcon,
+  StarIcon,
+  Volume2Icon,
+  XIcon,
+} from "lucide-react"
 import dynamic from "next/dynamic"
 import { createContext, useContext, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
@@ -69,15 +81,32 @@ const Say: ComponentRenderer<Props<"Say">> = ({ props }) => (
   <p className="px-1 text-[17px] leading-snug font-medium text-pretty">{props.text}</p>
 )
 
-function PlaceMeta({ place }: { place: GenUiPlace }) {
+/** Menos que esto para cerrar: se avisa en naranja. */
+const CLOSING_SOON_MINUTES = 60
+
+/** "Abierto hasta 18:00", "Cierra en 40 min" o "Cerrado"; nada si no se sabe. */
+function OpenStatus({ place }: { place: GenUiPlace }) {
+  if (place.openNow === false) return <span className="font-medium text-[#D70015]">Cerrado</span>
+  if (place.closesInMinutes !== null && place.closesInMinutes <= CLOSING_SOON_MINUTES)
+    return <span className="font-medium text-[#C93400]">Cierra en {place.closesInMinutes} min</span>
+  if (place.openNow)
+    return <span className="font-medium text-[#248A3D]">{place.closesAt ? `Abierto hasta ${place.closesAt}` : "Abierto"}</span>
+  return null
+}
+
+/** `walk` en false: ya estás ahí (lo que reconoció la cámara), los minutos a pie confunden. */
+function PlaceMeta({ place, walk = true }: { place: GenUiPlace; walk?: boolean }) {
   return (
     <span className="text-muted-foreground inline-flex flex-wrap items-center gap-x-2 text-[13px] tabular-nums">
+      <OpenStatus place={place} />
       <span>{place.category}</span>
-      <span className="inline-flex items-center gap-1">
-        <FootprintsIcon className="size-3" />
-        {place.walkMinutes} min
-      </span>
-      <span>~{place.visitMinutes} min de visita</span>
+      {walk && (
+        <span className="inline-flex items-center gap-1">
+          <FootprintsIcon className="size-3" />
+          {place.walkMinutes} min
+        </span>
+      )}
+      {place.category !== "Hotel" && <span>~{place.visitMinutes} min de visita</span>}
       {place.rating && (
         <span className="inline-flex items-center gap-0.5">
           <StarIcon className="size-3 fill-[#FF9500] text-[#FF9500]" />
@@ -91,22 +120,38 @@ function PlaceMeta({ place }: { place: GenUiPlace }) {
 const PlaceHero: ComponentRenderer<Props<"PlaceHero">> = ({ props }) => {
   const place = usePlace(props.placeId)
   const { ask, addToPlan } = useEnv()
+  const [photoOk, setPhotoOk] = useState(true)
   if (!place) return null
   const color = categoryColor(place.category)
   return (
     <article className="bg-card overflow-hidden rounded-[22px]">
       <div
-        className="relative flex h-24 items-end p-3"
+        className="relative flex h-40 items-end p-3"
         style={{ background: `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 55%, #1D1D1F))` }}
       >
-        <CategoryIcon category={place.category} className="size-11 rounded-[12px] bg-white/20 backdrop-blur-md" />
+        {place.photoUrl && photoOk && (
+          // Foto de Google, de un dominio que cambia: <img> y no next/image.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={place.photoUrl}
+            alt=""
+            onError={() => setPhotoOk(false)}
+            className="animate-in fade-in absolute inset-0 size-full object-cover duration-500"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent" />
         <span className="absolute top-3 right-3 rounded-full bg-black/30 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-md">
           Para vos
         </span>
       </div>
       <div className="flex flex-col gap-1.5 p-3.5">
-        <h3 className="text-[17px] leading-tight font-semibold">{place.name}</h3>
-        <PlaceMeta place={place} />
+        <div className="flex items-start gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <h3 className="text-[17px] leading-tight font-semibold">{place.name}</h3>
+            <PlaceMeta place={place} />
+          </div>
+          <CategoryIcon category={place.category} className="size-10 shrink-0" />
+        </div>
         <p className="text-[14px] leading-snug">{props.reason}</p>
         <div className="mt-1.5 grid grid-cols-2 gap-2">
           <Button size="sm" className="h-9 rounded-full" onClick={() => ask(`Llevame a ${place.name}`, [place.id])}>
@@ -313,6 +358,156 @@ const Weather: ComponentRenderer<Props<"Weather">> = () => {
   )
 }
 
+/** Respaldo sin red: la voz del sistema (robótica, pero mejor que nada). */
+function speakWithSystem(text: string, lang: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = lang
+  utterance.rate = 0.9
+  window.speechSynthesis.speak(utterance)
+}
+
+/** Audio de ElevenLabs por frase, para no pedirlo de nuevo al tocar otra vez. */
+const phraseAudio = new Map<string, string>()
+
+async function phraseAudioUrl(text: string, lang: string): Promise<string> {
+  const key = `${lang}|${text}`
+  const hit = phraseAudio.get(key)
+  if (hit) return hit
+  const res = await fetch("/api/tts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, lang }),
+  })
+  if (!res.ok) throw new Error(`tts ${res.status}`)
+  const url = URL.createObjectURL(await res.blob())
+  phraseAudio.set(key, url)
+  return url
+}
+
+const Phrase: ComponentRenderer<Props<"Phrase">> = () => {
+  const { data } = useEnv()
+  const [state, setState] = useState<"idle" | "loading" | "playing">("idle")
+  const phrase = data.phrase
+  if (!phrase) return null
+
+  const play = async () => {
+    if (state !== "idle") return
+    setState("loading")
+    try {
+      const audio = new Audio(await phraseAudioUrl(phrase.text, phrase.lang))
+      audio.onended = () => setState("idle")
+      audio.onerror = () => setState("idle")
+      await audio.play()
+      setState("playing")
+    } catch {
+      speakWithSystem(phrase.text, phrase.lang)
+      setState("idle")
+    }
+  }
+
+  return (
+    <article className="bg-card flex flex-col gap-2 rounded-[22px] p-4">
+      <p className="text-[22px] leading-tight font-semibold text-pretty" lang={phrase.lang}>
+        {phrase.text}
+      </p>
+      {phrase.pronunciation && <p className="text-brand text-[15px] italic">{phrase.pronunciation}</p>}
+      <p className="text-muted-foreground text-[14px]">{phrase.translation}</p>
+      <Button
+        size="sm"
+        className="mt-1 h-10 self-start rounded-full px-4"
+        onClick={() => void play()}
+        aria-busy={state === "loading"}
+      >
+        {state === "loading" ? <LoaderCircleIcon className="size-4 animate-spin" /> : <Volume2Icon className={cn("size-4", state === "playing" && "animate-pulse")} />}
+        Decilo por mí
+      </Button>
+    </article>
+  )
+}
+
+const Story: ComponentRenderer<Props<"Story">> = () => {
+  const { data } = useEnv()
+  const story = data.story
+  if (!story || (story.facts.length === 0 && !story.anecdote)) return null
+  return (
+    <article className="bg-card flex flex-col gap-3 rounded-[22px] p-4">
+      <span className="text-muted-foreground inline-flex items-center gap-1.5 text-[12px] font-semibold tracking-wide uppercase">
+        <BookOpenIcon className="size-3.5" />
+        {story.subject}
+      </span>
+      {story.facts.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {story.facts.map((fact, i) => (
+            <li key={i} className="flex gap-2.5 text-[15px] leading-snug">
+              <span className="bg-brand mt-[7px] size-1.5 shrink-0 rounded-full" />
+              {fact}
+            </li>
+          ))}
+        </ul>
+      )}
+      {story.anecdote && (
+        <p className="border-brand/40 bg-muted/60 rounded-r-xl border-l-[3px] px-3 py-2 text-[14px] leading-snug italic">
+          {story.anecdote}
+        </p>
+      )}
+    </article>
+  )
+}
+
+const SEEN_KIND: Record<NonNullable<GenUiData["seen"]>["kind"], string> = { lugar: "Estás frente a", obra: "Esto es", otro: "Esto es" }
+
+const Seen: ComponentRenderer<Props<"Seen">> = () => {
+  const { data, ask, addToPlan } = useEnv()
+  const seen = data.seen
+  const place = seen?.placeId ? (data.places[seen.placeId] ?? null) : null
+  if (!seen) return null
+  const photo = seen.photoUrl ?? place?.photoUrl ?? null
+  return (
+    <article className="bg-card overflow-hidden rounded-[22px]">
+      {photo && (
+        <div className="relative h-48">
+          {/* La foto del viajero (blob:) o la de Google: <img> y no next/image. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo} alt="" className="absolute inset-0 size-full object-cover" />
+          <span className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-md">
+            <CameraIcon className="size-3" />
+            Tu foto
+          </span>
+        </div>
+      )}
+      <div className="flex flex-col gap-1.5 p-3.5">
+        <span className="text-muted-foreground text-[13px]">{SEEN_KIND[seen.kind]}</span>
+        <div className="flex items-start gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h3 className="text-[20px] leading-tight font-semibold">{seen.name}</h3>
+            {seen.where && <span className="text-muted-foreground text-[13px]">En {seen.where}</span>}
+            {place && <PlaceMeta place={place} walk={seen.kind !== "lugar"} />}
+          </div>
+          {place && <CategoryIcon category={place.category} className="size-10 shrink-0" />}
+        </div>
+        {seen.description && <p className="text-[14px] leading-snug">{seen.description}</p>}
+        {/* Si estás frente al lugar, "Llevame" no tiene sentido: solo sumarlo al plan. */}
+        {place && (
+          <div className={cn("mt-1.5 grid gap-2", seen.kind === "lugar" ? "grid-cols-1" : "grid-cols-2")}>
+            {seen.kind !== "lugar" && (
+              <Button size="sm" className="h-9 rounded-full" onClick={() => ask(`Llevame a ${place.name}`, [place.id])}>
+                <NavigationIcon className="size-3.5" />
+                Llevame
+              </Button>
+            )}
+            <Button size="sm" variant="secondary" className="h-9 rounded-full" onClick={() => addToPlan(place)}>
+              <CalendarPlusIcon className="size-3.5" />
+              Al plan
+            </Button>
+          </div>
+        )}
+      </div>
+    </article>
+  )
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cada renderer tipa sus props; el registro los guarda juntos
 const renderers: Record<GenUiComponentName, ComponentRenderer<any>> = {
   Screen,
@@ -324,6 +519,9 @@ const renderers: Record<GenUiComponentName, ComponentRenderer<any>> = {
   Stop,
   Timeline,
   Weather,
+  Phrase,
+  Story,
+  Seen,
 }
 
 /** Biblioteca del cliente: mismos nombres y esquemas que el prompt del server. */

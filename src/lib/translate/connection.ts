@@ -13,23 +13,25 @@ export interface TranslationConnection {
 }
 
 /**
- * Una sesión de traducción por WebRTC: sube `track` y reproduce la traducción. Traduce
- * de corrido, sin `response.create`.
+ * Una sesión de traducción por WebRTC: sube `track` y reproduce la traducción (salvo con
+ * `muted`, cuando la voz la pone otro). Traduce de corrido, sin `response.create`.
  */
 export async function connectTranslation({
   key,
   track,
+  muted = false,
   onEvent,
 }: {
   key: string
   track: MediaStreamTrack
+  muted?: boolean
   onEvent: (event: TranslationEvent) => void
 }): Promise<TranslationConnection> {
   const pc = new RTCPeerConnection()
   const audio = new Audio()
   audio.autoplay = true
   pc.ontrack = (e) => {
-    audio.srcObject = e.streams[0]
+    if (!muted) audio.srcObject = e.streams[0]
   }
   pc.addTrack(track)
 

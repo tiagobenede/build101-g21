@@ -30,6 +30,10 @@ const KINDS: [type: string, kind: Kind][] = [
   ["shopping_mall", { category: "Pasaje", tags: ["compras"], minutes: 30 }],
   ["clothing_store", { category: "Pasaje", tags: ["compras", "diseño"], minutes: 20 }],
   ["department_store", { category: "Pasaje", tags: ["compras"], minutes: 30 }],
+  // Al final: solo gana si el lugar no es de otro tipo (un hotel con restaurante es Restaurante en Nearby).
+  ["hotel", { category: "Hotel", tags: [], minutes: 15 }],
+  ["hostel", { category: "Hotel", tags: [], minutes: 15 }],
+  ["lodging", { category: "Hotel", tags: [], minutes: 15 }],
 ]
 
 const KIND_BY_TYPE = new Map(KINDS)
@@ -54,6 +58,8 @@ export type GooglePlace = {
   editorialSummary?: { text?: string }
   currentOpeningHours?: { openNow?: boolean }
   websiteUri?: string
+  /** Solo lo pide Text Search (`searchPlaces`). */
+  internationalPhoneNumber?: string
 }
 
 export const GOOGLE_FIELD_MASK = [
@@ -101,6 +107,11 @@ export function toPlaceRow(g: GooglePlace, city: string, { keepUnknown = false }
     typical_visit_minutes: main.minutes,
     rating_count: g.userRatingCount ?? null,
     city,
-    data: { google_place_id: g.id, types, ...(g.websiteUri ? { website: g.websiteUri } : {}) },
+    data: {
+      google_place_id: g.id,
+      types,
+      ...(g.websiteUri ? { website: g.websiteUri } : {}),
+      ...(g.internationalPhoneNumber ? { phone: g.internationalPhoneNumber } : {}),
+    },
   }
 }

@@ -16,6 +16,13 @@ beforeEach(() => {
 })
 
 describe("ResponseQueue", () => {
+  it("request pide una respuesta cuando termina la activa, no antes", () => {
+    queue.request()
+    expect(sent).toEqual([])
+    done("r0")
+    expect(types()).toEqual(["response.create"])
+  })
+
   it("manda el resultado y pide respuesta cuando termina la que llamó al tool", () => {
     queue.begin("c1", "r1")
     queue.resolve("c1", '{"ok":true}')
@@ -25,6 +32,23 @@ describe("ResponseQueue", () => {
     expect(types()).toEqual(["conversation.item.create", "response.create"])
     expect(sent[0].item).toMatchObject({ type: "function_call_output", call_id: "c1" })
     expect(queue.hasPending).toBe(false)
+  })
+
+  it("un resultado silencioso entra a la charla sin pedir otra respuesta", () => {
+    queue.begin("c1", "r1")
+    queue.resolve("c1", '{"ok":true}', undefined, { silent: true })
+    done("r1")
+    expect(types()).toEqual(["conversation.item.create"])
+    expect(queue.hasPending).toBe(false)
+  })
+
+  it("si junto a uno silencioso hay otro que necesita respuesta, se pide una sola", () => {
+    queue.begin("c1", "r1")
+    queue.begin("c2", "r1")
+    queue.resolve("c1", "{}", undefined, { silent: true })
+    queue.resolve("c2", "{}")
+    done("r1")
+    expect(types()).toEqual(["conversation.item.create", "conversation.item.create", "response.create"])
   })
 
   it("si el resultado llega después, lo manda al llegar", () => {

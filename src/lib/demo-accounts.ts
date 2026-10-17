@@ -10,9 +10,9 @@ export type DemoAccount = {
 }
 
 export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
-  { email: "sofia@rumbo.demo", name: "Sofía Álvarez", tagline: "Autos, diseño y café", initials: "SA", tint: "#FF9F0A" },
-  { email: "mateo@rumbo.demo", name: "Mateo Rossi", tagline: "Museos, historia y librerías", initials: "MR", tint: "#5E5CE6" },
-  { email: "lucia@rumbo.demo", name: "Lucía Méndez", tagline: "Comida, mercados y parques", initials: "LM", tint: "#30B0C7" },
+  { email: "tiago@rumbo.demo", name: "Tiago", tagline: "Autos, diseño y café", initials: "T", tint: "#FF9F0A" },
+  { email: "lucas@rumbo.demo", name: "Lucas", tagline: "Museos, historia y librerías", initials: "L", tint: "#5E5CE6" },
+  { email: "nicolas@rumbo.demo", name: "Nicolas", tagline: "Comida, mercados y parques", initials: "N", tint: "#30B0C7" },
   { email: "nuevo@rumbo.demo", name: "Alex Romero", tagline: "Primer login: arranca con el onboarding", initials: "AR", tint: "#34C759", firstLogin: true },
 ]
 

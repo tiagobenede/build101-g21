@@ -27,6 +27,7 @@ import type { MapPlace, MapStop } from "@/components/location/map-view"
 import { PlaceNotification } from "@/components/rumbo/place-notification"
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
 import { CameraSheet } from "@/components/camera/camera-sheet"
+import { TranslatorTips, type TipScan } from "@/components/translate/translator-tips"
 import { TranslatorPanel } from "@/components/translate/translator-panel"
 import { MicWave } from "@/components/rumbo/mic-wave"
 import { TALK_STATUS_IDLE, VoiceStage } from "@/components/rumbo/voice-stage"
@@ -40,8 +41,9 @@ import { useRealtimeCall } from "@/hooks/use-realtime-call"
 import type { CallState, PlaceCard } from "@/hooks/voice-session-types"
 import type { FoundTip } from "@/app/api/translate/tips/route"
 import { distanceMeters } from "@/lib/geo"
-import type { GenUiPlace } from "@/lib/genui/types"
+import type { GenUiPlace, GenUiRequest } from "@/lib/genui/types"
 import { addMinutesIso, zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
+import type { LocalTipView } from "@/lib/tips/view"
 import { LANGUAGES, type Lang } from "@/lib/translate/config"
 import type { Utterance } from "@/lib/translate/utterances"
 import { cn } from "@/lib/utils"
@@ -68,7 +70,7 @@ const STATUS_LABEL: Record<CallState, string> = {
 }
 
 interface TalkClientProps {
-  location: { city: string; tripDay: string | null; timeZone: string }
+  location: { city: string; timeZone: string; localLang: Lang }
   nextCommitment: { title: string; startsAt: string } | null
   places: PlaceCard[]
   mapPlaces: MapPlace[]
@@ -90,7 +92,10 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
     (screen: { request: string; placeIds: string[] } | null) => (screen ? void showScreen(screen) : clearScreen()),
     [showScreen, clearScreen]
   )
-  const call = useRealtimeCall(places, position, onScreen)
+  // El agente abre el traductor (open_translator): lo hace el mismo botón de "Traducir".
+  const openTranslatorRef = useRef<() => void>(() => undefined)
+  const onOpenTranslator = useCallback(() => openTranslatorRef.current(), [])
+  const call = useRealtimeCall(places, position, onScreen, onOpenTranslator)
   const { note } = call
 
   // Lo que el viajero toca en la pantalla también se lo contamos al agente: es uno solo.
@@ -125,6 +130,10 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   // Modo traductor: la charla con alguien del lugar pasa por acá, y lo que recomienda
   // se muestra en la pantalla y le llega al agente (es uno solo).
   const [translating, setTranslating] = useState(false)
+  /** Lo que recomendaron las personas locales en esta pantalla (cards de B-5). */
+  const [localTips, setLocalTips] = useState<LocalTipView[]>([])
+  /** Si se está revisando lo que dijo la persona local, y qué salió la última vez. */
+  const [tipScan, setTipScan] = useState<TipScan>({ pending: 0, last: null, lastId: 0 })
   const { micMuted, setMicMuted } = call
   const mutedForTranslatorRef = useRef(false)
   const openTranslator = useCallback(() => {
@@ -133,8 +142,15 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
     if (!micMuted) setMicMuted(true)
     setTranslating(true)
   }, [micMuted, setMicMuted])
+  useEffect(() => {
+    openTranslatorRef.current = openTranslator
+  }, [openTranslator])
   const closeTranslator = useCallback(() => {
     setTranslating(false)
+    // Las recomendaciones se ven solo durante la charla: al salir del traductor se van de
+    // la pantalla (quedan guardadas y siguen avisando al pasar cerca).
+    setLocalTips([])
+    setTipScan({ pending: 0, last: null, lastId: 0 })
     if (mutedForTranslatorRef.current) setMicMuted(false)
     mutedForTranslatorRef.current = false
   }, [setMicMuted])
@@ -143,15 +159,18 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   // (si la llamada no está abierta, se lo cuenta al abrirla).
   const [cameraOpen, setCameraOpen] = useState(false)
   const onPhotoMatch = useCallback(
-    ({ name, kind, where, description, place }: PhotoMatch) => {
-      if (place) void showScreen({ request: `Lo que estás viendo: ${place.name}`, placeIds: [place.id] })
-      else toast(where ? `Es ${name}, en ${where}` : `Es ${name}`)
+    ({ name, kind, where, description, place, photoUrl }: PhotoMatch) => {
+      void showScreen({
+        request: `Lo que estás viendo: ${name}`,
+        placeIds: place ? [place.id] : [],
+        seen: { name, kind, where, description, placeId: place?.id ?? null, photoUrl },
+      })
       const about = description ? ` (${description})` : ""
       note(
         kind === "lugar"
-          ? `El viajero acaba de sacarle una foto con la cámara a lo que tiene enfrente: está frente a ${name}${about}.${place ? " Ya se muestra en la pantalla." : ""} ` +
+          ? `El viajero acaba de sacarle una foto con la cámara a lo que tiene enfrente: está frente a ${name}${about}. Ya se muestra en la pantalla. ` +
               `Si pregunta dónde está, decile que está frente a ${name}; no hables de distancias ni de cuánto le queda. Si pregunta por "esto", "acá" o "lo de la foto", es ${name}. Si pide la historia o más datos, llamá a place_facts con ${name}.`
-          : `El viajero le sacó una foto a ${kind === "obra" ? "una obra" : "algo"}: ${name}${about}${where ? `, en ${where}` : ""}. ` +
+          : `El viajero le sacó una foto a ${kind === "obra" ? "una obra" : "algo"}: ${name}${about}${where ? `, en ${where}` : ""}. Ya se muestra en la pantalla. ` +
               `Si pregunta qué es o por "esto" o "lo de la foto", hablá de ${name}, no del edificio. Si pide la historia o más datos, llamá a place_facts con ${name}.`,
         { keep: true }
       )
@@ -173,6 +192,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
       )
       if (turn.speaker !== "them") return
 
+      setTipScan((s) => ({ ...s, pending: s.pending + 1 }))
       const res = await fetch("/api/translate/tips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -192,28 +212,35 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
         data?: { tips: FoundTip[] }
       } | null
       const tips = body?.data?.tips ?? []
+      const result: TipScan["last"] = !body?.success ? "error" : tips.length > 0 ? "found" : "none"
+      setTipScan((s) => ({ pending: Math.max(0, s.pending - 1), last: result, lastId: s.lastId + 1 }))
       if (tips.length === 0) return
 
+      // Cada recomendación es una card (B-5), la más nueva arriba.
+      setLocalTips((prev) => [...tips.filter((t) => !prev.some((p) => p.id === t.id)).reverse(), ...prev])
       const summary = tips.map((t) => `${t.placeName} (${t.what.replace(/\.$/, "")})`).join("; ")
-      const placeIds = tips.flatMap((t) => (t.placeId ? [t.placeId] : []))
-      if (placeIds.length > 0)
-        void showScreen({
-          request: `Lo que te recomendó la persona local: ${summary}`,
-          placeIds,
-        })
-      else toast(`Anoté lo que te recomendó: ${summary}`)
-      note(
-        `La persona local recomendó: ${summary}. ${placeIds.length > 0 ? "Ya se muestra en la pantalla. " : ""}Quedó guardado; si después pregunta, retomalo.`
-      )
+      note(`La persona local recomendó: ${summary}. Ya se muestra en la pantalla. Quedó guardado; si después pregunta, retomalo.`)
     },
-    [note, showScreen]
+    [note]
   )
 
-  // Solo en desarrollo: probar la UI generativa sin micrófono (window.rumboShow("llevame al Picasso")).
+  // Lo que el viajero hace con una recomendación también le llega al agente.
+  const onTipChange = useCallback(
+    (tip: LocalTipView) => {
+      setLocalTips((prev) => prev.map((t) => (t.id === tip.id ? tip : t)))
+      if (tip.status === "in_plan") note(`Desde la pantalla, el viajero sumó a su plan "${tip.placeName}", que le recomendó la persona local.`)
+      if (tip.status === "dismissed") note(`El viajero descartó la recomendación de "${tip.placeName}": no se la vuelvas a sugerir.`)
+    },
+    [note]
+  )
+  const onTipGo = useCallback((tip: LocalTipView) => tip.placeId && ask(`Llevame a ${tip.placeName}`, [tip.placeId]), [ask])
+
+  // Solo en desarrollo: probar la UI generativa sin micrófono (window.rumboShow("llevame al Picasso"),
+  // o un pedido completo con lugares, historia, foto o frase).
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return
-    const w = window as unknown as { rumboShow?: (request: string) => void }
-    w.rumboShow = (request) => void showScreen({ request, placeIds: [] })
+    const w = window as unknown as { rumboShow?: (request: string | GenUiRequest) => void }
+    w.rumboShow = (request) => void showScreen(typeof request === "string" ? { request, placeIds: [] } : request)
     return () => {
       delete w.rumboShow
     }
@@ -299,7 +326,8 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
       )}
 
       {translating ? (
-        <TranslatorPanel location={position} onTurn={onTurn} onExit={closeTranslator}>
+        <TranslatorPanel location={position} defaultTheirLang={location.localLang} onTurn={onTurn} onExit={closeTranslator}>
+          <TranslatorTips tips={localTips} scan={tipScan} timeZone={location.timeZone} onChange={onTipChange} onGo={onTipGo} />
           {genui.screen && (
             <ScrollFade className="max-h-[45%] min-h-0 shrink-0">
               <div className="py-2">
@@ -390,7 +418,7 @@ interface LocationCardProps extends Pick<TalkClientProps, "location" | "nextComm
 
 function LocationCard({ location, placeName, nextCommitment, now, map }: LocationCardProps) {
   const time = (d: Date) => new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit", timeZone: location.timeZone }).format(d)
-  const details = [location.city, time(now), location.tripDay].filter(Boolean).join(" · ")
+  const details = [location.city, time(now)].filter(Boolean).join(" · ")
 
   return (
     <Card className="gap-0 overflow-hidden rounded-2xl py-0 shadow-none ring-0 [&>[data-slot=item]:not(:last-child)]:border-b-border">

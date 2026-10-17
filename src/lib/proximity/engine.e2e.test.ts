@@ -1,12 +1,12 @@
 /**
  * Prueba de punta a punta de C-6 contra la base local y Jev (y Google para cargar los
- * lugares de la zona), como Lucía. Cuesta poco pero llama a APIs pagas, así que está
+ * lugares de la zona), como Nicolas. Cuesta poco pero llama a APIs pagas, así que está
  * apagada por defecto:
  *
  *   npm run test:proximity
  *
  * Borra los avisos, recomendaciones y actividades de prueba que crea, y deja limpios
- * los avisos de Lucía.
+ * los avisos de Nicolas.
  */
 import { createClient } from "@supabase/supabase-js"
 import { describe, expect, it, vi } from "vitest"
@@ -36,7 +36,7 @@ describe.skipIf(!enabled)("checkProximity (e2e)", () => {
 
     const admin = createAdminClient()
     const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!)
-    const { data: auth, error: authError } = await db.auth.signInWithPassword({ email: "lucia@rumbo.demo", password: "rumbo-demo-2026" })
+    const { data: auth, error: authError } = await db.auth.signInWithPassword({ email: "nicolas@rumbo.demo", password: "rumbo-demo-2026" })
     if (authError) throw authError
     const me = auth.user.id
     const { data: trip } = await db.from("trips").select("id").limit(1).single()
