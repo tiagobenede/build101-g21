@@ -20,6 +20,26 @@ export function walkMinutes(a: LatLng, b: LatLng): number {
   return Math.max(1, Math.round((distanceMeters(a, b) * 1.3) / WALK_METERS_PER_MINUTE))
 }
 
+/** Más lejos que esto, un lugar ya no sirve para decir dónde estás. */
+export const LABEL_RADIUS_METERS = 300
+
+/**
+ * Nombre del lugar más cercano para decir dónde está el viajero ("Place des Vosges").
+ * Solo el nombre: las pantallas ya le ponen "Estás cerca de" alrededor.
+ */
+export function nearestPlaceLabel(
+  location: LatLng,
+  places: readonly (LatLng & { name: string })[],
+  fallback: string
+): string {
+  let best: { name: string; meters: number } | null = null
+  for (const p of places) {
+    const meters = distanceMeters(location, p)
+    if (meters <= LABEL_RADIUS_METERS && (!best || meters < best.meters)) best = { name: p.name, meters }
+  }
+  return best?.name ?? fallback
+}
+
 export function formatDistance(meters: number): string {
   return meters < 1000 ? `${Math.round(meters / 10) * 10} m` : `${(meters / 1000).toFixed(1)} km`
 }

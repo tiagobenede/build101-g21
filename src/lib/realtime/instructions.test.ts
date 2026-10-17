@@ -5,6 +5,8 @@ import type { NearbyPlace } from "@/lib/data/session"
 import { MAX_PLACES_IN_CONTEXT } from "./config"
 import { buildInstructions } from "./instructions"
 
+const PLANNED = { place_id: null, status: "planned", source: "user", locked: false } as const
+
 const place = (i: number): NearbyPlace => ({
   id: `p${i}`,
   name: `Lugar ${i}`,
@@ -27,9 +29,9 @@ const base = {
     locationLabel: "Centre Pompidou, París",
     nearby: Array.from({ length: 12 }, (_, i) => place(i + 1)),
     itinerary: [
-      { id: "a", title: "Desayuno", notes: null, starts_at: "2026-10-17T07:00:00Z", ends_at: "2026-10-17T08:00:00Z", lat: null, lng: null },
-      { id: "b", title: "Louvre", notes: null, starts_at: "2026-10-17T13:00:00Z", ends_at: "2026-10-17T16:00:00Z", lat: null, lng: null },
-      { id: "c", title: "Vuelo", notes: null, starts_at: "2026-10-18T09:00:00Z", ends_at: null, lat: null, lng: null },
+      { id: "a", title: "Desayuno", notes: null, starts_at: "2026-10-17T07:00:00Z", ends_at: "2026-10-17T08:00:00Z", lat: null, lng: null, ...PLANNED },
+      { id: "b", title: "Louvre", notes: null, starts_at: "2026-10-17T13:00:00Z", ends_at: "2026-10-17T16:00:00Z", lat: null, lng: null, ...PLANNED },
+      { id: "c", title: "Vuelo", notes: null, starts_at: "2026-10-18T09:00:00Z", ends_at: null, lat: null, lng: null, ...PLANNED },
     ],
   },
   weather: null,
@@ -55,7 +57,7 @@ describe("buildInstructions", () => {
   it("menciona el próximo compromiso", () => {
     const text = buildInstructions({
       ...base,
-      nextCommitment: { id: "i", title: "Almuerzo", notes: null, starts_at: "2026-10-17T11:00:00Z", ends_at: null, lat: null, lng: null },
+      nextCommitment: { id: "i", title: "Almuerzo", notes: null, starts_at: "2026-10-17T11:00:00Z", ends_at: null, lat: null, lng: null, ...PLANNED },
     })
     expect(text).toContain('"Almuerzo" a las 13:00')
   })

@@ -5,7 +5,7 @@ import { connection } from "next/server"
 
 import type { Place } from "@/lib/agent/types"
 import { findDemoAccount, type DemoAccount } from "@/lib/demo-accounts"
-import { distanceMeters, walkMinutes, type LatLng } from "@/lib/geo"
+import { distanceMeters, nearestPlaceLabel, walkMinutes, type LatLng } from "@/lib/geo"
 import { ensureNearbyPlaces } from "@/lib/places/nearby"
 import { createClient } from "@/lib/supabase/server"
 
@@ -22,6 +22,9 @@ export type Trip = {
   end_date: string
 }
 
+export type ItineraryStatus = "planned" | "in_progress" | "done" | "skipped"
+export type ItinerarySource = "user" | "agent" | "local_tip" | "event" | "calendar"
+
 export type ItineraryItem = {
   id: string
   title: string
@@ -30,7 +33,25 @@ export type ItineraryItem = {
   ends_at: string | null
   lat: number | null
   lng: number | null
+  place_id: string | null
+  status: ItineraryStatus
+  source: ItinerarySource
+  locked: boolean
 }
+
+export const ITINERARY_COLUMNS = "id, title, notes, starts_at, ends_at, lat, lng, place_id, status, source, locked"
+
+/** Restricciones no negociables y ritmo del viajero (B-2 las edita, el agente las respeta). */
+export type TravelerConstraints = {
+  dietary: string[]
+  mobility: string | null
+  dailyBudget: number | null
+  pace: "tranquilo" | "intenso" | null
+  schedule: "madrugador" | "noctámbulo" | null
+}
+
+/** De dónde sale `location`: el GPS (simulado o real), el centro del viaje o un valor fijo. */
+export type LocationSource = "ping" | "trip" | "fallback"
 
 export type NearbyPlace = Place & { distanceMeters: number; walkMinutes: number }
 
@@ -42,9 +63,13 @@ export type TravelerContext = {
   travelStyle: string | null
   account: DemoAccount | undefined
   interests: string[]
+  constraints: TravelerConstraints
+  /** Párrafo con lo que el agente aprendió del viajero (profile_facts), listo para las instrucciones. */
+  profileSummary: string | null
   trip: Trip | null
   itinerary: ItineraryItem[]
   location: LatLng
+  locationSource: LocationSource
   locationLabel: string
   nearby: NearbyPlace[]
 }
@@ -63,8 +88,12 @@ export async function getTravelerContext(): Promise<TravelerContext> {
 
   const today = new Date().toISOString().slice(0, 10)
 
-  const [profileRes, interestsRes, tripRes] = await Promise.all([
-    supabase.from("profiles").select("full_name, home_city, travel_style").eq("id", user.id).single(),
+  const [profileRes, interestsRes, tripRes, pingRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, home_city, travel_style, dietary, mobility, daily_budget, pace, schedule, compiled_summary")
+      .eq("id", user.id)
+      .single(),
     supabase.from("interests").select("tag").eq("user_id", user.id).order("created_at"),
     supabase
       .from("trips")
@@ -74,15 +103,28 @@ export async function getTravelerContext(): Promise<TravelerContext> {
       .order("start_date", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // Último punto del GPS (B-1 lo manda cada 5 s o 25 m).
+    supabase
+      .from("pings")
+      .select("lat, lng")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   if (profileRes.error) throw new Error(`No se pudo cargar el perfil: ${profileRes.error.message}`)
   if (interestsRes.error) throw new Error(`No se pudieron cargar los gustos: ${interestsRes.error.message}`)
   if (tripRes.error) throw new Error(`No se pudo cargar el viaje: ${tripRes.error.message}`)
+  if (pingRes.error) throw new Error(`No se pudo cargar la ubicación: ${pingRes.error.message}`)
 
   const trip = tripRes.data as Trip | null
-  // Ubicación simulada: centro del destino. Luego: navigator.geolocation.
-  const location: LatLng = trip ? { lat: trip.lat, lng: trip.lng } : FALLBACK_LOCATION
+  const ping = pingRes.data as LatLng | null
+  const [location, locationSource]: [LatLng, LocationSource] = ping
+    ? [{ lat: ping.lat, lng: ping.lng }, "ping"]
+    : trip
+      ? [{ lat: trip.lat, lng: trip.lng }, "trip"]
+      : [FALLBACK_LOCATION, "fallback"]
   const city = trip?.destination ?? "París"
 
   // Los lugares vienen de Google Places y quedan guardados en `places`.
@@ -92,14 +134,15 @@ export async function getTravelerContext(): Promise<TravelerContext> {
     trip
       ? supabase
           .from("itinerary_items")
-          .select("id, title, notes, starts_at, ends_at, lat, lng")
+          .select(ITINERARY_COLUMNS)
           .eq("trip_id", trip.id)
           .order("starts_at")
       : Promise.resolve({ data: [], error: null }),
     supabase
       .from("places")
       .select("id, name, category, tags, description, lat, lng, rating, typical_visit_minutes")
-      .eq("city", city),
+      .eq("city", city)
+      .eq("listed", true),
   ])
 
   if (itineraryRes.error) throw new Error(`No se pudo cargar el itinerario: ${itineraryRes.error.message}`)
@@ -110,20 +153,31 @@ export async function getTravelerContext(): Promise<TravelerContext> {
     .filter((p) => p.distanceMeters <= NEARBY_RADIUS_METERS)
     .sort((a, b) => a.distanceMeters - b.distanceMeters)
 
-  const fullName = profileRes.data.full_name as string
+  const profile = profileRes.data
+  const fullName = profile.full_name as string
 
   return {
     userId: user.id,
     firstName: fullName.split(" ")[0],
     fullName,
-    homeCity: profileRes.data.home_city,
-    travelStyle: profileRes.data.travel_style,
+    homeCity: profile.home_city,
+    travelStyle: profile.travel_style,
     account: findDemoAccount(user.email),
     interests: interestsRes.data.map((i) => i.tag as string),
+    constraints: {
+      dietary: profile.dietary ?? [],
+      mobility: profile.mobility,
+      dailyBudget: profile.daily_budget,
+      pace: profile.pace,
+      schedule: profile.schedule,
+    },
+    profileSummary: profile.compiled_summary,
     trip,
     itinerary: (itineraryRes.data ?? []) as ItineraryItem[],
     location,
-    locationLabel: trip ? `Centre Pompidou, ${trip.destination}` : "tu ubicación",
+    locationSource,
+    // Con todos los lugares de la ciudad, no solo los del radio: el más cercano decide.
+    locationLabel: nearestPlaceLabel(location, placesRes.data as Place[], trip?.destination ?? "tu ubicación"),
     nearby,
   }
 }
