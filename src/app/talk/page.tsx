@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 
-import { PageSkeleton } from "@/components/rumbo/page-skeleton"
+import { TalkSkeleton } from "@/components/rumbo/talk-skeleton"
 import { getTravelerContext, nextCommitment } from "@/lib/data/session"
 import { formatTime, tripDay } from "@/lib/format"
 
@@ -44,7 +44,7 @@ async function TalkContent() {
 
 export default function TalkPage() {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <Suspense fallback={<TalkSkeleton />}>
       <TalkContent />
     </Suspense>
   )

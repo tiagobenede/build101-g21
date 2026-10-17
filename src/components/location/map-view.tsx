@@ -17,6 +17,8 @@ interface MapViewProps {
   follow: boolean
   onTeleport: (position: LatLng) => void
   onUserPan: () => void
+  /** Vista previa: sin gestos, sin arrastrar el pin ni tocar para moverse. */
+  interactive?: boolean
 }
 
 const INITIAL_ZOOM = 15
@@ -133,36 +135,38 @@ export default function MapView(props: MapViewProps) {
     loadGoogleMaps()
       .then((libs) => {
         if (cancelled) return
-        const { position, heading, places, stops } = latest.current
+        const { position, heading, places, stops, interactive = true } = latest.current
         const map = new libs.maps.Map(el, {
           mapId: MAP_ID,
           center: position,
           zoom: INITIAL_ZOOM,
           disableDefaultUI: true,
-          gestureHandling: "greedy",
-          clickableIcons: true,
+          gestureHandling: interactive ? "greedy" : "none",
+          keyboardShortcuts: interactive,
+          clickableIcons: interactive,
         })
         const user = new libs.marker.AdvancedMarkerElement({
           map,
           position,
           content: userElement(heading),
-          gmpDraggable: true,
+          gmpDraggable: interactive,
           zIndex: 1000,
           title: "Vos",
         })
-        listeners.push(
-          user.addListener("dragend", () => {
-            const at = toLatLng(user.position)
-            if (at) latest.current.onTeleport(at)
-          }),
-          map.addListener("click", (e: google.maps.MapMouseEvent | google.maps.IconMouseEvent) => {
-            // Tocar un lugar de Google también te lleva ahí (sin abrir su ficha).
-            if ("placeId" in e && e.placeId) e.stop()
-            const at = toLatLng(e.latLng)
-            if (at) latest.current.onTeleport(at)
-          }),
-          map.addListener("dragstart", () => latest.current.onUserPan())
-        )
+        if (interactive)
+          listeners.push(
+            user.addListener("dragend", () => {
+              const at = toLatLng(user.position)
+              if (at) latest.current.onTeleport(at)
+            }),
+            map.addListener("click", (e: google.maps.MapMouseEvent | google.maps.IconMouseEvent) => {
+              // Tocar un lugar de Google también te lleva ahí (sin abrir su ficha).
+              if ("placeId" in e && e.placeId) e.stop()
+              const at = toLatLng(e.latLng)
+              if (at) latest.current.onTeleport(at)
+            }),
+            map.addListener("dragstart", () => latest.current.onUserPan())
+          )
         stateRef.current = { libs, map, user, overlays: drawOverlays(libs, map, places, stops) }
         setReady((n) => n + 1)
       })

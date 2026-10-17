@@ -1,8 +1,7 @@
 "use client"
 
-import { ChevronLeftIcon, LocateFixedIcon, MapPinIcon, SearchIcon } from "lucide-react"
+import { LocateFixedIcon, MapPinIcon, SearchIcon } from "lucide-react"
 import dynamic from "next/dynamic"
-import Link from "next/link"
 import { useMemo, useState } from "react"
 
 import { Joystick } from "@/components/location/joystick"
@@ -60,7 +59,7 @@ export function MapScreen({ places, stops }: MapScreenProps) {
         />
       </div>
 
-      <header className="pointer-events-none absolute inset-x-0 top-0 z-[1000] mx-auto flex max-w-md items-start gap-2 p-3">
+      <header className="pointer-events-none absolute inset-x-0 top-0 z-10 mx-auto flex max-w-md items-start gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         {searching ? (
           <LocationSearch
             onClose={() => setSearching(false)}
@@ -71,11 +70,6 @@ export function MapScreen({ places, stops }: MapScreenProps) {
           />
         ) : (
           <>
-            <Button asChild variant="secondary" size="icon" className="bg-card pointer-events-auto shrink-0 rounded-full shadow-md">
-              <Link href="/" aria-label="Volver">
-                <ChevronLeftIcon className="size-5" />
-              </Link>
-            </Button>
             <div className="bg-card/95 pointer-events-auto flex min-w-0 flex-1 items-center gap-2 rounded-full px-3.5 py-2 shadow-md backdrop-blur-xl">
               <MapPinIcon className="text-brand size-4 shrink-0" />
               <p className="truncate text-[13px]">
@@ -102,7 +96,7 @@ export function MapScreen({ places, stops }: MapScreenProps) {
         )}
       </header>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] mx-auto flex max-w-md flex-col gap-3 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 mx-auto flex max-w-md flex-col gap-3 p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
         <div className="flex items-end justify-between">
           {!follow ? (
             <Button

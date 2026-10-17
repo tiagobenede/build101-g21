@@ -28,7 +28,7 @@ import { PlaceNotification } from "@/components/rumbo/place-notification"
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
 import { CameraSheet } from "@/components/camera/camera-sheet"
 import { TranslatorPanel } from "@/components/translate/translator-panel"
-import { VoiceStage } from "@/components/rumbo/voice-stage"
+import { TALK_STATUS_IDLE, VoiceStage } from "@/components/rumbo/voice-stage"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
@@ -59,7 +59,7 @@ const GLASS_BUTTON =
   "size-10 rounded-full bg-white/85 text-foreground shadow-[0_2px_12px_rgba(0,0,0,0.12)] backdrop-blur-md hover:bg-white"
 
 const STATUS_LABEL: Record<CallState, string> = {
-  off: "Tocá para empezar a hablar",
+  off: TALK_STATUS_IDLE,
   connecting: "Conectando…",
   listening: "Te escucho",
   thinking: "Pensando…",

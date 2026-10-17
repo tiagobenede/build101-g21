@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils"
 
 import { VoiceSphere } from "./voice-sphere"
 
+/** Lo que dice debajo del blob antes de arrancar la llamada. */
+export const TALK_STATUS_IDLE = "Tocá para empezar a hablar"
+
 interface VoiceStageProps {
   state: CallState
   inputVolumeRef: RefObject<number>
