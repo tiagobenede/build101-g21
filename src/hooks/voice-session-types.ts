@@ -30,5 +30,6 @@ export interface VoiceCall {
   start: () => Promise<void>
   end: () => void
   /** Le cuenta al agente algo que pasó en la pantalla (sin pedirle que responda). */
-  note: (text: string) => void
+  /** Con `keep`, si la llamada no está abierta se manda al abrirla. */
+  note: (text: string, options?: { keep?: boolean }) => void
 }
