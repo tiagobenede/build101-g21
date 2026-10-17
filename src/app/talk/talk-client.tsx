@@ -27,6 +27,7 @@ import type { MapPlace, MapStop } from "@/components/location/map-view"
 import { PlaceNotification } from "@/components/rumbo/place-notification"
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
 import { CameraSheet } from "@/components/camera/camera-sheet"
+import { LocalTipCard } from "@/components/translate/local-tip-card"
 import { TranslatorPanel } from "@/components/translate/translator-panel"
 import { VoiceOrb } from "@/components/rumbo/voice-orb"
 import { Button } from "@/components/ui/button"
@@ -41,6 +42,7 @@ import type { FoundTip } from "@/app/api/translate/tips/route"
 import { distanceMeters } from "@/lib/geo"
 import type { GenUiPlace } from "@/lib/genui/types"
 import { addMinutesIso, zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
+import type { LocalTipView } from "@/lib/tips/view"
 import { LANGUAGES, type Lang } from "@/lib/translate/config"
 import type { Utterance } from "@/lib/translate/utterances"
 import { cn } from "@/lib/utils"
@@ -120,6 +122,8 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   // Modo traductor: la charla con alguien del lugar pasa por acá, y lo que recomienda
   // se muestra en la pantalla y le llega al agente (es uno solo).
   const [translating, setTranslating] = useState(false)
+  /** Lo que recomendaron las personas locales en esta pantalla (cards de B-5). */
+  const [localTips, setLocalTips] = useState<LocalTipView[]>([])
   const { micMuted, setMicMuted } = call
   const mutedForTranslatorRef = useRef(false)
   const openTranslator = useCallback(() => {
@@ -189,20 +193,24 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
       const tips = body?.data?.tips ?? []
       if (tips.length === 0) return
 
+      // Cada recomendación es una card (B-5), la más nueva arriba.
+      setLocalTips((prev) => [...tips.filter((t) => !prev.some((p) => p.id === t.id)).reverse(), ...prev])
       const summary = tips.map((t) => `${t.placeName} (${t.what.replace(/\.$/, "")})`).join("; ")
-      const placeIds = tips.flatMap((t) => (t.placeId ? [t.placeId] : []))
-      if (placeIds.length > 0)
-        void showScreen({
-          request: `Lo que te recomendó la persona local: ${summary}`,
-          placeIds,
-        })
-      else toast(`Anoté lo que te recomendó: ${summary}`)
-      note(
-        `La persona local recomendó: ${summary}. ${placeIds.length > 0 ? "Ya se muestra en la pantalla. " : ""}Quedó guardado; si después pregunta, retomalo.`
-      )
+      note(`La persona local recomendó: ${summary}. Ya se muestra en la pantalla. Quedó guardado; si después pregunta, retomalo.`)
     },
-    [note, showScreen]
+    [note]
   )
+
+  // Lo que el viajero hace con una recomendación también le llega al agente.
+  const onTipChange = useCallback(
+    (tip: LocalTipView) => {
+      setLocalTips((prev) => prev.map((t) => (t.id === tip.id ? tip : t)))
+      if (tip.status === "in_plan") note(`Desde la pantalla, el viajero sumó a su plan "${tip.placeName}", que le recomendó la persona local.`)
+      if (tip.status === "dismissed") note(`El viajero descartó la recomendación de "${tip.placeName}": no se la vuelvas a sugerir.`)
+    },
+    [note]
+  )
+  const onTipGo = useCallback((tip: LocalTipView) => tip.placeId && ask(`Llevame a ${tip.placeName}`, [tip.placeId]), [ask])
 
   // Solo en desarrollo: probar la UI generativa sin micrófono (window.rumboShow("llevame al Picasso")).
   useEffect(() => {
@@ -281,6 +289,15 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
 
       {translating ? (
         <TranslatorPanel location={position} onTurn={onTurn} onExit={closeTranslator}>
+          {localTips.length > 0 && (
+            <ScrollFade className="max-h-[50%] min-h-0 shrink-0">
+              <div className="flex flex-col gap-2 py-2">
+                {localTips.map((tip) => (
+                  <LocalTipCard key={tip.id} tip={tip} timeZone={location.timeZone} onChange={onTipChange} onGo={onTipGo} />
+                ))}
+              </div>
+            </ScrollFade>
+          )}
           {genui.screen && (
             <ScrollFade className="max-h-[45%] min-h-0 shrink-0">
               <div className="py-2">

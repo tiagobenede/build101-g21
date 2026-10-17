@@ -5,6 +5,7 @@ import { Suspense } from "react"
 import { ItinerarySection } from "@/components/itinerary/itinerary-section"
 import { TripSharing } from "@/components/trip/trip-sharing"
 import { PushToggle } from "@/components/notifications/push-toggle"
+import { LocalTipsSection } from "@/components/translate/local-tips-section"
 import { AppHeader } from "@/components/rumbo/app-header"
 import { CategoryIcon } from "@/components/rumbo/category-icon"
 import { PageSkeleton } from "@/components/rumbo/page-skeleton"
@@ -14,6 +15,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { getTravelerContext } from "@/lib/data/session"
+import { listLocalTips } from "@/lib/data/tips"
+import { createClient } from "@/lib/supabase/server"
 import { tripDay } from "@/lib/format"
 import { zonedDateKey } from "@/lib/time/zoned"
 
@@ -21,6 +24,7 @@ const MAX_NEARBY = 6
 
 async function HomeContent() {
   const ctx = await getTravelerContext()
+  const tips = await listLocalTips(await createClient(), ctx.trip?.id ?? null, ctx.location)
   const today = zonedDateKey(new Date(), ctx.timeZone)
   const todayItems = ctx.itinerary.filter((i) => zonedDateKey(new Date(i.starts_at), ctx.timeZone) === today)
   const day = ctx.trip ? tripDay(ctx.trip.start_date, ctx.trip.end_date) : null
@@ -107,6 +111,8 @@ async function HomeContent() {
           visitMinutes: p.typical_visit_minutes,
         }))}
       />
+
+      <LocalTipsSection tips={tips} timeZone={ctx.timeZone} />
 
       {ctx.trip && <TripSharing people={people} isOwner={isOwner} />}
 

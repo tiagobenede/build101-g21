@@ -9,6 +9,7 @@ import { searchPlaces } from "@/lib/places/search"
 import { allowRequest } from "@/lib/realtime/rate-limit"
 import { createClient } from "@/lib/supabase/server"
 import { LANG_CODES } from "@/lib/translate/config"
+import type { LocalTipView } from "@/lib/tips/view"
 import { activeTrip } from "@/lib/translate/server"
 import {
   buildTipsPrompt,
@@ -38,14 +39,8 @@ const bodySchema = z.object({
   location: latLngSchema,
 })
 
-export type FoundTip = {
-  id: string
-  placeId: string | null
-  placeName: string
-  what: string
-  why: string | null
-  walkMinutes: number | null
-}
+/** Lo que vuelve por cada recomendación: lo que muestran las cards del traductor (B-5). */
+export type FoundTip = LocalTipView
 
 type TipsResponse = { success: true; data: { tips: FoundTip[] } } | { success: false; error: string }
 
@@ -134,6 +129,8 @@ export async function POST(req: Request) {
           original_lang: theirLang,
           translated_quote: tip.translated_quote,
           confidence: Math.min(1, Math.max(0, tip.confidence)),
+          // Guardada por defecto: así avisa al pasar cerca (C-6). La card ofrece descartarla.
+          status: "saved",
         })
         .select("id")
         .single()
@@ -143,9 +140,17 @@ export async function POST(req: Request) {
         id: (row?.id as string | undefined) ?? crypto.randomUUID(),
         placeId: place?.id ?? null,
         placeName: place?.name ?? tip.place_name,
+        category: place?.category ?? null,
         what: tip.what,
         why: tip.why,
+        whenToGo: tip.when_to_go,
+        priceHint: tip.price_hint,
+        recommender: tip.recommender,
+        originalQuote: tip.original_quote,
+        translatedQuote: tip.translated_quote,
         walkMinutes: place ? walkMinutes(location, place) : null,
+        stayMinutes: place?.typical_visit_minutes ?? null,
+        status: row ? "saved" : "pending",
       } satisfies FoundTip
     })
   )

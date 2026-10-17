@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeftRightIcon, MicIcon, XIcon } from "lucide-react"
+import { ArrowLeftRightIcon, Maximize2Icon, MicIcon, XIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
@@ -43,6 +43,8 @@ export function TranslatorPanel({ location, onTurn, onExit, children }: Translat
     onTurn: (turn, recent, conversationId) => onTurn(turn, recent, conversationId, theirLang),
   })
   const busy = t.state === "connecting" || t.state === "listening" || t.state === "finishing"
+  /** Frase a pantalla completa para que la lea la persona local (B-5). */
+  const [shown, setShown] = useState<Utterance | null>(null)
   const { start } = t
   useEffect(() => {
     void start()
@@ -94,6 +96,16 @@ export function TranslatorPanel({ location, onTurn, onExit, children }: Translat
               >
                 <p className="text-[17px] leading-snug">{u.translated || "…"}</p>
                 {u.original && <p className="mt-1 text-xs opacity-75">{u.original}</p>}
+                {u.speaker === "me" && u.final && u.translated && (
+                  <button
+                    type="button"
+                    onClick={() => setShown(u)}
+                    className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
+                  >
+                    <Maximize2Icon className="size-3" />
+                    Mostrar
+                  </button>
+                )}
               </div>
             ))}
             <div ref={endRef} />
@@ -101,6 +113,19 @@ export function TranslatorPanel({ location, onTurn, onExit, children }: Translat
         </ScrollFade>
         {children}
       </section>
+
+      {shown && (
+        <button
+          type="button"
+          onClick={() => setShown(null)}
+          aria-label="Cerrar"
+          className="animate-in fade-in bg-background fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8 text-center duration-200"
+        >
+          <span className="text-muted-foreground text-[15px] font-medium">{LANGUAGES[theirLang]}</span>
+          <p className="text-[clamp(28px,8vw,52px)] leading-tight font-semibold text-balance">{shown.translated}</p>
+          <span className="text-muted-foreground text-[13px]">Tocá para volver</span>
+        </button>
+      )}
 
       <footer className="mx-auto w-full max-w-md px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <p className="text-muted-foreground mb-3 text-center text-[13px]">
