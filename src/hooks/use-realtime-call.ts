@@ -18,7 +18,7 @@ import {
 } from "@/lib/realtime/config"
 import { connectRealtime, type RealtimeConnection, type RealtimeEvent } from "@/lib/realtime/connection"
 import { estimateUsageCost, type RealtimeUsage } from "@/lib/realtime/cost"
-import { findNewPlaces } from "@/lib/realtime/match-places"
+import { findNewPlaces, placeToFeature } from "@/lib/realtime/match-places"
 import { ResponseQueue } from "@/lib/realtime/response-queue"
 import type { ToolResult } from "@/lib/realtime/tools"
 import { onTableChange } from "@/lib/supabase/client"
@@ -81,6 +81,8 @@ export function useRealtimeCall(
   const pendingNotesRef = useRef<string[]>([])
   /** Lugares que devolvieron los tools: se muestran si el agente los nombra. */
   const toolPlacesRef = useRef<PlaceCard[]>([])
+  /** La última pantalla con varios lugares: si la voz recomienda otro que el destacado, pasa adelante (una vez). */
+  const placesScreenRef = useRef<{ request: string; placeIds: string[]; followed: boolean } | null>(null)
 
   useEffect(() => {
     knownPlacesRef.current = knownPlaces
@@ -115,6 +117,15 @@ export function useRealtimeCall(
   const revealPlaces = useCallback(() => {
     const candidates = [...toolPlacesRef.current, ...knownPlacesRef.current]
     showPlaces(findNewPlaces(agentTextRef.current, candidates, seenRef.current))
+
+    // La pantalla destaca el primero que devolvió el tool, pero la voz a veces recomienda otro
+    // (el más cerca en vez del mejor puntuado): la pantalla lo sigue.
+    const screen = placesScreenRef.current
+    if (!screen || screen.followed) return
+    const id = placeToFeature(agentTextRef.current, screen.placeIds, toolPlacesRef.current)
+    if (!id) return
+    screen.followed = true
+    onScreenRef.current?.({ request: screen.request, placeIds: [id, ...screen.placeIds.filter((p) => p !== id)] })
   }, [showPlaces])
 
   /** Corre el tool en segundo plano; la cola decide cuándo entra el resultado a la charla. */
@@ -153,6 +164,8 @@ export function useRealtimeCall(
       queue.resolve(callId, result.output, () => {
         toolPlacesRef.current = [...result.cards, ...toolPlacesRef.current]
         showPlaces(result.cards.slice(0, 1))
+        placesScreenRef.current =
+          screen.kind === "show" && screen.placeIds.length > 1 ? { request: screen.request, placeIds: screen.placeIds, followed: false } : null
         if (screen.kind === "show") onScreenRef.current?.({ request: screen.request, placeIds: screen.placeIds })
         if (screen.kind === "clear") onScreenRef.current?.(null)
       })
