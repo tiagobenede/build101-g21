@@ -32,13 +32,17 @@ function profileChips({ pace, schedule, dailyBudget, mobility }: OnboardingState
  */
 export function OnboardingReview({ onboarding, saving, onConfirm }: OnboardingReviewProps) {
   const [rejected, setRejected] = useState<Set<string>>(new Set())
-  const listRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const chips = profileChips(onboarding)
 
   useLayoutEffect(() => {
-    const blocks = listRef.current?.querySelectorAll("[data-block]")
+    const blocks = rootRef.current?.querySelectorAll("[data-block]")
     if (!blocks?.length) return
-    gsap.fromTo(blocks, { y: 28, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.6, ease: "power3.out", stagger: 0.08 })
+    gsap.fromTo(
+      blocks,
+      { y: 28, autoAlpha: 0, filter: "blur(8px)" },
+      { y: 0, autoAlpha: 1, filter: "blur(0px)", duration: 0.7, ease: "power3.out", stagger: 0.09, clearProps: "filter" }
+    )
   }, [])
 
   const toggle = (title: string) =>
@@ -55,15 +59,15 @@ export function OnboardingReview({ onboarding, saving, onConfirm }: OnboardingRe
   })).filter((g) => g.insights.length > 0)
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 pt-14 pb-32">
-      <header className="flex flex-col gap-1.5">
+    <div ref={rootRef} className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 pt-14 pb-32">
+      <header data-block className="invisible flex flex-col gap-1.5">
         <h1 className="text-[30px] leading-tight font-semibold tracking-tight">Esto es lo que entendí</h1>
         <p className="text-muted-foreground text-[15px]">Tocá lo que no va para sacarlo. Lo demás lo uso para recomendarte en el viaje.</p>
       </header>
 
-      <div ref={listRef} className="flex flex-col gap-5">
+      <div className="flex flex-col gap-5">
         {chips.length > 0 && (
-          <div data-block className="flex flex-wrap gap-2">
+          <div data-block className="invisible flex flex-wrap gap-2">
             {chips.map((c) => (
               <span key={c} className="bg-muted rounded-full px-3 py-1.5 text-[13px] font-medium">
                 {c}
@@ -72,7 +76,7 @@ export function OnboardingReview({ onboarding, saving, onConfirm }: OnboardingRe
           </div>
         )}
         {groups.map(({ question, insights }) => (
-          <section key={question.id} data-block className="flex flex-col gap-2">
+          <section key={question.id} data-block className="invisible flex flex-col gap-2">
             <h2 className="text-muted-foreground px-1 text-[13px] font-medium">{question.title}</h2>
             <div className="bg-card flex flex-col overflow-hidden rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
               {insights.map((insight, i) => {
@@ -109,7 +113,7 @@ export function OnboardingReview({ onboarding, saving, onConfirm }: OnboardingRe
         ))}
       </div>
 
-      <div className="from-background fixed inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-60% to-transparent px-4 pt-8 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div data-block className="from-background invisible fixed inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-60% to-transparent px-4 pt-8 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <Button
           size="lg"
           className={cn("h-12 w-full max-w-md rounded-full text-[16px]", saving && "invisible")}
