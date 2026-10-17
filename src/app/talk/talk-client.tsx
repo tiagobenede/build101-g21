@@ -145,9 +145,9 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
       note(
         kind === "lugar"
           ? `El viajero le sacó una foto a lo que tiene enfrente: es ${name}${about}.${place ? " Ya se muestra en la pantalla." : ""} ` +
-              `Si pregunta dónde está o por "esto", "acá" o "lo de la foto", es ${name}.`
+              `Si pregunta dónde está o por "esto", "acá" o "lo de la foto", es ${name}. Si pide la historia, usá esos datos y no agregues otros que no sepas seguro.`
           : `El viajero le sacó una foto a ${kind === "obra" ? "una obra" : "algo"}: ${name}${about}${where ? `, en ${where}` : ""}. ` +
-              `Si pregunta qué es o por "esto" o "lo de la foto", hablá de ${name}, no del edificio.`,
+              `Si pregunta qué es o por "esto" o "lo de la foto", hablá de ${name}, no del edificio. Si pide la historia, usá esos datos y no agregues otros que no sepas seguro.`,
         { keep: true }
       )
     },

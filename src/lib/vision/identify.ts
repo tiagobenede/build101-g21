@@ -15,6 +15,9 @@ import { askJev, type Photo } from "./jev"
  *   `places`, con su tarjeta y "Al plan").
  * - Un LLM con visión dice qué es sin opciones: un lugar, una obra (la Gioconda adentro
  *   del Louvre) u otra cosa. Si es una obra, gana el LLM aunque Jev haya elegido el museo.
+ *   Si es un lugar que no es el que eligió Jev, también gana el LLM: Jev solo puede elegir
+ *   entre los cercanos (parado en el Champ de Mars, la Torre Eiffel queda a más de 250 m
+ *   y Jev elegía el parque).
  */
 
 export type VisionResult = {
@@ -39,7 +42,7 @@ type JevPick = { place: NearbyPlace; confidence: number }
 const NOTHING: VisionResult = { via: "llm", name: null, kind: null, where: null, description: null, confidence: null, place: null }
 
 /** Junta las dos respuestas. Exportada para los tests. */
-export function combineVision(picked: JevPick | null, seen: PhotoSubject | null): VisionResult {
+export function combineVision(picked: JevPick | null, seen: PhotoSubject | null, candidates: readonly NearbyPlace[] = []): VisionResult {
   // Una obra o una cosa: la cuenta el LLM; el lugar de Jev (el museo) queda como "dónde".
   if (seen && seen.kind !== "lugar") {
     return {
@@ -52,15 +55,18 @@ export function combineVision(picked: JevPick | null, seen: PhotoSubject | null)
       place: null,
     }
   }
-  if (picked) {
-    const p = picked.place
+  // Jev solo elige entre los cercanos: si el LLM nombró otro lugar, se busca ese entre los
+  // cercanos y, si no está, lo dice el LLM (la pantalla lo busca en el mapa por nombre).
+  const agreed = picked && (!seen || sameThing(seen, picked.place.name)) ? picked : null
+  const p = agreed?.place ?? (seen ? candidates.find((c) => sameThing(seen, c.name)) : undefined)
+  if (p) {
     return {
-      via: "jev",
+      via: agreed ? "jev" : "llm",
       name: p.name,
       kind: "lugar",
       where: null,
       description: p.description ?? seen?.about ?? null,
-      confidence: picked.confidence,
+      confidence: agreed?.confidence ?? null,
       place: {
         id: p.id,
         name: p.name,
@@ -75,8 +81,26 @@ export function combineVision(picked: JevPick | null, seen: PhotoSubject | null)
   return NOTHING
 }
 
-async function pickWithJev(photo: Photo, ctx: TravelerContext): Promise<JevPick | null> {
-  const candidates = pickCandidates(ctx.nearby)
+/** Palabras que no alcanzan para decir que dos nombres son el mismo lugar. */
+const GENERIC_WORDS = new Set(
+  "museo musee museum plaza place parque parc jardin iglesia eglise catedral cathedrale torre tour calle rue puente pont palacio palais".split(" ")
+)
+
+const words = (name: string) =>
+  name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 4 && !GENERIC_WORDS.has(w))
+
+/** Si el nombre de un lugar de Google es lo que dijo el LLM ("Musée du Louvre" ≈ "Museo del Louvre"). */
+export function sameThing(seen: Pick<PhotoSubject, "name" | "mapName">, placeName: string): boolean {
+  const theirs = new Set(words(placeName))
+  return [seen.name, seen.mapName].some((n) => n !== null && words(n).some((w) => theirs.has(w)))
+}
+
+async function pickWithJev(photo: Photo, ctx: TravelerContext, candidates: NearbyPlace[]): Promise<JevPick | null> {
   if (candidates.length === 0) return null
   const { criteria, places } = buildJevOptions(candidates)
   const forJev = await fitForJev(photo).catch(() => photo)
@@ -88,12 +112,13 @@ async function pickWithJev(photo: Photo, ctx: TravelerContext): Promise<JevPick 
 }
 
 export async function identifyPhoto(photo: Photo, ctx: TravelerContext): Promise<VisionResult> {
+  const candidates = pickCandidates(ctx.nearby)
   const [picked, seen] = await Promise.all([
-    pickWithJev(photo, ctx),
+    pickWithJev(photo, ctx, candidates),
     describePhoto(photo, { label: ctx.locationLabel, city: ctx.trip?.destination ?? null, location: ctx.location }).catch((err: unknown) => {
       console.error("[vision] llm", err instanceof Error ? err.message : err)
       return null
     }),
   ])
-  return combineVision(picked, seen)
+  return combineVision(picked, seen, candidates)
 }

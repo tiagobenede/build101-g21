@@ -30,13 +30,19 @@ export const namesMatch = (a: string, b: string) => {
   return contains(x, y) || contains(y, x)
 }
 
+/** Mismo nombre, sin palabras de más ("Torre Eiffel" no es "Jardín de la Torre Eiffel"). */
+export const sameName = (a: string, b: string) => namesMatch(a, b) && significantWords(a).length === significantWords(b).length
+
 /** ~5 km alrededor (en longitud se ensancha: en París un grado de longitud mide ~2/3 de uno de latitud). */
 const SEARCH_BOX_DEG = 0.045
 
 const PLACE_COLUMNS = "id, name, category, tags, description, lat, lng, rating, typical_visit_minutes, data"
 
-/** Un lugar de `places` por nombre: el más cercano de los que coinciden, o null. */
-export async function findPlaceByName(db: SupabaseClient, name: string, near: LatLng): Promise<StoredPlace | null> {
+/**
+ * Un lugar de `places` por nombre: el más cercano de los que coinciden, o null.
+ * Con `exact`, solo el mismo nombre (la foto dice "Torre Eiffel" y no tiene que ser el jardín).
+ */
+export async function findPlaceByName(db: SupabaseClient, name: string, near: LatLng, { exact = false } = {}): Promise<StoredPlace | null> {
   if (significantWords(name).length === 0) return null
   // `ilike` no ignora acentos ("marche" ≠ "Marché"): traemos lo de la zona y comparamos acá.
   const { data, error } = await db
@@ -51,7 +57,7 @@ export async function findPlaceByName(db: SupabaseClient, name: string, near: La
 
   return (
     (data as StoredPlace[])
-      .filter((p) => namesMatch(p.name, name))
+      .filter((p) => (exact ? sameName : namesMatch)(p.name, name))
       .sort((a, b) => distanceMeters(near, a) - distanceMeters(near, b))[0] ?? null
   )
 }
