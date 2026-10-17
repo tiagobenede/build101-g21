@@ -1,4 +1,4 @@
-import { MicIcon } from "lucide-react"
+import { ChevronRightIcon, MapIcon, MicIcon } from "lucide-react"
 import Link from "next/link"
 import { Suspense } from "react"
 
@@ -48,6 +48,25 @@ async function HomeContent() {
           </Button>
         </CardContent>
       </Card>
+
+      <GroupedList>
+        <Item asChild className="rounded-none px-4 py-3 hover:bg-muted/60">
+          <Link href="/map">
+            <ItemMedia>
+              <span className="bg-brand flex size-9 items-center justify-center rounded-[10px] text-white">
+                <MapIcon className="size-[18px]" />
+              </span>
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle className="text-[15px]">Mapa</ItemTitle>
+              <ItemDescription className="text-[13px]">Dónde estás, qué hay cerca y tu plan de hoy</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <ChevronRightIcon className="text-muted-foreground/60 size-4" />
+            </ItemActions>
+          </Link>
+        </Item>
+      </GroupedList>
 
       <Section title="Tus gustos">
         <div className="flex flex-wrap gap-2">

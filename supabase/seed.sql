@@ -1,4 +1,4 @@
--- Datos de demo: 3 cuentas predefinidas, viaje a París y puntos de interés.
+-- Datos de demo: 3 cuentas predefinidas y viaje a París.
 -- Password de todas las cuentas demo: ver DEMO_PASSWORD en .env.example
 
 -- ---------------------------------------------------------------------------
@@ -73,52 +73,5 @@ insert into public.itinerary_items (trip_id, title, notes, starts_at, ends_at, l
   ('aaaaaaa1-0000-4000-8000-000000000003', 'Clase de cocina francesa', 'Traer delantal',
    (date_trunc('day', now() at time zone 'Europe/Paris') + interval '18 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '20 hours') at time zone 'Europe/Paris', 48.8650, 2.3600);
 
--- ---------------------------------------------------------------------------
--- Puntos de interés en París (alrededor del Centre Pompidou)
--- ---------------------------------------------------------------------------
-insert into public.places (id, name, category, tags, description, city, lat, lng, rating, typical_visit_minutes) values
-  ('arts-et-metiers', 'Musée des Arts et Métiers', 'Museo', '{autos,diseño,historia,ciencia}',
-   'Tiene una sala de vehículos con autos de principios del siglo XX y el fardier de Cugnot, el primer vehículo autopropulsado.',
-   'París', 48.8667, 2.3554, 4.6, 20),
-  ('champs-elysees', 'Avenida de los Campos Elíseos', 'Paseo', '{autos,compras,arquitectura}',
-   'La avenida más famosa de París, históricamente con showrooms de marcas de autos.',
-   'París', 48.8698, 2.3076, 4.5, 30),
-  ('centre-pompidou', 'Centre Pompidou', 'Museo', '{arte,arquitectura,diseño}',
-   'Arte moderno en un edificio icónico con los tubos de colores por fuera.',
-   'París', 48.8606, 2.3522, 4.5, 45),
-  ('louvre', 'Museo del Louvre', 'Museo', '{arte,historia}',
-   'El museo más visitado del mundo. Con poco tiempo, apuntá directo a una sola ala.',
-   'París', 48.8606, 2.3376, 4.7, 90),
-  ('musee-picasso', 'Musée Picasso', 'Museo', '{arte}',
-   'La mayor colección de Picasso del mundo, en un palacete del Marais.',
-   'París', 48.8598, 2.3624, 4.5, 50),
-  ('notre-dame', 'Catedral de Notre-Dame', 'Monumento', '{arquitectura,historia}',
-   'La catedral gótica restaurada, en la Île de la Cité.',
-   'París', 48.8530, 2.3499, 4.8, 30),
-  ('sainte-chapelle', 'Sainte-Chapelle', 'Monumento', '{arquitectura,historia,arte}',
-   'Vitrales góticos espectaculares; con sol es otra cosa.',
-   'París', 48.8554, 2.3450, 4.7, 25),
-  ('place-des-vosges', 'Place des Vosges', 'Plaza', '{arquitectura,parques,historia}',
-   'La plaza planificada más antigua de París, ideal para una pausa.',
-   'París', 48.8556, 2.3655, 4.7, 20),
-  ('enfants-rouges', 'Marché des Enfants Rouges', 'Mercado', '{comida,mercados}',
-   'El mercado cubierto más antiguo de París, con puestos de comida de todo el mundo.',
-   'París', 48.8629, 2.3618, 4.4, 30),
-  ('as-du-fallafel', 'L''As du Fallafel', 'Restaurante', '{comida}',
-   'Falafel legendario en la Rue des Rosiers. Se hace fila, pero avanza rápido.',
-   'París', 48.8573, 2.3591, 4.4, 20),
-  ('du-pain-et-des-idees', 'Du Pain et des Idées', 'Panadería', '{comida,café}',
-   'Panadería clásica; el "escargot" de pistacho es obligatorio.',
-   'París', 48.8710, 2.3631, 4.6, 15),
-  ('cafe-charlot', 'Café Charlot', 'Café', '{café,comida}',
-   'Café-brasserie con terraza en el Haut-Marais.',
-   'París', 48.8627, 2.3631, 4.2, 25),
-  ('shakespeare-and-co', 'Shakespeare and Company', 'Librería', '{libros,historia}',
-   'Librería mítica frente a Notre-Dame.',
-   'París', 48.8526, 2.3471, 4.6, 20),
-  ('galerie-vivienne', 'Galerie Vivienne', 'Pasaje', '{arquitectura,compras,diseño}',
-   'Pasaje cubierto del siglo XIX con mosaicos y techo de vidrio.',
-   'París', 48.8665, 2.3398, 4.5, 15),
-  ('jardin-tuileries', 'Jardín de las Tullerías', 'Parque', '{parques,arte}',
-   'Jardines entre el Louvre y la Concorde.',
-   'París', 48.8634, 2.3275, 4.6, 30);
+-- Los puntos de interés no van en el seed: vienen de Google Places y se guardan en
+-- `places` la primera vez que alguien abre la app cerca (src/lib/places/nearby.ts).

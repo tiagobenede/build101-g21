@@ -1,7 +1,7 @@
 -- Rumbo: features del hackathon (docs/planning.md, sección 4)
--- Restricciones del perfil, estado del itinerario, lugares de Google, traducción,
--- recomendaciones de residentes, memoria del agente, GPS simulado, avisos y
--- snapshots del itinerario.
+-- Restricciones del perfil, estado del itinerario, traducción, recomendaciones de
+-- residentes, memoria del agente, GPS simulado, avisos, snapshots del itinerario
+-- y cuentas de Google Calendar.
 
 -- ---------------------------------------------------------------------------
 -- profiles: restricciones, ritmo y perfil compilado
@@ -21,20 +21,19 @@ alter table public.itinerary_items
   add column status     text not null default 'planned'
              check (status in ('planned', 'in_progress', 'done', 'skipped')),
   add column source     text not null default 'user'
-             check (source in ('user', 'agent', 'local_tip', 'event')),
+             check (source in ('user', 'agent', 'local_tip', 'event', 'calendar')),
+  add column calendar_event_id text,                           -- id del evento de Google Calendar
   add column source_ref uuid,                                  -- id del local_tip que lo originó
   add column locked     boolean not null default false;        -- reserva: el planner no la mueve
 -- place_id ya existe (text, sin FK): apunta a places.id
 
 -- ---------------------------------------------------------------------------
--- places: solo los lugares que algo referencia (itinerario, tips, avisos,
--- recomendaciones). Los cercanos los busca el agente en Google Places.
--- id = place id de Google ("ChIJ..."); el upsert es por id. Lo escribe el
--- server con la secret key: para los usuarios sigue siendo de solo lectura.
+-- places: cache de Google Places (id = 'g:<place id>'). `listed = false` guarda
+-- lugares que existen pero no se ofrecen como "cercanos" (la sorpresa de la demo).
 -- ---------------------------------------------------------------------------
 alter table public.places
-  alter column city drop not null;                             -- Google no siempre la devuelve
--- opening_hours, address y demás datos de Google van en places.data (jsonb)
+  add column listed boolean not null default true;
+-- opening_hours y demás datos de Google van en places.data (jsonb)
 
 -- ---------------------------------------------------------------------------
 -- conversations: guía o traducción
@@ -103,7 +102,7 @@ create table public.pings (
   user_id    uuid not null references public.profiles (id) on delete cascade,
   lat        double precision not null check (lat between -90 and 90),
   lng        double precision not null check (lng between -180 and 180),
-  heading    double precision check (heading >= 0 and heading < 360),
+  heading    double precision check (heading between 0 and 360),
   source     text not null default 'mock' check (source in ('mock', 'real')),
   created_at timestamptz not null default now()
 );
@@ -139,6 +138,17 @@ create table public.itinerary_snapshots (
 create index itinerary_snapshots_trip_idx on public.itinerary_snapshots (trip_id, created_at desc);
 
 -- ---------------------------------------------------------------------------
+-- google_accounts: tokens de Google Calendar (C-8). Solo los lee el server.
+-- ---------------------------------------------------------------------------
+create table public.google_accounts (
+  user_id       uuid primary key references public.profiles (id) on delete cascade,
+  email         text not null,
+  refresh_token text not null,
+  scope         text not null,
+  updated_at    timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------------
 -- Row Level Security: cada usuario ve solo lo suyo
 -- ---------------------------------------------------------------------------
 alter table public.local_tips          enable row level security;
@@ -146,6 +156,9 @@ alter table public.profile_facts       enable row level security;
 alter table public.pings               enable row level security;
 alter table public.notifications       enable row level security;
 alter table public.itinerary_snapshots enable row level security;
+-- Sin políticas a propósito: el refresh token no sale nunca al navegador.
+-- El server lo lee y escribe con la secret key, que saltea RLS.
+alter table public.google_accounts     enable row level security;
 
 create policy "own local tips" on public.local_tips
   for all to authenticated

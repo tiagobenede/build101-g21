@@ -10,6 +10,7 @@ import {
 } from "@/lib/realtime/config"
 import { buildInstructions } from "@/lib/realtime/instructions"
 import { allowSessionMint } from "@/lib/realtime/rate-limit"
+import { TOOL_DEFINITIONS } from "@/lib/realtime/tools"
 import { createClient } from "@/lib/supabase/server"
 
 const CLIENT_SECRETS_URL = "https://api.openai.com/v1/realtime/client_secrets"
@@ -50,6 +51,8 @@ export async function POST() {
         instructions,
         output_modalities: ["audio"],
         max_output_tokens: MAX_OUTPUT_TOKENS,
+        tools: TOOL_DEFINITIONS,
+        tool_choice: "auto",
         audio: {
           // Conversación full-duplex con VAD; sin transcripción del usuario (cuesta y la UI no la muestra).
           input: { turn_detection: TURN_DETECTION, noise_reduction: { type: "near_field" }, transcription: null },

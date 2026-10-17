@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 
+import { LocationProvider } from "@/components/location/location-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
@@ -20,7 +21,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="es" className="h-full">
       <body className="flex min-h-full flex-col">
-        <TooltipProvider>{children}</TooltipProvider>
+        <TooltipProvider>
+          <LocationProvider>{children}</LocationProvider>
+        </TooltipProvider>
         <Toaster theme="light" position="top-center" />
       </body>
     </html>

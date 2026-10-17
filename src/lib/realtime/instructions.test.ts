@@ -49,7 +49,7 @@ describe("buildInstructions", () => {
   it("menciona el próximo compromiso", () => {
     const text = buildInstructions({
       ...base,
-      nextCommitment: { id: "i", title: "Almuerzo", notes: null, starts_at: "2026-10-17T11:00:00Z", ends_at: null },
+      nextCommitment: { id: "i", title: "Almuerzo", notes: null, starts_at: "2026-10-17T11:00:00Z", ends_at: null, lat: null, lng: null },
     })
     expect(text).toContain('"Almuerzo" a las 13:00')
   })
