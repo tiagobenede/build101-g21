@@ -3,7 +3,7 @@ import "server-only"
 import type { LatLng } from "@/lib/geo"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-import { FOOD_TYPES, GOOGLE_FIELD_MASK, SIGHT_TYPES, toPlaceRow, type GooglePlace } from "./google-types"
+import { FOOD_TYPES, GOOGLE_FIELD_MASK, SHOP_TYPES, SIGHT_TYPES, toPlaceRow, type GooglePlace } from "./google-types"
 
 const NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby"
 const SEARCH_RADIUS_METERS = 1_500
@@ -17,7 +17,8 @@ const cellOf = ({ lat, lng }: LatLng) => `${lat.toFixed(2)},${lng.toFixed(2)}`
 const freshCells = new Map<string, number>()
 const inFlight = new Map<string, Promise<void>>()
 
-async function searchNearby(apiKey: string, location: LatLng, includedTypes: string[]): Promise<GooglePlace[]> {
+/** Nearby Search de Google con esos tipos (exportada para las pruebas de relevancia). */
+export async function searchNearby(apiKey: string, location: LatLng, includedTypes: string[]): Promise<GooglePlace[]> {
   const res = await fetch(NEARBY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey, "X-Goog-FieldMask": GOOGLE_FIELD_MASK },
@@ -53,7 +54,7 @@ async function refresh(location: LatLng, city: string): Promise<void> {
     .lte("lng", location.lng + 0.02)
   if ((count ?? 0) >= ENOUGH_CACHED) return
 
-  const results = await Promise.all([searchNearby(apiKey, location, FOOD_TYPES), searchNearby(apiKey, location, SIGHT_TYPES)])
+  const results = await Promise.all([FOOD_TYPES, SIGHT_TYPES, SHOP_TYPES].map((types) => searchNearby(apiKey, location, types)))
   const rows = new Map(
     results
       .flat()
@@ -69,7 +70,7 @@ async function refresh(location: LatLng, city: string): Promise<void> {
 
 /**
  * Se asegura de que `places` tenga los lugares de Google alrededor de la ubicación.
- * Como mucho dos llamadas a Google por celda de ~1 km cada 24 h; si Google falla,
+ * Como mucho tres llamadas a Google por celda de ~1 km cada 24 h; si Google falla,
  * se sigue con lo que ya haya guardado.
  */
 export async function ensureNearbyPlaces(location: LatLng, city: string): Promise<void> {

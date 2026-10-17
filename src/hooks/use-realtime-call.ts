@@ -25,6 +25,7 @@ import { onTableChange } from "@/lib/supabase/client"
 import type { CallState, MentionedPlace, PlaceCard, VoiceCall } from "./voice-session-types"
 
 const IDLE_CHECK_MS = 5_000
+const MAX_PENDING_NOTES = 3
 /** Tablas que cambian lo que sabe el agente: si se tocan con la llamada abierta, se rearman las instrucciones. */
 const CONTEXT_TABLES = ["itinerary_items", "profiles", "interests", "local_tips"] as const
 
@@ -75,6 +76,8 @@ export function useRealtimeCall(
   const contextRefreshedAtRef = useRef(0)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
+  /** Notas que esperan a que se abra la llamada (ej. la foto que sacó antes de hablar). */
+  const pendingNotesRef = useRef<string[]>([])
   /** Lugares que devolvieron los tools: se muestran si el agente los nombra. */
   const toolPlacesRef = useRef<PlaceCard[]>([])
 
@@ -283,6 +286,10 @@ export function useRealtimeCall(
       )
       conn.setMicOpen(!micMuted)
       conn.setMuted(speakerMuted)
+      // Lo que pasó antes de llamar entra antes del saludo, así puede mencionarlo.
+      for (const text of pendingNotesRef.current.splice(0)) {
+        conn.send({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text }] } })
+      }
       conn.send({
         type: "conversation.item.create",
         // Mensaje de sistema y no `response.instructions`: esas reemplazan las de la sesión
@@ -364,8 +371,14 @@ export function useRealtimeCall(
 
   const hangUp = useCallback(() => end(), [end])
 
-  const note = useCallback((text: string) => {
-    connRef.current?.send({
+  /** Nota de sistema para el agente. Con `keep`, si la llamada no está abierta se manda al abrirla. */
+  const note = useCallback((text: string, { keep = false }: { keep?: boolean } = {}) => {
+    const conn = connRef.current
+    if (!conn) {
+      if (keep) pendingNotesRef.current = [...pendingNotesRef.current, text].slice(-MAX_PENDING_NOTES)
+      return
+    }
+    conn.send({
       type: "conversation.item.create",
       item: { type: "message", role: "system", content: [{ type: "input_text", text }] },
     })

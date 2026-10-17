@@ -27,6 +27,7 @@ const KINDS: [type: string, kind: Kind][] = [
   ["tourist_attraction", { category: "Monumento", tags: ["historia", "arquitectura"], minutes: 30 }],
   ["shopping_mall", { category: "Pasaje", tags: ["compras"], minutes: 30 }],
   ["clothing_store", { category: "Pasaje", tags: ["compras", "diseño"], minutes: 20 }],
+  ["department_store", { category: "Pasaje", tags: ["compras"], minutes: 30 }],
 ]
 
 const KIND_BY_TYPE = new Map(KINDS)
@@ -34,8 +35,9 @@ const KIND_BY_TYPE = new Map(KINDS)
 const OTHER: Kind = { category: "Lugar", tags: [], minutes: 30 }
 const MAX_TAGGED_TYPES = 3
 
-/** Tipos que se piden a Nearby Search, en dos búsquedas para que no gane siempre la comida. */
+/** Tipos que se piden a Nearby Search, en búsquedas separadas para que no gane siempre la comida. */
 export const FOOD_TYPES = ["restaurant", "cafe", "coffee_shop", "bakery", "market"]
+export const SHOP_TYPES = ["shopping_mall", "department_store"]
 export const SIGHT_TYPES = ["museum", "art_gallery", "park", "tourist_attraction", "historical_landmark", "book_store", "church"]
 
 /** Lo que pedimos con el field mask (lo mínimo: el precio de Google depende de los campos). */

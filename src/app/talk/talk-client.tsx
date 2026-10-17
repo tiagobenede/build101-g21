@@ -3,6 +3,7 @@
 import {
   CalendarClockIcon,
   ChevronLeftIcon,
+  CameraIcon,
   LanguagesIcon,
   MapIcon,
   MapPinIcon,
@@ -25,6 +26,7 @@ import { useLocation } from "@/components/location/location-provider"
 import type { MapPlace, MapStop } from "@/components/location/map-view"
 import { PlaceNotification } from "@/components/rumbo/place-notification"
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
+import { CameraSheet } from "@/components/camera/camera-sheet"
 import { TranslatorPanel } from "@/components/translate/translator-panel"
 import { VoiceOrb } from "@/components/rumbo/voice-orb"
 import { Button } from "@/components/ui/button"
@@ -32,6 +34,7 @@ import { Card } from "@/components/ui/card"
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Spinner } from "@/components/ui/spinner"
 import { useGenUi } from "@/hooks/use-genui"
+import { usePhotoLookup, type PhotoMatch } from "@/hooks/use-photo-lookup"
 import { useRealtimeCall } from "@/hooks/use-realtime-call"
 import type { CallState, PlaceCard } from "@/hooks/voice-session-types"
 import type { FoundTip } from "@/app/api/translate/tips/route"
@@ -131,6 +134,26 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
     mutedForTranslatorRef.current = false
   }, [setMicMuted])
 
+  // "¿Qué estoy viendo?": la foto se muestra en pantalla y el agente queda sabiendo qué es
+  // (si la llamada no está abierta, se lo cuenta al abrirla).
+  const [cameraOpen, setCameraOpen] = useState(false)
+  const onPhotoMatch = useCallback(
+    ({ name, description, place }: PhotoMatch) => {
+      if (place) void showScreen({ request: `Lo que estás viendo: ${place.name}`, placeIds: [place.id] })
+      else toast(`Es ${name}`)
+      note(
+        `El viajero le sacó una foto a lo que tiene enfrente: es ${name}${description ? ` (${description})` : ""}.` +
+          `${place ? " Ya se muestra en la pantalla." : ""} Si pregunta por "esto", "acá" o "lo de la foto", hablá de ese lugar; para horarios o detalles usá get_place.`,
+        { keep: true }
+      )
+    },
+    [note, showScreen]
+  )
+  const photo = usePhotoLookup(
+    useCallback(() => positionRef.current, []),
+    onPhotoMatch
+  )
+
   const onTurn = useCallback(
     async (turn: Utterance, recent: Utterance[], conversationId: string, theirLang: Lang) => {
       const said = turn.translated || turn.original
@@ -213,9 +236,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
         </Button>
         <div className="text-center">
           <p className="text-[15px] font-semibold">Rumbo</p>
-          {active && (
-            <p className="text-muted-foreground text-xs tabular-nums">US${call.costUsd.toFixed(call.costUsd < 0.01 ? 4 : 3)}</p>
-          )}
+          {active && <p className="text-muted-foreground text-xs tabular-nums">US${call.costUsd.toFixed(call.costUsd < 0.01 ? 4 : 3)}</p>}
         </div>
         <Button
           variant="ghost"
@@ -297,13 +318,14 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
 
           <footer className="mx-auto w-full max-w-md px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             {active ? (
-              <div className="flex items-center justify-center gap-8">
+              <div className="flex items-center justify-center gap-4">
                 <RoundToggle
                   on={call.micMuted}
                   onClick={() => call.setMicMuted(!call.micMuted)}
                   label={call.micMuted ? "Activar micrófono" : "Silenciar micrófono"}
                   icon={call.micMuted ? <MicOffIcon /> : <MicIcon />}
                 />
+                <ToolButton label="Sacar foto" icon={<CameraIcon />} busy={photo.busy} onClick={() => setCameraOpen(true)} />
                 <Button
                   onClick={call.end}
                   aria-label="Terminar"
@@ -311,7 +333,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
                 >
                   {call.state === "connecting" ? <Spinner className="size-6" /> : <PhoneOffIcon className="size-6" />}
                 </Button>
-                <TranslatorButton onClick={openTranslator} />
+                <ToolButton label="Traducir" icon={<LanguagesIcon />} onClick={openTranslator} />
                 <RoundToggle
                   on={call.speakerMuted}
                   onClick={() => call.setSpeakerMuted(!call.speakerMuted)}
@@ -325,12 +347,14 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
                   <MicIcon className="size-5" />
                   Hablar con Rumbo
                 </Button>
-                <TranslatorButton onClick={openTranslator} />
+                <ToolButton label="Sacar foto" icon={<CameraIcon />} busy={photo.busy} onClick={() => setCameraOpen(true)} />
+                <ToolButton label="Traducir" icon={<LanguagesIcon />} onClick={openTranslator} />
               </div>
             )}
           </footer>
         </>
       )}
+      <CameraSheet open={cameraOpen} onOpenChange={setCameraOpen} onPhoto={(blob) => void photo.look(blob)} />
     </main>
   )
 }
@@ -342,8 +366,7 @@ interface LocationCardProps extends Pick<TalkClientProps, "location" | "nextComm
 }
 
 function LocationCard({ location, placeName, nextCommitment, now, map }: LocationCardProps) {
-  const time = (d: Date) =>
-    new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit", timeZone: location.timeZone }).format(d)
+  const time = (d: Date) => new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit", timeZone: location.timeZone }).format(d)
   const details = [location.city, time(now), location.tripDay].filter(Boolean).join(" · ")
 
   return (
@@ -389,16 +412,17 @@ function IconTile({ className, children }: { className: string; children: React.
   )
 }
 
-function TranslatorButton({ onClick }: { onClick: () => void }) {
+function ToolButton({ label, icon, onClick, busy = false }: { label: string; icon: React.ReactNode; onClick: () => void; busy?: boolean }) {
   return (
     <Button
       variant="secondary"
       size="icon"
       onClick={onClick}
-      aria-label="Traducir"
+      disabled={busy}
+      aria-label={label}
       className="bg-card size-12 shrink-0 rounded-full [&_svg]:size-5"
     >
-      <LanguagesIcon />
+      {busy ? <Spinner /> : icon}
     </Button>
   )
 }
