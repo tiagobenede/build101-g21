@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation"
 import { z } from "zod"
 
-import { DEMO_ACCOUNTS } from "@/lib/demo-accounts"
+import { resetFirstLoginProfile } from "@/lib/data/onboarding"
+import { DEMO_ACCOUNTS, findDemoAccount } from "@/lib/demo-accounts"
 import { createClient } from "@/lib/supabase/server"
 
 const demoEmails = DEMO_ACCOUNTS.map((a) => a.email) as [string, ...string[]]
@@ -19,10 +20,20 @@ export async function loginAsDemo(_prev: LoginState, formData: FormData): Promis
   if (!password) return { error: "Falta DEMO_PASSWORD en .env.local." }
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password })
+  const { data, error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password })
   if (error) {
     console.error("[login] signInWithPassword failed", error.message)
     return { error: "No se pudo iniciar sesión. ¿Está corriendo Supabase local?" }
+  }
+
+  if (findDemoAccount(parsed.data.email)?.firstLogin) {
+    try {
+      await resetFirstLoginProfile(data.user.id)
+    } catch (err) {
+      console.error("[login]", err instanceof Error ? err.message : err)
+      return { error: "No se pudo preparar la cuenta nueva." }
+    }
+    redirect("/onboarding")
   }
 
   redirect("/")

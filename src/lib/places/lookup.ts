@@ -16,7 +16,32 @@ const normalize = (s: string) =>
     .replace(/\s+/g, " ")
     .trim()
 
-const significantWords = (s: string) => normalize(s).split(" ").filter((w) => w.length >= 3)
+/**
+ * Google guarda los nombres en castellano y el agente a veces los dice en francés
+ * ("Centre Pompidou" por "Centro Nacional de Arte y Cultura Georges Pompidou").
+ */
+const SAME_WORD: Record<string, string> = {
+  centre: "centro",
+  musee: "museo",
+  place: "plaza",
+  eglise: "iglesia",
+  cathedrale: "catedral",
+  tour: "torre",
+  pont: "puente",
+  rue: "calle",
+  palais: "palacio",
+  jardin: "jardin",
+  marche: "mercado",
+  bibliotheque: "biblioteca",
+}
+/** Artículos y preposiciones que cambian entre idiomas ("du" / "del"). */
+const FILLER_WORDS = new Set(["del", "des", "los", "las", "les", "the", "una", "une"])
+
+const significantWords = (s: string) =>
+  normalize(s)
+    .split(" ")
+    .filter((w) => w.length >= 3 && !FILLER_WORDS.has(w))
+    .map((w) => SAME_WORD[w] ?? w)
 
 /**
  * El agente dice el nombre como lo escuchó ("Marché des Enfants Rouges" por "Marché

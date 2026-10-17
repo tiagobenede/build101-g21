@@ -87,7 +87,7 @@ const descriptions: Record<ToolName, string> = {
   search_events:
     "Busca eventos cerca en la agenda de la ciudad (conciertos, teatro, exposiciones, ferias, charlas): qué hay ahora, esta noche, hoy o mañana. Decí algo corto como 'me fijo qué hay' antes de llamarlo.",
   web_search:
-    "Busca en Google lo que no sabés de un lugar o del momento: el menú, si tienen algo puntual, precios, eventos, noticias. Es rápido; decí algo corto como 'me fijo' antes de llamarlo. Lo que encuentres puede estar desactualizado: decí de dónde lo sacaste.",
+    "Busca en Google lo que no sabés de un lugar o del momento: el menú, si tienen algo puntual, precios, eventos, noticias. Es rápido; decí algo corto como 'me fijo' antes de llamarlo. Lo que encuentres puede estar desactualizado. No leas nombres de sitios web en voz alta.",
   get_place:
     "Datos prácticos de un lugar: si está abierto ahora, el horario de hoy, minutos a pie y de visita. Usalo cuando pregunte eso de un lugar puntual; para contar su historia no hace falta.",
   show_route:
