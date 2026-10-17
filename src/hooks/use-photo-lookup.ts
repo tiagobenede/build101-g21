@@ -41,7 +41,12 @@ async function postJson<T>(url: string, init: RequestInit): Promise<T> {
  * "¿Qué estoy viendo?": foto → `/api/vision` (C-3) → lugar. Si la visión solo da el
  * nombre de un lugar (respaldo con LLM), se busca ese nombre para tener el lugar en pantalla.
  */
-export function usePhotoLookup(getLocation: () => LatLng | null, onMatch: (match: PhotoMatch) => void) {
+export function usePhotoLookup(
+  getLocation: () => LatLng | null,
+  onMatch: (match: PhotoMatch) => void,
+  /** Avisos mientras se analiza: arrancó, o no se pudo reconocer (con el motivo). */
+  { onStart, onFail }: { onStart?: () => void; onFail?: (reason: string) => void } = {}
+) {
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
 
@@ -51,6 +56,7 @@ export function usePhotoLookup(getLocation: () => LatLng | null, onMatch: (match
       busyRef.current = true
       setBusy(true)
       const toastId = toast.loading("Mirando la foto…")
+      onStart?.()
       const location = getLocation()
       try {
         const form = new FormData()
@@ -62,6 +68,7 @@ export function usePhotoLookup(getLocation: () => LatLng | null, onMatch: (match
         const seen = await postJson<VisionData>("/api/vision", { method: "POST", body: form })
         if (!seen.name) {
           toast.error("No reconocí qué es. Probá con otra foto, más de frente.", { id: toastId })
+          onFail?.("no se reconoció qué hay en la foto")
           return
         }
 
@@ -88,12 +95,13 @@ export function usePhotoLookup(getLocation: () => LatLng | null, onMatch: (match
         })
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "No pude reconocer la foto.", { id: toastId })
+        onFail?.("falló el análisis de la foto")
       } finally {
         busyRef.current = false
         setBusy(false)
       }
     },
-    [getLocation, onMatch]
+    [getLocation, onMatch, onStart, onFail]
   )
 
   return { look, busy }

@@ -29,7 +29,9 @@ export interface VoiceCall {
   costUsd: number
   start: () => Promise<void>
   end: () => void
-  /** Le cuenta al agente algo que pasó en la pantalla (sin pedirle que responda). */
-  /** Con `keep`, si la llamada no está abierta se manda al abrirla. */
-  note: (text: string, options?: { keep?: boolean }) => void
+  /**
+   * Le cuenta al agente algo que pasó en la pantalla. Con `keep`, si la llamada no está
+   * abierta se manda al abrirla; con `respond`, además le pide que hable.
+   */
+  note: (text: string, options?: { keep?: boolean; respond?: boolean }) => void
 }

@@ -165,20 +165,39 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
         seen: { name, kind, where, description, placeId: place?.id ?? null, photoUrl },
       })
       const about = description ? ` (${description})` : ""
+      // Le había dicho que la estaba mirando: ahora cuenta qué es, sin que se lo pregunten.
       note(
-        kind === "lugar"
-          ? `El viajero acaba de sacarle una foto con la cámara a lo que tiene enfrente: está frente a ${name}${about}. Ya se muestra en la pantalla. ` +
+        (kind === "lugar"
+          ? `Llegó el análisis de la foto que sacó el viajero con la cámara: está frente a ${name}${about}. Ya se muestra en la pantalla. ` +
               `Si pregunta dónde está, decile que está frente a ${name}; no hables de distancias ni de cuánto le queda. Si pregunta por "esto", "acá" o "lo de la foto", es ${name}. Si pide la historia o más datos, llamá a place_facts con ${name}.`
           : `El viajero le sacó una foto a ${kind === "obra" ? "una obra" : "algo"}: ${name}${about}${where ? `, en ${where}` : ""}. Ya se muestra en la pantalla. ` +
-              `Si pregunta qué es o por "esto" o "lo de la foto", hablá de ${name}, no del edificio. Si pide la historia o más datos, llamá a place_facts con ${name}.`,
-        { keep: true }
+              `Si pregunta qué es o por "esto" o "lo de la foto", hablá de ${name}, no del edificio. Si pide la historia o más datos, llamá a place_facts con ${name}.`) +
+          ` Ahora contale en una o dos frases cortas qué es, como quien le muestra algo, y ofrecé contarle más.`,
+        { keep: true, respond: true }
       )
     },
     [note, showScreen]
   )
   const photo = usePhotoLookup(
     useCallback(() => positionRef.current, []),
-    onPhotoMatch
+    onPhotoMatch,
+    useMemo(
+      () => ({
+        // Apenas sale la foto: el agente avisa que la está mirando (el análisis tarda unos segundos).
+        onStart: () =>
+          note(
+            "El viajero acaba de sacar una foto con la cámara y la estoy analizando: tarda unos segundos. " +
+              'Decile solo eso en una frase corta (por ejemplo "Dame un segundo, estoy mirando la foto"). Todavía no sabés qué hay: no adivines ni describas nada.',
+            { respond: true }
+          ),
+        onFail: (reason: string) =>
+          note(
+            `No se pudo saber qué hay en la foto (${reason}). Decíselo en una frase y sugerí sacar otra, más de frente y con el lugar o la obra entera.`,
+            { respond: true }
+          ),
+      }),
+      [note]
+    )
   )
 
   const onTurn = useCallback(

@@ -449,8 +449,11 @@ export function useRealtimeCall(
 
   const hangUp = useCallback(() => end(), [end])
 
-  /** Nota de sistema para el agente. Con `keep`, si la llamada no está abierta se manda al abrirla. */
-  const note = useCallback((text: string, { keep = false }: { keep?: boolean } = {}) => {
+  /**
+   * Nota de sistema para el agente. Con `keep`, si la llamada no está abierta se manda al abrirla.
+   * Con `respond`, además le pide que hable (si no, la nota queda para cuando le pregunten).
+   */
+  const note = useCallback((text: string, { keep = false, respond = false }: { keep?: boolean; respond?: boolean } = {}) => {
     const conn = connRef.current
     if (!conn) {
       if (keep) pendingNotesRef.current = [...pendingNotesRef.current, text].slice(-MAX_PENDING_NOTES)
@@ -460,6 +463,8 @@ export function useRealtimeCall(
       type: "conversation.item.create",
       item: { type: "message", role: "system", content: [{ type: "input_text", text }] },
     })
+    // Que el agente lo diga apenas pueda, sin pisar lo que está diciendo ni al viajero.
+    if (respond) queueRef.current?.request()
   }, [])
 
   return {
