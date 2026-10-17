@@ -22,6 +22,8 @@ const STATUS: Record<TranslatorState, string> = {
 
 interface TranslatorPanelProps {
   location: LatLng
+  /** Idioma con el que arranca la otra persona: el del país donde está el viajero. */
+  defaultTheirLang: Lang
   onTurn: (turn: Utterance, recent: Utterance[], conversationId: string, theirLang: Lang) => void
   onExit: () => void
   /** Lo que se muestra debajo de la charla (la UI generativa con lo que recomendaron). */
@@ -33,9 +35,9 @@ interface TranslatorPanelProps {
  * arriba, lo que recomienda abajo (UI generativa) y los botones de quién habla.
  * Al desmontarse corta todo (nada queda cobrando).
  */
-export function TranslatorPanel({ location, onTurn, onExit, children }: TranslatorPanelProps) {
+export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, children }: TranslatorPanelProps) {
   const [myLang, setMyLang] = useState<Lang>("es")
-  const [theirLang, setTheirLang] = useState<Lang>("fr")
+  const [theirLang, setTheirLang] = useState<Lang>(defaultTheirLang)
   const t = useTranslator({
     myLang,
     theirLang,
@@ -58,7 +60,7 @@ export function TranslatorPanel({ location, onTurn, onExit, children }: Translat
 
   return (
     <>
-      <section className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col gap-2 px-4 pt-3">
+      <section className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col gap-2 px-4 pt-16">
         <div className="flex items-end gap-2">
           <LangSelect label="Yo hablo" value={myLang} onChange={setMyLang} disabled={busy} />
           <Button
@@ -74,7 +76,7 @@ export function TranslatorPanel({ location, onTurn, onExit, children }: Translat
           >
             <ArrowLeftRightIcon className="size-4" />
           </Button>
-          <LangSelect label="Habla" value={theirLang} onChange={setTheirLang} disabled={busy} />
+          <LangSelect label="La otra persona" value={theirLang} onChange={setTheirLang} disabled={busy} />
           <Button variant="ghost" size="icon" className="rounded-full" aria-label="Cerrar traductor" onClick={onExit}>
             <XIcon className="size-5" />
           </Button>
@@ -133,15 +135,15 @@ export function TranslatorPanel({ location, onTurn, onExit, children }: Translat
           {t.spentUsd > 0 && <span className="tabular-nums"> · US${t.spentUsd.toFixed(3)}</span>}
         </p>
         <div className="flex items-center gap-3">
-          <SpeakButton who="me" label={`Hablo yo · ${LANGUAGES[myLang]}`} t={t} />
-          <SpeakButton who="them" label={`Habla · ${LANGUAGES[theirLang]}`} t={t} />
+          <SpeakButton who="me" label="Hablo yo" lang={LANGUAGES[myLang]} t={t} />
+          <SpeakButton who="them" label="Habla la otra persona" lang={LANGUAGES[theirLang]} t={t} />
         </div>
       </footer>
     </>
   )
 }
 
-function SpeakButton({ who, label, t }: { who: Speaker; label: string; t: ReturnType<typeof useTranslator> }) {
+function SpeakButton({ who, label, lang, t }: { who: Speaker; label: string; lang: string; t: ReturnType<typeof useTranslator> }) {
   const active = t.speaker === who
   return (
     <Button
@@ -152,8 +154,12 @@ function SpeakButton({ who, label, t }: { who: Speaker; label: string; t: Return
       className={cn("h-14 flex-1 rounded-full text-[15px]", !active && "bg-card")}
       onClick={() => void t.press(who)}
     >
-      {active && t.state === "connecting" ? <Spinner className="size-4" /> : <MicIcon className="size-4" />}
-      {label}
+      {active && t.state === "connecting" ? <Spinner className="size-4 shrink-0" /> : <MicIcon className="size-4 shrink-0" />}
+      {/* Quién habla, y abajo en qué idioma: "Habla la otra persona / Français". */}
+      <span className="flex min-w-0 flex-col items-start leading-tight">
+        <span className="truncate">{label}</span>
+        <span className="text-[12px] font-normal opacity-70">{lang}</span>
+      </span>
     </Button>
   )
 }

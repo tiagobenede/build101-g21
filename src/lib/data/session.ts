@@ -81,6 +81,7 @@ export type TravelerContext = {
   timeZone: string
   city: string | null
   country: string | null
+  countryCode: string | null
   nearby: NearbyPlace[]
 }
 
@@ -202,6 +203,7 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
     timeZone: locale.timeZone,
     city: locale.city,
     country: locale.country,
+    countryCode: locale.countryCode,
     nearby,
   }
 }

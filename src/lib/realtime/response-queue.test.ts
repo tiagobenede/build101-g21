@@ -27,6 +27,23 @@ describe("ResponseQueue", () => {
     expect(queue.hasPending).toBe(false)
   })
 
+  it("un resultado silencioso entra a la charla sin pedir otra respuesta", () => {
+    queue.begin("c1", "r1")
+    queue.resolve("c1", '{"ok":true}', undefined, { silent: true })
+    done("r1")
+    expect(types()).toEqual(["conversation.item.create"])
+    expect(queue.hasPending).toBe(false)
+  })
+
+  it("si junto a uno silencioso hay otro que necesita respuesta, se pide una sola", () => {
+    queue.begin("c1", "r1")
+    queue.begin("c2", "r1")
+    queue.resolve("c1", "{}", undefined, { silent: true })
+    queue.resolve("c2", "{}")
+    done("r1")
+    expect(types()).toEqual(["conversation.item.create", "conversation.item.create", "response.create"])
+  })
+
   it("si el resultado llega después, lo manda al llegar", () => {
     queue.begin("c1", "r1")
     done("r1")

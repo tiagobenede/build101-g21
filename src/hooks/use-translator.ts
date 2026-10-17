@@ -65,6 +65,8 @@ export function useTranslator({
   const langsRef = useRef({ myLang, theirLang, location })
   const onTurnRef = useRef(onTurn)
   const turnsRef = useRef<Utterance[]>([])
+  /** Frases que se están guardando: el resumen al cerrar tiene que verlas. */
+  const savingRef = useRef(new Set<Promise<unknown>>())
   useEffect(() => {
     langsRef.current = { myLang, theirLang, location }
     onTurnRef.current = onTurn
@@ -88,7 +90,7 @@ export function useTranslator({
       turnsRef.current = [...turnsRef.current, u].slice(-RECENT_TURNS)
       onTurnRef.current?.(u, turnsRef.current, conversationId)
       const { myLang: mine, theirLang: theirs } = langsRef.current
-      void fetch("/api/translate/messages", {
+      const saving = fetch("/api/translate/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -98,7 +100,10 @@ export function useTranslator({
           original: u.original,
           translated: u.translated,
         }),
-      }).catch(() => undefined)
+      })
+        .catch(() => undefined)
+        .finally(() => savingRef.current.delete(saving))
+      savingRef.current.add(saving)
     },
     [upsert]
   )
@@ -257,6 +262,7 @@ export function useTranslator({
     conversationRef.current = null
     turnsRef.current = []
     if (conversationId) {
+      await Promise.all(savingRef.current)
       void fetch("/api/translate/end", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

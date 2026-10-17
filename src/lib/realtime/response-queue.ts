@@ -10,6 +10,8 @@ type PendingCall = {
   onSubmit: (() => void) | null
   /** La charla siguió (hubo otra respuesta) mientras el tool corría. */
   late: boolean
+  /** Entra a la conversación sin pedir otra respuesta (el agente ya contestó, ej. `remember`). */
+  silent: boolean
 }
 
 type ResponseDone = { id?: string; status?: string }
@@ -74,15 +76,19 @@ export class ResponseQueue {
 
   /** El modelo pidió un tool (`response.function_call_arguments.done`). */
   begin(callId: string, responseId: string): void {
-    this.calls.set(callId, { responseId, responseDone: false, output: null, onSubmit: null, late: false })
+    this.calls.set(callId, { responseId, responseDone: false, output: null, onSubmit: null, late: false, silent: false })
   }
 
-  /** Llegó el resultado. `onSubmit` corre cuando entra a la conversación (no si se descarta). */
-  resolve(callId: string, output: string, onSubmit?: () => void): void {
+  /**
+   * Llegó el resultado. `onSubmit` corre cuando entra a la conversación (no si se descarta).
+   * Con `silent`, entra sin pedir otra respuesta: el agente ya dijo lo suyo.
+   */
+  resolve(callId: string, output: string, onSubmit?: () => void, { silent = false }: { silent?: boolean } = {}): void {
     const call = this.calls.get(callId)
     if (!call) return
     call.output = output
     call.onSubmit = onSubmit ?? null
+    call.silent = silent
     this.trySubmit(callId, call)
     this.flush()
   }
@@ -112,7 +118,7 @@ export class ResponseQueue {
         output: call.late ? `{"late":true,"result":${call.output}}` : call.output,
       },
     })
-    this.needsResponse = true
+    if (!call.silent) this.needsResponse = true
     call.onSubmit?.()
   }
 

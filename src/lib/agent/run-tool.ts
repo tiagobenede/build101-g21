@@ -20,7 +20,7 @@ import {
   undoItinerary,
   updateItineraryItem,
 } from "@/lib/data/itinerary"
-import { rememberFact, updateProfile } from "@/lib/data/profile"
+import { rememberFact, setInterest, updateProfile } from "@/lib/data/profile"
 import type { Result } from "@/lib/data/result"
 import {
   getTravelerContext,
@@ -40,6 +40,8 @@ import { formatTodayPlan, itemRef } from "@/lib/realtime/instructions"
 import { fillMissingNulls, isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
+import { transcriptText } from "@/lib/translate/recent"
+import { recentTranslation } from "@/lib/translate/server"
 import { WALK } from "@/lib/tuning"
 import { zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
 import { readMenu } from "@/lib/web-page"
@@ -519,6 +521,13 @@ async function rememberTool(args: ToolArgs<"remember">, location: LatLng | null)
   })
   if (!saved.ok) return fail(saved.error)
 
+  // "Me encantan los autos" también suma el gusto al perfil: así pesa en recommend_nearby,
+  // en el mapa ("para vos") y en la home. "No me gustan los museos" lo saca.
+  if (args.interest) {
+    const updated = await setInterest(db, args.interest, !args.avoid)
+    if (!updated.ok) return fail(updated.error)
+  }
+
   // Una dieta también va a las restricciones del perfil, así el ranking la filtra en el server.
   if (args.diet) {
     const ctx = await getTravelerContext({ location })
@@ -536,6 +545,16 @@ async function rememberTool(args: ToolArgs<"remember">, location: LatLng | null)
     }
   }
   return { output: JSON.stringify({ ok: true, profile: saved.data.summary }), cards: [] }
+}
+
+/** La última charla con el traductor, entera, si terminó hace poco. */
+async function translationTranscriptTool(): Promise<ToolResult> {
+  const translation = await recentTranslation(await createClient())
+  if (!translation) return fail("No hay una charla reciente con el traductor.")
+  return {
+    output: JSON.stringify({ lang_pair: translation.langPair, transcript: transcriptText(translation.turns) }),
+    cards: [],
+  }
 }
 
 /** Ejecuta un tool del agente con los permisos del usuario logueado. */
@@ -595,8 +614,13 @@ export async function runTool(
       return args.success ? editItinerary(args.data, location) : invalid
     }
     case "remember": {
-      const args = toolSchemas.remember.safeParse(json)
+      // El modelo a veces manda kind "avoid": es un gusto en negativo, no un error para descartar lo que contó.
+      const kind = (json as { kind?: unknown } | null)?.kind
+      const fixed = kind === "constraint" || kind === "preference" ? json : { ...(json as object), kind: "preference" }
+      const args = toolSchemas.remember.safeParse(fixed)
       return args.success ? rememberTool(args.data, location) : invalid
     }
+    case "translation_transcript":
+      return translationTranscriptTool()
   }
 }
