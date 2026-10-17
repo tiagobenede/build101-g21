@@ -311,8 +311,12 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
   - **Perfil:** `updateProfile` (gustos de `INTEREST_TAGS` y restricciones), `rememberFact` (con `supersedes` para reemplazar un hecho anterior) y `forgetFact`. Los dos últimos regeneran `compiled_summary` con una plantilla (`src/lib/profile/summary.ts`).
   - **UI (B-2, B-3):** server actions en `src/app/itinerary/actions.ts` y `src/app/profile/actions.ts`, que llaman a `refresh()` si el cambio salió bien.
   - **Tools (A-3):** desde `run-tool.ts`, llamar directo a las funciones de `src/lib/data` con `actor = 'agent'` (no a las server actions).
-- [ ] **C-3** Visión con lugares candidatos (H4–6). Ruta que recibe la foto y la ubicación, busca los lugares a menos de 250 m y se los pasa al modelo de visión como opciones: "Estás acá. Cerca hay: A, B, C. ¿Cuál se ve en la foto?". Devuelve lugar, confianza y una descripción corta.
-  - *Terminado:* con el GPS en Place des Vosges, una foto de la plaza la identifica en menos de 5 s.
+- [x] **C-3** Visión con lugares candidatos (H4–6). `POST /api/vision` (multipart: `photo` JPEG o PNG hasta 4 MB, y opcionalmente `lat`/`lng` en vivo) → `{ success, data: { via, name, description, confidence, place } }`. `place` tiene la forma de `PlaceCard` (la misma de las notificaciones de `/talk`) o es null.
+  - **Jev** (TypeSafe, `src/lib/vision/jev.ts`) elige entre los lugares de `places` a menos de 250 m (hasta 8) o "ninguno". Responde en ~0,5 s. La descripción sale de `places.description`.
+  - Si dice "ninguno", la confianza es menor a 0,5 o falla: **`gpt-5.6-luna`** (`VISION_MODEL`, `src/lib/vision/describe.ts`) mira la foto con la ubicación y sin opciones (~2-3 s), y si nombra un lugar concreto se ancla con Text Search de Google a menos de 1 km para poder sumarlo al plan.
+  - Keys: `TYPESAFE_API_KEY` (https://console.typesafe.ai/keys) y `OPENAI_API_KEY`. Las imágenes de Jev son experimentales (header `TypeSafe-Danger-Zone-Images`).
+  - **B-4:** mandar JPEG de ~1024 px de lado mayor. Jev rechaza lados menores a 280 px o mayores a 1568 px (si rechaza, responde el LLM, más lento).
+  - Pendiente: probar con una foto real de Place des Vosges (el "Terminado"). Probado con lugares reales de Google y una imagen que no es ninguno: Jev → "ninguno" → LLM, 2,9 s.
 - [ ] **C-4** Seed de la demo (H6–8). Lo de la sección 4: lugares con `listed = false`, restricciones de las 3 cuentas, y una ruta que pase cerca del lugar que recomienda el residente.
 - [ ] **C-5** Extracción de recomendaciones (H8–10). Transcript de la traducción → modelo de texto con salida estructurada → filas en `local_tips`. Anclar cada una a `places` con **búsqueda tolerante a errores**, porque los nombres propios llegan deformados ("La Mallorquina" → "La Maloyoschina"). Si no aparece en `places` y hay key de Google, buscar con Text Search y crear el lugar.
   - *Terminado:* la charla de la demo produce la card de la crêperie, anclada al lugar correcto.
