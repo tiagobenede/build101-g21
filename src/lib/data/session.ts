@@ -52,7 +52,15 @@ export type TravelerContext = {
 const FALLBACK_LOCATION: LatLng = { lat: 48.8606, lng: 2.3522 }
 
 /** Carga todo el contexto del viajero logueado. Redirige a /login si no hay sesión. */
-export async function getTravelerContext(): Promise<TravelerContext> {
+/** Más lejos que esto, la etiqueta no dice "cerca de X". */
+const NEAR_LABEL_MAX_M = 600
+
+export interface TravelerContextOptions {
+  /** Ubicación en vivo del cliente (GPS simulado o real). Sin esto, se usa el centro del viaje. */
+  location?: LatLng | null
+}
+
+export async function getTravelerContext(options: TravelerContextOptions = {}): Promise<TravelerContext> {
   // Depende de la hora actual (viaje activo, itinerario): siempre por request.
   await connection()
   const supabase = await createClient()
@@ -81,8 +89,9 @@ export async function getTravelerContext(): Promise<TravelerContext> {
   if (tripRes.error) throw new Error(`No se pudo cargar el viaje: ${tripRes.error.message}`)
 
   const trip = tripRes.data as Trip | null
-  // Ubicación simulada: centro del destino. Luego: navigator.geolocation.
-  const location: LatLng = trip ? { lat: trip.lat, lng: trip.lng } : FALLBACK_LOCATION
+  // Ubicación en vivo si el cliente la manda; si no, el centro del destino.
+  const liveLocation = options.location ?? null
+  const location: LatLng = liveLocation ?? (trip ? { lat: trip.lat, lng: trip.lng } : FALLBACK_LOCATION)
   const city = trip?.destination ?? "París"
 
   // Los lugares vienen de Google Places y quedan guardados en `places`.
@@ -123,9 +132,19 @@ export async function getTravelerContext(): Promise<TravelerContext> {
     trip,
     itinerary: (itineraryRes.data ?? []) as ItineraryItem[],
     location,
-    locationLabel: trip ? `Centre Pompidou, ${trip.destination}` : "tu ubicación",
+    locationLabel: liveLocation
+      ? liveLabel(nearby, trip?.destination ?? null)
+      : trip
+        ? `Centre Pompidou, ${trip.destination}`
+        : "tu ubicación",
     nearby,
   }
+}
+
+function liveLabel(nearby: NearbyPlace[], city: string | null): string {
+  const [closest] = nearby
+  const where = city ? `, ${city}` : ""
+  return closest && closest.distanceMeters <= NEAR_LABEL_MAX_M ? `cerca de ${closest.name}${where}` : `tu ubicación actual${where}`
 }
 
 export function nextCommitment(itinerary: ItineraryItem[], now: Date): ItineraryItem | null {

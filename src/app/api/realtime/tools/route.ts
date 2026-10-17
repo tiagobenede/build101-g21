@@ -2,12 +2,15 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { runTool } from "@/lib/agent/run-tool"
+import { latLngSchema } from "@/lib/location/schema"
 import type { ToolResult } from "@/lib/realtime/tools"
 
 const bodySchema = z.object({
   name: z.string().min(1).max(64),
   arguments: z.string().max(4000),
   conversationId: z.uuid(),
+  /** Ubicación en vivo (joystick o GPS) al momento de la llamada al tool. */
+  location: latLngSchema.nullable().default(null),
 })
 
 /**
@@ -19,7 +22,7 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Pedido inválido." }, { status: 400 })
 
-  const { name, arguments: args, conversationId } = parsed.data
-  const result = await runTool(name, args, conversationId)
+  const { name, arguments: args, conversationId, location } = parsed.data
+  const result = await runTool(name, args, conversationId, location)
   return NextResponse.json<ToolResult>(result)
 }

@@ -22,6 +22,9 @@ export type LocationSource = "mock" | "real"
 export const DEFAULT_POSITION: LatLng = { lat: 48.8606, lng: 2.3522 }
 
 const STORAGE_KEY = "rumbo.location"
+const STEP_INTERVAL_MS = 50
+/** Tope por paso (si la pestaña estuvo frenada) para no saltar de golpe. */
+const MAX_STEP_SECONDS = 1
 const NO_PINGS_PATHS = ["/login"]
 
 interface LocationContextValue {
@@ -103,31 +106,32 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     speedRef.current = speed
   }, [speed])
 
-  // Joystick: integrar la posición por frame mientras el vector no sea cero.
-  const loopRef = useRef<number | null>(null)
+  // Joystick: integrar la posición cada 50 ms mientras el vector no sea cero. Es un intervalo y no
+  // requestAnimationFrame para que siga caminando aunque la pestaña quede en segundo plano.
+  const loopRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const setVector = useCallback((vector: Vector) => {
     vectorRef.current = vector
     if (vector.x !== 0 || vector.y !== 0) setHeading(headingFromVector(vector))
     if (loopRef.current !== null || (vector.x === 0 && vector.y === 0)) return
 
     let last = performance.now()
-    const tick = (now: number) => {
+    loopRef.current = setInterval(() => {
       const v = vectorRef.current
       if (v.x === 0 && v.y === 0) {
+        if (loopRef.current !== null) clearInterval(loopRef.current)
         loopRef.current = null
         return
       }
-      const seconds = Math.min(0.5, (now - last) / 1000)
+      const now = performance.now()
+      const seconds = Math.min(MAX_STEP_SECONDS, (now - last) / 1000)
       last = now
       setPosition((p) => stepPosition(p, v, seconds, speedRef.current))
-      loopRef.current = requestAnimationFrame(tick)
-    }
-    loopRef.current = requestAnimationFrame(tick)
+    }, STEP_INTERVAL_MS)
   }, [])
 
   useEffect(
     () => () => {
-      if (loopRef.current !== null) cancelAnimationFrame(loopRef.current)
+      if (loopRef.current !== null) clearInterval(loopRef.current)
     },
     []
   )

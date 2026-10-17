@@ -1,4 +1,5 @@
 import { createVolumeMeter, type VolumeMeter } from "@/lib/audio/volume-meter"
+import type { LatLng } from "@/lib/geo"
 
 const CALLS_URL = "https://api.openai.com/v1/realtime/calls"
 
@@ -17,14 +18,20 @@ export interface RealtimeConnection {
 interface ConnectOptions {
   onEvent: (event: RealtimeEvent) => void
   onDisconnect: () => void
+  /** Ubicación en vivo al abrir la sesión (va en las instrucciones). */
+  location: LatLng | null
 }
 
 type SessionResponse =
   | { success: true; data: { key: string; conversationId: string } }
   | { success: false; error: string }
 
-async function mintSession(): Promise<{ key: string; conversationId: string }> {
-  const res = await fetch("/api/realtime/session", { method: "POST" })
+async function mintSession(location: LatLng | null): Promise<{ key: string; conversationId: string }> {
+  const res = await fetch("/api/realtime/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ location }),
+  })
   const body = (await res.json().catch(() => null)) as SessionResponse | null
   if (!body?.success) throw new Error(body && !body.success ? body.error : "No se pudo abrir la sesión de voz.")
   return body.data
@@ -34,7 +41,7 @@ async function mintSession(): Promise<{ key: string; conversationId: string }> {
  * Abre WebRTC directo a OpenAI Realtime con el mic del usuario. El track arranca
  * apagado; la llamada lo prende al conectar (y lo apaga al silenciarse).
  */
-export async function connectRealtime({ onEvent, onDisconnect }: ConnectOptions): Promise<RealtimeConnection> {
+export async function connectRealtime({ onEvent, onDisconnect, location }: ConnectOptions): Promise<RealtimeConnection> {
   // Primero el mic: si no hay permiso, cortamos antes de abrir (y pagar) una sesión.
   const mic = await navigator.mediaDevices
     .getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
@@ -59,7 +66,7 @@ export async function connectRealtime({ onEvent, onDisconnect }: ConnectOptions)
   }
 
   try {
-    const { key, conversationId } = await mintSession()
+    const { key, conversationId } = await mintSession(location)
 
     pc.ontrack = (e) => {
       audio.srcObject = e.streams[0]
