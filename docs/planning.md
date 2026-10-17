@@ -212,7 +212,7 @@ Reglas: zod 4 con `.nullable()` (nunca `.optional()`); `fillMissingNulls` comple
 **Cosas nuevas simples**
 1. **A-6, avisos en voz** (chico): con la llamada abierta, el aviso de cercanía entra con `note(…, { respond: true })` y el agente lo dice. Ya está todo lo demás.
 2. **Editar restricciones en el perfil** (B-2b): los mismos selectores que el onboarding.
-3. **"Repetir" en las burbujas del traductor**: volver a escuchar una traducción (ya está la voz de ElevenLabs).
+3. ~~**"Repetir" en las burbujas del traductor**~~ ✅ hecho.
 4. **Historial de fotos**: lo que reconociste hoy, con "Al plan", en la pestaña Viaje.
 5. **Recomendaciones guardadas en la pestaña Viaje**: la lista de lo que te recomendaron, con Llevame y Descartar (hoy solo se ven durante la charla y en los avisos).
 6. **L-2**: guardar el código de invitación antes de mandar al login.

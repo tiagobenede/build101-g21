@@ -385,7 +385,20 @@ export function useTranslator({
     [save]
   )
 
-  return { state, speaker, utterances, spentUsd, start, press, release, stop, simulate }
+  /** Vuelve a leer la traducción de una frase (corta lo que esté sonando). Llamar en el toque. */
+  const repeat = useCallback(
+    (u: Utterance) => {
+      if (!u.translated) return
+      const { myLang: mine, theirLang: theirs } = langsRef.current
+      const queue = voice()
+      queue.unlock()
+      queue.stop()
+      queue.say(u.translated, u.speaker === "me" ? theirs : mine)
+    },
+    [voice]
+  )
+
+  return { state, speaker, utterances, spentUsd, start, press, release, stop, simulate, repeat }
 }
 
 const MIC_CONSTRAINTS: MediaStreamConstraints = {

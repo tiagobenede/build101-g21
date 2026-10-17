@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeftRightIcon, CircleHelpIcon, Maximize2Icon, MicIcon, XIcon } from "lucide-react"
+import { ArrowLeftRightIcon, CircleHelpIcon, Maximize2Icon, MicIcon, Volume2Icon, XIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
@@ -226,15 +226,31 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
               >
                 <p className="text-[17px] leading-snug">{u.translated || "…"}</p>
                 {u.original && <p className="mt-1 text-xs opacity-75">{u.original}</p>}
-                {u.speaker === "me" && u.final && u.translated && (
-                  <button
-                    type="button"
-                    onClick={() => setShown(u)}
-                    className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
-                  >
-                    <Maximize2Icon className="size-3" />
-                    Mostrar
-                  </button>
+                {u.final && u.translated && (
+                  <div className="mt-1.5 flex gap-1.5">
+                    {/* Volver a escuchar la traducción (la persona local, o vos si no la oíste bien). */}
+                    <button
+                      type="button"
+                      onClick={() => t.repeat(u)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                        u.speaker === "me" ? "bg-white/20" : "bg-muted"
+                      )}
+                    >
+                      <Volume2Icon className="size-3" />
+                      Repetir
+                    </button>
+                    {u.speaker === "me" && (
+                      <button
+                        type="button"
+                        onClick={() => setShown(u)}
+                        className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
+                      >
+                        <Maximize2Icon className="size-3" />
+                        Mostrar
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
