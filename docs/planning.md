@@ -27,18 +27,19 @@ Rumbo es un guía de viaje por voz. Conoce tus gustos y restricciones, lee y mod
 | Home | Ubicación, día del viaje, gustos, itinerario de hoy y "Para vos" (lugares cercanos que coinciden con los gustos) | `src/app/page.tsx` |
 | Contexto del viajero | `getTravelerContext()`: perfil, gustos, viaje activo, itinerario y lugares cercanos con distancia y minutos a pie | `src/lib/data/session.ts` |
 | Geo | Distancia haversine, minutos caminando (factor 1,3 por calles) | `src/lib/geo.ts` |
-| Motor de recomendaciones | Reglas: gustos × distancia × tiempo libre × próximo compromiso. Con tests | `src/lib/agent/recommend.ts` |
-| **Voz real** | OpenAI Realtime por WebRTC en **modo bajo costo**: `gpt-realtime-2.1-mini`, push-to-talk sin detección de turnos ni transcripción paga (transcribe el navegador), máximo 500 tokens de salida, el contexto va en las instrucciones al abrir la sesión, la sesión cierra a los 45 s sin uso, al ocultar la página o al llegar a US$0,30. Medidor de costo en vivo. ~US$0,002 por turno | `src/app/api/realtime/session/route.ts`, `src/lib/realtime/*`, `src/hooks/use-realtime-session.ts` |
-| Voz simulada | `VOICE_PROVIDER=browser`: dictado y voz del navegador, gratis, para trabajar en la UI | `src/hooks/use-voice-session.ts` |
-| Pantalla de voz | `/talk`: animación que reacciona al micrófono y a la voz del agente, transcript progresivo, cards de recomendación | `src/app/talk` |
+| Motor de recomendaciones | **Borrado** al pasar a la llamada en tiempo real. Está en el historial (commit `58e8870`, con tests): A-1 lo recupera como base de `recommend_nearby` | `git show 58e8870:src/lib/agent/recommend.ts` |
+| **Voz real** | **Llamada en tiempo real** con OpenAI Realtime por WebRTC, full-duplex: el servidor detecta los turnos (VAD) y si lo interrumpís se calla. **Modo bajo costo**: `gpt-realtime-2.1-mini`, sin transcripción del usuario, máximo 500 tokens de salida, contexto en las instrucciones, pide el mic antes de abrir la sesión, corta a los 60 s sin actividad, al salir de la página o al llegar a US$0,30. Medidor de costo en vivo | `src/app/api/realtime/session/route.ts`, `src/lib/realtime/*`, `src/hooks/use-realtime-call.ts` |
+| Pantalla de voz | `/talk`: **sin chat ni transcripción**. Blob al centro que reacciona a tu voz y a la del agente, tarjeta de dónde estás (lugar, hora local, día del viaje, próximo compromiso) y **notificaciones estilo iOS** de los lugares que el agente va nombrando (se detectan en vivo en su transcripción de audio), apiladas con scroll y fade | `src/app/talk`, `src/components/rumbo/place-notification.tsx`, `scroll-fade.tsx` |
+| Voz simulada | **Eliminada.** Se trabaja siempre con la llamada real (es barata) | — |
 | Traductor (en el mock) | `gpt-realtime-translate` funcionando, una sesión por dirección, cierre automático | `docs/realtime-mock/public/app.js`, `docs/realtime-mock/server.mjs` |
 | Comparación de proveedores | OpenAI Realtime elegido frente a ElevenLabs por latencia y costo | `docs/realtime-mock/COMPARISON.md` |
 
 ### Principios que respetamos
 
-1. **Bajo costo primero.** Es una decisión del equipo: push-to-talk, modelo `mini`, sesiones que se cierran solas. Ninguna feature nueva deja sesiones abiertas sin necesidad ni agrega llamadas a modelos donde una regla alcanza.
-2. **El contexto va en las instrucciones, no en tools.** Así se cachea entre turnos. Como la sesión se cierra a los 45 s sin uso, la próxima sesión ya arranca con el contexto actualizado. Dentro de una sesión abierta, los resultados de los tools traen la información nueva; `session.update` se usa solo cuando cambia algo grande (por ejemplo, te moviste más de 300 m).
-3. **Seguimos con la conexión WebRTC propia.** No migramos al Agents SDK: los tools se agregan sobre `src/lib/realtime/connection.ts` y `use-realtime-session.ts`.
+1. **Bajo costo primero.** Es una decisión del equipo: modelo `mini`, VAD del servidor (solo se factura la voz detectada, no el silencio), respuestas cortas, sesiones que se cierran solas. Ninguna feature nueva deja sesiones abiertas sin necesidad ni agrega llamadas a modelos donde una regla alcanza.
+2. **El contexto va en las instrucciones, no en tools.** Así se cachea entre turnos. Como la sesión se cierra a los 60 s sin actividad, la próxima sesión ya arranca con el contexto actualizado. Dentro de una sesión abierta, los resultados de los tools traen la información nueva; `session.update` se usa solo cuando cambia algo grande (por ejemplo, te moviste más de 300 m).
+3. **Seguimos con la conexión WebRTC propia.** No migramos al Agents SDK: los tools se agregan sobre `src/lib/realtime/connection.ts` y `src/hooks/use-realtime-call.ts`.
+7. **`/talk` es una llamada, no un chat.** Nunca se muestra la transcripción. Lo único que aparece en pantalla además del blob es información útil: dónde estás y lo que el agente te va recomendando.
 4. **Los tools llaman a server actions.** El mismo patrón que `src/app/talk/actions.ts`: respetan el login y los permisos por usuario sin trabajo extra.
 5. **Un solo camino de código por operación.** Las funciones de itinerario las usan la UI y los tools por igual.
 6. **El lugar es la entidad que conecta todo.** Recomendaciones del agente, recomendaciones de residentes, itinerario y avisos apuntan a una fila de `places`.
@@ -163,11 +164,11 @@ Hoy `getTravelerContext()` usa **el centro del destino como ubicación fija**, y
 
 ## 6. Tools del agente
 
-Se agregan a la sesión en `/api/realtime/session` (`tools` y `tool_choice` en la config). En `use-realtime-session.ts` se maneja la llamada a función: ejecutar la server action, enviar `conversation.item.create` con `function_call_output` y después `response.create`.
+Se agregan a la sesión en `/api/realtime/session` (`tools` y `tool_choice` en la config). En `use-realtime-call.ts` se maneja la llamada a función: ejecutar la server action, enviar `conversation.item.create` con `function_call_output` y después `response.create`.
 
 ```
 recommend_nearby(available_minutes: number|null, interest: string|null)
-                                         → usa recommend.ts; devuelve hasta 3 lugares
+                                         → base: recommend.ts recuperado de 58e8870; hasta 3 lugares
 get_place(place_id: string)              → descripción, horarios, minutos a pie
 edit_itinerary(op: 'add'|'move'|'remove'|'done'|'skip'|'undo',
                item_id: string|null, place_id: string|null, title: string|null,
@@ -180,7 +181,7 @@ Reglas:
 - **zod 4: usar `.nullable()` y nunca `.optional()`** en los parámetros. El modo strict exige que todas las propiedades estén en `required`; si no, el tool falla en silencio.
 - **Las restricciones se filtran en el server**, no en el prompt.
 - **Respuestas cortas:** como máximo 3 resultados y pocos campos. Todo lo que devuelve un tool se lee como tokens de entrada.
-- **Las cards siguen funcionando:** cuando `recommend_nearby` devuelve lugares, la UI de `/talk` los muestra como cards, igual que hoy.
+- **Las notificaciones de `/talk` pasan a salir del tool:** cuando `recommend_nearby` o `get_place` devuelven lugares, la UI los muestra como notificación (más confiable que detectar nombres en la transcripción, que queda como respaldo).
 - `MAX_OUTPUT_TOKENS` sigue en 500: el agente confirma en una frase, no lee el itinerario en voz alta.
 
 ---
@@ -202,7 +203,7 @@ Reglas:
 
 Por qué este orden: el GPS va primero porque el contexto, la cámara y los avisos dependen de la ubicación. Los avisos van antes que el itinerario armado por el agente porque usan las recomendaciones de la traducción y cierran la historia de la demo. El video va último porque es lo más riesgoso y lo más caro, y la foto ya cubre el caso.
 
-**Carriles sugeridos:** Dev A = agente y voz (Nico ya hizo la voz real, es el candidato natural). Dev B = app y UX. Dev C = datos y backend.
+**Carriles:** Dev A = agente y voz. Dev B = app y UX (Nico). Dev C = datos y backend.
 
 ---
 
@@ -246,8 +247,8 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 
 - [ ] **A-1** Tools en la sesión (H1–3).
   - Agregar `tools` y `tool_choice` al mint en `/api/realtime/session`.
-  - En `use-realtime-session.ts`, manejar las llamadas a función: ejecutar la server action, enviar `function_call_output` y `response.create`.
-  - Primer tool: `recommend_nearby`, que usa `recommend.ts`. Sus resultados se muestran como las cards actuales.
+  - En `use-realtime-call.ts`, manejar las llamadas a función: ejecutar la server action, enviar `function_call_output` y `response.create`.
+  - Primer tool: `recommend_nearby`, sobre `recommend.ts` recuperado del commit `58e8870` (con sus tests). Sus resultados se muestran como las notificaciones de `/talk`.
   - *Terminado:* "tengo una hora, ¿qué hago?" responde con un lugar que entra en el tiempo, y aparece la card.
 - [ ] **A-2** Contexto ampliado (H3–4). Extender `buildInstructions()` con lo de la sección 5. Actualizar `instructions.test.ts`.
 - [ ] **A-3** Tools de itinerario y memoria (H4–6). `edit_itinerary`, `remember`, `get_place`. `session.update` solo cuando la ubicación cambia más de 300 m con la sesión abierta.
@@ -264,18 +265,19 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 ### Dev B — App y UX
 
 - [ ] **B-1** Mapa y GPS simulado (H1–3).
-  - Mapa con react-leaflet y tiles de OpenStreetMap (no pide key): pin del usuario, lugares, itinerario.
-  - Un único hook `useLocation()`. **Nadie llama a `navigator.geolocation` directamente.** Fuente simulada por defecto, real con un toggle.
-  - Joystick (nipplejs) que mueve el pin a 1,4 m/s con multiplicador x1, x5 y x20. Tocar el mapa teletransporta.
-  - Envía la posición a C-1 cada 5 s o cada 25 m.
+  - **`LocationProvider` en el layout raíz** con un único hook `useLocation()`. **Nadie llama a `navigator.geolocation` directamente.** Fuente simulada por defecto, real con un toggle. Al vivir en el layout, el joystick sigue moviendo el pin aunque cambies de pantalla.
+  - **Pantalla `/map`** a pantalla completa con react-leaflet y tiles de OpenStreetMap (no pide key): pin del usuario, lugares cercanos (los "para vos" destacados), itinerario de hoy. La home tiene un acceso al mapa.
+  - Joystick (nipplejs) flotante sobre el mapa que mueve el pin a 1,4 m/s con multiplicador x1, x5 y x20. Tocar el mapa teletransporta. B-7 reutiliza este mismo joystick, no se duplica.
+  - **`savePing({ lat, lng, heading, source })` lo escribe B** (server action que inserta en `pings`), cada 5 s o cada 25 m. C-1 crea la tabla y hace que `getTravelerContext()` use el último ping.
+  - Cuando te movés más de ~100 m, `router.refresh()` para que la home, `/talk` y el contexto del agente se actualicen.
   - *Terminado:* mover el joystick mueve el pin, y al recargar la home la ubicación y los lugares cercanos cambiaron.
 - [ ] **B-2** Onboarding y edición de perfil (H3–4). Las cuentas demo ya tienen perfil, así que esto es sobre todo **"Editar mis gustos"**: chips para `interests` y selectores para dieta, movilidad, presupuesto, ritmo y horario. El mismo formulario sirve de onboarding para una cuenta nueva.
   - *Terminado:* cambio una restricción y la siguiente respuesta del agente la respeta.
-- [ ] **B-3** UI de itinerario (H4–6). Sobre la sección que ya existe en la home: agregar (eligiendo de `places` o con texto libre), editar horario, marcar hecho o saltado, borrar. Mostrar el origen de cada actividad ("recomendado por Camille"). Suscripción Realtime a `itinerary_items`, para que lo que agrega el agente aparezca solo.
+- [ ] **B-3** UI de itinerario (H4–6). Arranca sumando el **cliente de Supabase para el navegador** (`src/lib/supabase/client.ts`), que también usa B-6 para Realtime. Sobre la sección que ya existe en la home: agregar (eligiendo de `places` o con texto libre), editar horario, marcar hecho o saltado, borrar. Mostrar el origen de cada actividad ("recomendado por Camille"). Suscripción Realtime a `itinerary_items`, para que lo que agrega el agente aparezca solo.
 - [ ] **B-4** Cámara (H6–8). Botón fijo: webcam o foto subida desde archivo. Card con el resultado de C-3 y "Agregar al plan".
-- [ ] **B-5** UI de traducción (H8–10). Burbujas bilingües en vivo, botón para mostrarle el texto grande al residente y, al terminar, cards de recomendaciones con la cita original y la traducción (guardar, al plan, descartar).
-- [ ] **B-6** UI de avisos (H10–11). Toast de sonner y sonido cuando entra una fila en `notifications`. Tocar el aviso abre `/talk`.
-- [ ] **B-7** Panel de demo y pulido (H11–13). Joystick, velocidad, teletransporte, "forzar aviso", "ver contexto del agente" (lo que devuelve `buildInstructions()`) y **"reiniciar demo"** (`npx supabase db reset` o un reset equivalente desde la app).
+- [ ] **B-5** UI de traducción (H8–10). **Pantalla propia `/translate`**, separada de `/talk`: acá sí hay burbujas, porque mostrarle el texto al residente es la función. Burbujas bilingües en vivo, botón para mostrarle el texto grande al residente y, al terminar, cards de recomendaciones con la cita original y la traducción (guardar, al plan, descartar).
+- [ ] **B-6** UI de avisos (H10–11). Aviso con el mismo estilo que `PlaceNotification` de `/talk` (no un toast genérico) y sonido cuando entra una fila en `notifications`. Tocar el aviso abre `/talk`.
+- [ ] **B-7** Panel de demo y pulido (H11–13). Reutiliza el joystick de B-1 y suma: velocidad, teletransporte, "forzar aviso", "ver contexto del agente" (lo que devuelve `buildInstructions()`) y **"reiniciar demo"** (`npx supabase db reset` o un reset equivalente desde la app).
 
 ### Dev C — Datos y backend
 
@@ -339,4 +341,5 @@ Con la cuenta de **Lucía**.
 - **Chrome no reenvía audio remoto directo a otra conexión WebRTC** (manda silencio): pasarlo por Web Audio. Detalle en `docs/realtime-mock/README.md`.
 - **El navegador integrado del editor bloquea el micrófono:** probar en Chrome.
 - **Que el agente no lea el itinerario en voz alta:** que lo escriba y confirme en una frase.
-- **iCloud:** si el repo está en una carpeta sincronizada, excluir `node_modules` y `.next` (ver README).
+- **iCloud:** no trabajar en Desktop/Documents con "Optimizar almacenamiento": iCloud vacía archivos (incluso dentro de `.git` y `.env.local`) y `git`/`next` se cuelgan. Clonar en una carpeta fuera de iCloud (por ejemplo `~/build101`).
+- **Componentes reutilizables de la UI:** `Section`/`GroupedList` (listas tipo iOS), `CategoryIcon`, `PlaceNotification`, `ScrollFade`, `VoiceOrb`. Usarlos antes de crear algo nuevo.
