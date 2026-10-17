@@ -10,6 +10,7 @@
     "mock": "node --env-file-if-exists=.env --watch docs/realtime-mock/server.mjs"
   },
   "dependencies": {
+    "@openuidev/react-lang": "^1.0.1",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "class-variance-authority": "^0.7.1",

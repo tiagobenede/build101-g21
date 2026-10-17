@@ -64,6 +64,26 @@ contexto del viajero), `src/lib/realtime/*`, `src/hooks/use-realtime-call.ts`, `
 > (si no, el agente se puede escuchar a sí mismo).
 > El mock de comparación OpenAI vs ElevenLabs está en `docs/realtime-mock/` (`npm run mock`).
 
+### UI generativa (OpenUI)
+
+Mientras Rumbo habla, la pantalla de `/talk` la arma un modelo de texto chico con
+[OpenUI](https://www.openui.com/) y nuestros componentes (tarjeta destacada, lista, ruta en el mapa,
+comparación, plan con horarios, clima).
+
+- **Cuándo se pide:** automáticamente con los resultados de `recommend_nearby` y `search_places`, y con el
+  tool `show_ui` (rutas, comparaciones, planes). Los botones "Llevame" y "Al plan" piden otra pantalla o
+  escriben en el itinerario.
+- **Cómo:** `POST /api/genui` arma los datos reales (lugares con minutos a pie, itinerario de hoy, clima) y
+  devuelve en streaming `DATA:{json}` + OpenUI Lang. El modelo solo compone: los componentes buscan nombre,
+  minutos y rating por id, así que no puede inventarlos.
+- **Modelo:** Groq si hay `GROQ_API_KEY` (lo más rápido); si no, `gpt-4.1-mini`. Medido con OpenAI:
+  primera línea en ~0,85 s, pantalla completa en 1–1,7 s, ~1.400 tokens de entrada (cacheables) y ~60–150
+  de salida.
+- **Archivos:** `src/lib/genui/library.ts` (esquemas, compartidos server/cliente),
+  `src/components/genui/*` (componentes y `<Renderer>`), `src/app/api/genui/route.ts`.
+- Las devtools de OpenUI quedan apagadas (`src/lib/genui/no-devtools.ts`): bajan código de un CDN.
+- En desarrollo: `window.rumboShow("llevame al Picasso")` en `/talk` prueba una pantalla sin micrófono.
+
 ## Base de datos
 
 `supabase/migrations/20261017000000_init.sql` — con RLS (cada usuario ve solo lo suyo):

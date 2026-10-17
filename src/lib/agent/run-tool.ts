@@ -362,5 +362,12 @@ export async function runTool(
       const args = toolSchemas.remember.safeParse(json)
       return args.success ? rememberTool(args.data, location) : invalid
     }
+    case "show_ui": {
+      const args = toolSchemas.show_ui.safeParse(json)
+      // La pantalla la genera /api/genui desde el cliente; acá solo se confirma al modelo.
+      return args.success
+        ? { output: JSON.stringify({ shown: true }), cards: [], ui: { request: args.data.request, placeIds: [] } }
+        : invalid
+    }
   }
 }
