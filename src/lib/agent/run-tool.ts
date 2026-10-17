@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { placeFacts } from "@/lib/agent/facts"
 import { interestQuery, tagWithInterest } from "@/lib/agent/interest-fallback"
-import { INTEREST_TAGS, NEAR_ONLY_TAGS, rankPlaces, resolveAvailableMinutes, type RankablePlace } from "@/lib/agent/rank"
+import { NEAR_ONLY_TAGS, rankPlaces, resolveAvailableMinutes, type RankablePlace } from "@/lib/agent/rank"
 import {
   addItineraryItem,
   removeItineraryItem,
@@ -12,7 +12,7 @@ import {
   undoItinerary,
   updateItineraryItem,
 } from "@/lib/data/itinerary"
-import { rememberFact, updateProfile } from "@/lib/data/profile"
+import { rememberFact, setInterest, updateProfile } from "@/lib/data/profile"
 import type { Result } from "@/lib/data/result"
 import {
   getTravelerContext,
@@ -466,13 +466,21 @@ async function rememberTool(args: ToolArgs<"remember">, location: LatLng | null)
   })
   if (!saved.ok) return fail(saved.error)
 
+  // "Me encantan los McDonald's" también va a los gustos del perfil: así lo ven
+  // recommend_nearby, los avisos por cercanía, el mapa y la home. "No me gustan los museos" lo saca.
+  for (const interest of args.interests ?? []) {
+    const updated = await setInterest(db, interest, !args.avoid)
+    if (!updated.ok) return fail(updated.error)
+  }
+
   // Una dieta también va a las restricciones del perfil, así el ranking la filtra en el server.
   if (args.diet) {
     const ctx = await getTravelerContext({ location })
     const { dietary, mobility, dailyBudget, pace, schedule } = ctx.constraints
     if (!dietary.includes(args.diet)) {
       const updated = await updateProfile(db, {
-        interests: ctx.interests.filter((t): t is (typeof INTEREST_TAGS)[number] => (INTEREST_TAGS as readonly string[]).includes(t)),
+        // Todos, también los propios: si no, guardar la dieta borraría "mcdonald's".
+        interests: ctx.interests,
         dietary: [...dietary, args.diet],
         mobility,
         dailyBudget,

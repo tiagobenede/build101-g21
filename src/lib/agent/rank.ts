@@ -2,6 +2,8 @@
  * Ranking de lugares cercanos para el tool `recommend_nearby`: gustos × distancia
  * × qué tan conocido es × tiempo libre × próximo compromiso. Puro, sin base de datos, para testearlo solo.
  */
+import { matchInterests } from "@/lib/profile/interests"
+
 import type { Place } from "./types"
 
 export const MIN_STAY_MINUTES = 10
@@ -117,7 +119,9 @@ export function rankPlaces({
     .map((place) => {
       const walk = place.walkMinutes
       const stay = Math.min(place.typical_visit_minutes, availableMinutes - walk)
-      const matchedTags = place.tags.filter((t) => weights.has(t) || t === requestedTag)
+      // Gustos de la lista y propios ("mcdonald's" coincide por nombre), más lo que pidió ahora.
+      const liked = matchInterests(place, interests)
+      const matchedTags = requestedTag && !liked.includes(requestedTag) ? [...liked, requestedTag] : liked
       const profileScore = matchedTags.reduce((sum, t) => sum + (weights.get(t) ?? 0), 0)
       const interestScore = requestedTag ? (profileScore > 0 ? PROFILE_TIEBREAK : 0) : profileScore
       const penalty = alreadyRecommended.includes(place.id) ? 100 : 0

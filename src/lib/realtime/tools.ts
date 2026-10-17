@@ -10,6 +10,7 @@ import { z } from "zod"
 import type { PlaceCard } from "@/hooks/voice-session-types"
 import { DIETS, INTEREST_TAGS } from "@/lib/agent/rank"
 import { EVENT_KIND_NAMES } from "@/lib/events/paris"
+import { MAX_INTEREST_LENGTH } from "@/lib/profile/interests"
 
 export const toolSchemas = {
   recommend_nearby: z.object({
@@ -75,6 +76,13 @@ export const toolSchemas = {
       .enum(DIETS)
       .nullable()
       .describe("Si es una restricción de comida, cuál. null si no es de comida."),
+    interests: z
+      .array(z.string().min(2).max(MAX_INTEREST_LENGTH))
+      .max(4)
+      .nullable()
+      .describe(
+        `Gustos que se suman al perfil (o se sacan si avoid). Usá el de la lista si encaja (${INTEREST_TAGS.join(", ")}); si no, el gusto en 1 a 3 palabras como lo dijo ('McDonald's', 'hospitales'). Ej.: 'me encantan los autos clásicos' → ["autos"]. null si no es un gusto.`
+      ),
   }),
 } as const
 

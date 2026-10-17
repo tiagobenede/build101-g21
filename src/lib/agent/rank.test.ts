@@ -87,4 +87,10 @@ describe("rankPlaces", () => {
     const ranked = rankPlaces({ ...base, dietary: ["vegetariano"], places: [parrilla, veggie, comun] })
     expect(ranked.map((r) => r.place.id)).toEqual(["veggie", "comun"])
   })
+
+  it("un gusto propio que le contó al agente (mcdonald's) cuenta como gusto", () => {
+    const mcdonalds = { ...place("mc", [], 3), name: "McDonald's" }
+    const ranked = rankPlaces({ ...base, interests: ["mcdonald's"], places: [mcdonalds, place("museo", ["arte"], 2)] })
+    expect(ranked.map((r) => [r.place.id, r.matchedTags])).toEqual([["mc", ["mcdonald's"]]])
+  })
 })
