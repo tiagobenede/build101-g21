@@ -1,16 +1,15 @@
 import { distanceMeters, walkMinutes, type LatLng } from "@/lib/geo"
+import { PROXIMITY } from "@/lib/tuning"
 
 /**
  * Reglas del motor de avisos por cercanía (C-6), sin base ni modelos: qué se puede
  * avisar con esta posición. Lo que va con los gustos lo decide Jev aparte (`interest.ts`).
  */
 
-/** Recomendaciones de residentes y actividades del plan: a esta distancia se avisa. */
-export const NOTIFY_RADIUS_METERS = 150
-/** Lugares por gustos: más cerca, porque hay muchos (Jev decide si vale la pena). */
-export const INTEREST_RADIUS_METERS = 100
-/** Si la próxima reserva empieza en menos de esto, solo se avisa de esa. */
-export const LOCKED_GUARD_MINUTES = 20
+// Umbrales: se cambian en src/lib/tuning.ts (o por variable de entorno).
+export const NOTIFY_RADIUS_METERS = PROXIMITY.notifyRadiusMeters
+export const INTEREST_RADIUS_METERS = PROXIMITY.interestRadiusMeters
+export const LOCKED_GUARD_MINUTES = PROXIMITY.lockedGuardMinutes
 
 export type CandidateKind = "local_tip" | "itinerary" | "interest"
 

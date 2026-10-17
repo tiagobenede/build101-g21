@@ -1,5 +1,6 @@
 import { distanceMeters, formatDistance, type LatLng } from "@/lib/geo"
 import type { JevChoice } from "@/lib/jev"
+import { PROXIMITY } from "@/lib/tuning"
 
 import type { Candidate } from "./rules"
 
@@ -9,10 +10,9 @@ import type { Candidate } from "./rules"
  * "ninguno") mirando el contexto del viajero. Acá lo puro; la llamada está en `engine.ts`.
  */
 
-/** Por debajo, Jev no está seguro: mejor no interrumpir. */
-export const MIN_INTEREST_CONFIDENCE = 0.6
-/** Opciones que se le pasan a Jev (las más cercanas). */
-export const MAX_INTEREST_OPTIONS = 8
+// Umbrales: se cambian en src/lib/tuning.ts (o por variable de entorno).
+export const MIN_INTEREST_CONFIDENCE = PROXIMITY.minInterestConfidence
+export const MAX_INTEREST_OPTIONS = PROXIMITY.maxInterestOptions
 export const NONE_KEY = "ninguno"
 
 export type InterestPlace = Candidate & { kind: "interest"; rating: number | null; description: string | null }

@@ -6,6 +6,7 @@ import { boundingBox, nearestPlaceLabel, type LatLng } from "@/lib/geo"
 import { askJevChoice } from "@/lib/jev"
 import { timeZoneAt } from "@/lib/location/locale"
 import { activeTrip } from "@/lib/translate/server"
+import { PROXIMITY } from "@/lib/tuning"
 
 import {
   buildInterestQuestion,
@@ -33,11 +34,10 @@ import {
  * para elegir entre los lugares que van con los gustos.
  */
 
-/** Pausa entre avisos. 1 min para la demo; en un viaje real, bastante más. */
-const COOLDOWN_MS = Number(process.env.NOTIFY_COOLDOWN_SECONDS ?? 60) * 1000
-/** Mismas opciones para Jev → no se vuelve a preguntar en este tiempo. */
-const JEV_REPEAT_MS = 10 * 60 * 1000
-const JEV_TIMEOUT_MS = 4_000
+// Umbrales: se cambian en src/lib/tuning.ts (o por variable de entorno).
+const COOLDOWN_MS = PROXIMITY.cooldownSeconds * 1000
+const JEV_REPEAT_MS = PROXIMITY.jevRepeatMinutes * 60 * 1000
+const JEV_TIMEOUT_MS = PROXIMITY.jevTimeoutMs
 /** Actividades del plan que cuentan como "de hoy" alrededor de ahora. */
 const PLAN_WINDOW_BEFORE_MS = 3 * 60 * 60 * 1000
 const PLAN_WINDOW_AFTER_MS = 18 * 60 * 60 * 1000

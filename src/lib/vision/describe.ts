@@ -4,6 +4,7 @@ import { z } from "zod"
 
 import type { LatLng } from "@/lib/geo"
 import { callStructured } from "@/lib/llm/structured"
+import { VISION } from "@/lib/tuning"
 
 import type { Photo } from "./jev"
 
@@ -16,7 +17,6 @@ import type { Photo } from "./jev"
 
 /** gpt-5.6-luna con `reasoning.effort: none` tarda ~2 s (no acepta "minimal"). */
 const VISION_MODEL = process.env.VISION_MODEL ?? "gpt-5.6-luna"
-const TIMEOUT_MS = 12_000
 
 const answerSchema = z.object({ name: z.string().nullable() })
 
@@ -43,7 +43,7 @@ export async function namePhotoPlace(photo: Photo, where: { label: string; city:
     model: VISION_MODEL,
     effort: "none",
     maxOutputTokens: 60,
-    timeoutMs: TIMEOUT_MS,
+    timeoutMs: VISION.llmTimeoutMs,
     content: [
       { type: "input_text", text: context },
       { type: "input_image", image_url: `data:${photo.mime};base64,${Buffer.from(photo.bytes).toString("base64")}`, detail: "low" },
