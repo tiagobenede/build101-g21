@@ -79,7 +79,7 @@ async function check(db: SupabaseClient, userId: string, position: LatLng): Prom
   const trip = await activeTrip(db)
   const box = boundingBox(position, INTEREST_RADIUS_METERS)
   const [tipsRes, planRes, profileRes, interestsRes, placesRes] = await Promise.all([
-    db.from("local_tips").select("place_id, recommender, places(name, lat, lng)").eq("user_id", userId).neq("status", "dismissed").not("place_id", "is", null),
+    db.from("local_tips").select("place_id, recommender, places(name, lat, lng)").eq("user_id", userId).eq("status", "saved").not("place_id", "is", null),
     trip
       ? db
           .from("itinerary_items")

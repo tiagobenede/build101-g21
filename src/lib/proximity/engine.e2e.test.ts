@@ -22,7 +22,8 @@ if (enabled) {
   process.env.NOTIFY_COOLDOWN_SECONDS = "0"
 }
 
-const BREIZH = { id: "g:e2e-breizh", name: "Breizh Café (prueba)", lat: 48.8592, lng: 2.3627 }
+// 30 m al sur de la crêperie real, para no empatar con una recomendación guardada en el mismo punto.
+const BREIZH = { id: "g:e2e-breizh", name: "Breizh Café (prueba)", lat: 48.8589, lng: 2.3627 }
 const MARCHE = { id: "g:e2e-marche", name: "Marché des Enfants Rouges (prueba)", lat: 48.8628, lng: 2.3617 }
 /** ~`m` metros al sur de un punto. */
 const south = (p: { lat: number; lng: number }, m: number) => ({ lat: p.lat - m / 111_320, lng: p.lng })
@@ -55,8 +56,8 @@ describe.skipIf(!enabled)("checkProximity (e2e)", () => {
     const { data: tips } = await db
       .from("local_tips")
       .insert([
-        { user_id: me, place_id: BREIZH.id, place_name_raw: "Breizh Café", what: "Galettes sin gluten", recommender: "Camille, la de la panadería" },
-        { user_id: me, place_id: MARCHE.id, place_name_raw: "Marché des Enfants Rouges", what: "Comer en el mercado", recommender: "Camille" },
+        { user_id: me, place_id: BREIZH.id, place_name_raw: "Breizh Café", what: "Galettes sin gluten", recommender: "Camille, la de la panadería", status: "saved" },
+        { user_id: me, place_id: MARCHE.id, place_name_raw: "Marché des Enfants Rouges", what: "Comer en el mercado", recommender: "Camille", status: "saved" },
       ])
       .select("id")
     let lockedId: string | null = null
