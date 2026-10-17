@@ -24,6 +24,8 @@ import { onTableChange } from "@/lib/supabase/client"
 import type { CallState, MentionedPlace, PlaceCard, VoiceCall } from "./voice-session-types"
 
 const IDLE_CHECK_MS = 5_000
+/** Tablas que cambian lo que sabe el agente: si se tocan con la llamada abierta, se rearman las instrucciones. */
+const CONTEXT_TABLES = ["itinerary_items", "profiles", "interests"] as const
 
 type ResponseDone = {
   usage?: RealtimeUsage
@@ -288,12 +290,15 @@ export function useRealtimeCall(
       announcedRef.current = locationRef.current
       contextAtRef.current = locationRef.current
       contextRefreshedAtRef.current = Date.now()
-      // Cambios del itinerario (de la app, del agente o de otro dispositivo) → refrescar el contexto.
-      void onTableChange("itinerary_items", () => scheduleRefresh(2_000)).then((unsubscribe) => {
-        // Si la llamada se cortó mientras nos suscribíamos, soltamos el canal ya.
-        if (connRef.current === conn) unsubscribeRef.current = unsubscribe
-        else unsubscribe()
-      })
+      // Cambios del itinerario o del perfil (de la app, del agente o de otro dispositivo) → refrescar el contexto.
+      void Promise.all(CONTEXT_TABLES.map((table) => onTableChange(table, () => scheduleRefresh(2_000)))).then(
+        (unsubscribes) => {
+          const unsubscribe = () => unsubscribes.forEach((u) => u())
+          // Si la llamada se cortó mientras nos suscribíamos, soltamos los canales ya.
+          if (connRef.current === conn) unsubscribeRef.current = unsubscribe
+          else unsubscribe()
+        }
+      )
       conn.setMicOpen(!micMuted)
       conn.setMuted(speakerMuted)
       conn.send({

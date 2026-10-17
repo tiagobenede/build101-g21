@@ -10,6 +10,7 @@ import { z } from "zod"
 import type { PlaceCard } from "@/hooks/voice-session-types"
 import type { GenUiRequest } from "@/lib/genui/types"
 import { DIETS, INTEREST_TAGS } from "@/lib/agent/rank"
+import { EVENT_KIND_NAMES } from "@/lib/events/paris"
 
 export const toolSchemas = {
   recommend_nearby: z.object({
@@ -25,6 +26,11 @@ export const toolSchemas = {
   search_places: z.object({
     query: z.string().min(2).max(120).describe("Qué buscar, como lo diría en Google: 'crêperie', 'farmacia', 'el Louvre'."),
     open_now: z.boolean().nullable().describe("true si lo necesita abierto ahora. null si no importa."),
+  }),
+  search_events: z.object({
+    when: z.enum(["now", "today", "tomorrow"]).describe("now = está pasando o empieza en las próximas 3 horas."),
+    kind: z.enum(EVENT_KIND_NAMES).nullable().describe("Qué tipo de evento pidió. null si cualquiera."),
+    free_only: z.boolean().nullable().describe("true si lo quiere gratis. null si no importa."),
   }),
   web_search: z.object({
     question: z.string().min(3).max(200).describe("Qué querés averiguar, corto: 'menú', 'tienen medialunas', 'horario de brunch'."),
@@ -77,6 +83,8 @@ const descriptions: Record<ToolName, string> = {
     "Busca hasta 3 lugares cercanos que entran en el tiempo libre y van con sus gustos. Usalo siempre que pida qué hacer o adónde ir.",
   search_places:
     "Busca en Google un lugar puntual o un tipo de lugar que no está en la lista de cercanos (una farmacia, una crêperie, un lugar por su nombre). Tarda unos segundos: antes de llamarlo decí una frase corta como 'dejame buscar'.",
+  search_events:
+    "Busca eventos cerca en la agenda de la ciudad (conciertos, teatro, exposiciones, ferias, charlas): qué hay ahora, esta noche, hoy o mañana. Decí algo corto como 'me fijo qué hay' antes de llamarlo.",
   web_search:
     "Busca en Google lo que no sabés de un lugar o del momento: el menú, si tienen algo puntual, precios, eventos, noticias. Es rápido; decí algo corto como 'me fijo' antes de llamarlo. Lo que encuentres puede estar desactualizado: decí de dónde lo sacaste.",
   get_place:
