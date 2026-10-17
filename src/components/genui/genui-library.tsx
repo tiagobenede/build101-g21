@@ -181,7 +181,7 @@ const PlaceList: ComponentRenderer<Props<"PlaceList">> = ({ props }) => {
           onClick={() => ask(`Llevame a ${p.name}`, [p.id])}
           className="hover:bg-muted/60 flex w-full cursor-pointer items-center gap-3 px-3.5 py-2.5 text-left transition-colors"
         >
-          <CategoryIcon category={p.category} className="size-8" />
+          <PlaceThumb place={p} />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[15px]">{p.name}</span>
             <PlaceMeta place={p} />
@@ -189,6 +189,32 @@ const PlaceList: ComponentRenderer<Props<"PlaceList">> = ({ props }) => {
         </button>
       ))}
     </div>
+  )
+}
+
+/**
+ * Miniatura de la lista: la foto del local con el ícono del tipo chico abajo a la derecha.
+ * Sin foto (o si no carga), el ícono del tipo solo, como antes.
+ */
+function PlaceThumb({ place }: { place: GenUiPlace }) {
+  const [photoOk, setPhotoOk] = useState(true)
+  if (!place.photoUrl || !photoOk) return <CategoryIcon category={place.category} className="size-11 rounded-[12px]" />
+  return (
+    <span className="relative size-11 shrink-0">
+      {/* Foto de Google, de un dominio que cambia: <img> y no next/image. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={place.photoUrl}
+        alt=""
+        loading="lazy"
+        onError={() => setPhotoOk(false)}
+        className="bg-muted size-full rounded-[12px] object-cover"
+      />
+      <CategoryIcon
+        category={place.category}
+        className="ring-card absolute -right-1 -bottom-1 size-[18px] rounded-[6px] ring-2 [&_svg]:size-[11px]"
+      />
+    </span>
   )
 }
 
