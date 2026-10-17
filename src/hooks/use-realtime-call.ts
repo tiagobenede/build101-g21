@@ -23,7 +23,6 @@ import { onTableChange } from "@/lib/supabase/browser"
 import type { CallState, MentionedPlace, PlaceCard, VoiceCall } from "./voice-session-types"
 
 const IDLE_CHECK_MS = 5_000
-const GREETING = "Saludá en una frase corta por el nombre y preguntá cuánto tiempo tiene."
 
 type ResponseDone = {
   usage?: RealtimeUsage
@@ -263,7 +262,13 @@ export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | nul
       })
       conn.setMicOpen(!micMuted)
       conn.setMuted(speakerMuted)
-      conn.send({ type: "response.create", response: { instructions: GREETING } })
+      conn.send({
+        type: "conversation.item.create",
+        // Mensaje de sistema y no `response.instructions`: esas reemplazan las de la sesión
+        // y el agente saludaba sin saber nada del viajero.
+        item: { type: "message", role: "system", content: [{ type: "input_text", text: conn.greeting }] },
+      })
+      conn.send({ type: "response.create" })
       touch()
       setState("thinking")
     } catch (err) {

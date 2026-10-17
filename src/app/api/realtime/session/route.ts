@@ -10,6 +10,7 @@ import {
 } from "@/lib/realtime/config"
 import { latLngSchema } from "@/lib/location/schema"
 import { allowSessionMint } from "@/lib/realtime/rate-limit"
+import { greetingPrompt } from "@/lib/realtime/instructions"
 import { buildSessionInstructions } from "@/lib/realtime/session-context"
 import { TOOL_DEFINITIONS } from "@/lib/realtime/tools"
 import { createClient } from "@/lib/supabase/server"
@@ -17,7 +18,7 @@ import { createClient } from "@/lib/supabase/server"
 const CLIENT_SECRETS_URL = "https://api.openai.com/v1/realtime/client_secrets"
 
 type SessionResponse =
-  | { success: true; data: { key: string; model: string; conversationId: string } }
+  | { success: true; data: { key: string; model: string; conversationId: string; greeting: string } }
   | { success: false; error: string }
 
 const fail = (status: number, error: string) => NextResponse.json<SessionResponse>({ success: false, error }, { status })
@@ -78,6 +79,6 @@ export async function POST(req: Request) {
 
   return NextResponse.json<SessionResponse>({
     success: true,
-    data: { key, model: REALTIME_MODEL, conversationId: conversation.id },
+    data: { key, model: REALTIME_MODEL, conversationId: conversation.id, greeting: greetingPrompt(ctx.firstName) },
   })
 }

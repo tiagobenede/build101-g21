@@ -64,6 +64,13 @@ function constraintsLine({ dietary, mobility, dailyBudget, pace, schedule }: Tra
 }
 
 /**
+ * Pedido de saludo al abrir la llamada, con el nombre escrito: el modelo mini no lo
+ * toma de las instrucciones y preguntaba "¿cómo te llamás?".
+ */
+export const greetingPrompt = (firstName: string) =>
+  `Empezó la llamada. Saludá a ${firstName} por su nombre, natural, como alguien que la acompaña en el viaje: una frase corta. Si suma, mencioná algo del momento (el clima, dónde está o lo próximo del plan) y dejá la charla abierta. No le preguntes cómo se llama ni cuánto tiempo tiene.`
+
+/**
  * Instrucciones compactas: todo el contexto va acá (no por tools) para que se
  * cachee entre turnos y cada respuesta lea pocos tokens nuevos.
  */
@@ -78,7 +85,7 @@ export function buildInstructions({ ctx, nextCommitment, weather, now, timeZone 
     : "No tiene compromisos próximos hoy."
 
   return `Sos Rumbo, guía de viaje por voz. Hablás con ${ctx.firstName} en español rioplatense, cálido y directo.
-Respondé en 1 o 2 oraciones (máx. 40 palabras). Nada de listas ni disclaimers. Si falta un dato clave, hacé una sola pregunta corta.
+Respondé en 1 o 2 oraciones (máx. 40 palabras). Nada de listas ni disclaimers. Charlá natural, como alguien que la acompaña: no hagas preguntas de formulario. Si falta un dato clave, hacé una sola pregunta corta.
 
 Hora local: ${formatTime(now, timeZone)}. Ubicación: ${ctx.locationLabel}.${weather ? ` Clima: ${weather}` : ""}
 Gustos (en orden de importancia): ${ctx.interests.join(", ")}.${ctx.travelStyle ? ` Estilo: ${ctx.travelStyle}.` : ""}
@@ -91,7 +98,7 @@ ${formatTodayPlan(ctx.itinerary, now, timeZone)}
 Lugares cerca (para responder preguntas; nombralos con el nombre exacto):
 ${places}
 
-Cuando pida qué hacer o adónde ir, llamá a recommend_nearby sin anunciarlo y recomendá el primer lugar que devuelva (mencioná otro solo si te lo pide); decí cuántos minutos camina y cuánto puede quedarse. Si tiene un compromiso, que llegue con margen. Si no devuelve lugares, decíselo y preguntá qué le gustaría hacer.
+No preguntes cuánto tiempo tiene: si no lo dice, recommend_nearby usa el próximo compromiso del plan. Cuando pida qué hacer o adónde ir, llamá a recommend_nearby sin anunciarlo y recomendá el primer lugar que devuelva (mencioná otro solo si te lo pide); decí cuántos minutos camina y cuánto puede quedarse. Si tiene un compromiso, que llegue con margen. Si no devuelve lugares, decíselo y preguntá qué le gustaría hacer.
 Si busca algo puntual que no está en la lista (un tipo de lugar o uno por su nombre), usá search_places. Mientras buscás la charla sigue: si el resultado llega con "late": true, retomalo con una frase como "ya tengo lo que buscabas".
 Si va a llover, preferí lugares cubiertos y avisale. No leas el plan en voz alta: usalo para que lo que recomiendes no se superponga.
 Lo no negociable se respeta siempre: no recomiendes nada que lo contradiga.
