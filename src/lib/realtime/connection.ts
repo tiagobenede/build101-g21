@@ -22,14 +22,19 @@ interface ConnectOptions {
   onDisconnect: () => void
   /** Ubicación en vivo al abrir la sesión (va en las instrucciones). */
   location: LatLng | null
+  /** Ruta que acuña la key efímera (el onboarding usa la suya). */
+  sessionUrl?: string
 }
 
 type SessionResponse =
   | { success: true; data: { key: string; conversationId: string; greeting: string } }
   | { success: false; error: string }
 
-async function mintSession(location: LatLng | null): Promise<{ key: string; conversationId: string; greeting: string }> {
-  const res = await fetch("/api/realtime/session", {
+async function mintSession(
+  location: LatLng | null,
+  sessionUrl: string
+): Promise<{ key: string; conversationId: string; greeting: string }> {
+  const res = await fetch(sessionUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ location }),
@@ -43,7 +48,12 @@ async function mintSession(location: LatLng | null): Promise<{ key: string; conv
  * Abre WebRTC directo a OpenAI Realtime con el mic del usuario. El track arranca
  * apagado; la llamada lo prende al conectar (y lo apaga al silenciarse).
  */
-export async function connectRealtime({ onEvent, onDisconnect, location }: ConnectOptions): Promise<RealtimeConnection> {
+export async function connectRealtime({
+  onEvent,
+  onDisconnect,
+  location,
+  sessionUrl = "/api/realtime/session",
+}: ConnectOptions): Promise<RealtimeConnection> {
   // Primero el mic: si no hay permiso, cortamos antes de abrir (y pagar) una sesión.
   const mic = await navigator.mediaDevices
     .getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
@@ -68,7 +78,7 @@ export async function connectRealtime({ onEvent, onDisconnect, location }: Conne
   }
 
   try {
-    const { key, conversationId, greeting } = await mintSession(location)
+    const { key, conversationId, greeting } = await mintSession(location, sessionUrl)
 
     pc.ontrack = (e) => {
       audio.srcObject = e.streams[0]

@@ -1,5 +1,7 @@
 import { ChevronRightIcon, MapIcon, MicIcon } from "lucide-react"
 import Link from "next/link"
+import { redirect } from "next/navigation"
+import { connection } from "next/server"
 import { Suspense } from "react"
 
 import { ItinerarySection } from "@/components/itinerary/itinerary-section"
@@ -13,13 +15,23 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
+import { needsOnboarding } from "@/lib/data/onboarding"
 import { getTravelerContext } from "@/lib/data/session"
 import { tripDay } from "@/lib/format"
+import { createClient } from "@/lib/supabase/server"
 import { zonedDateKey } from "@/lib/time/zoned"
 
 const MAX_NEARBY = 6
 
 async function HomeContent() {
+  // Primer login: antes de la home (y de buscar lugares), el onboarding por voz.
+  await connection()
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (user && (await needsOnboarding(supabase, user.id))) redirect("/onboarding")
+
   const ctx = await getTravelerContext()
   const today = zonedDateKey(new Date(), ctx.timeZone)
   const todayItems = ctx.itinerary.filter((i) => zonedDateKey(new Date(i.starts_at), ctx.timeZone) === today)

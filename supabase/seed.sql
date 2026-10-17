@@ -9,7 +9,8 @@ declare
   demo_users jsonb := '[
     {"id":"11111111-1111-4111-8111-111111111111","email":"sofia@rumbo.demo"},
     {"id":"22222222-2222-4222-8222-222222222222","email":"mateo@rumbo.demo"},
-    {"id":"33333333-3333-4333-8333-333333333333","email":"lucia@rumbo.demo"}
+    {"id":"33333333-3333-4333-8333-333333333333","email":"lucia@rumbo.demo"},
+    {"id":"44444444-4444-4444-8444-444444444444","email":"nuevo@rumbo.demo"}
   ]';
   u jsonb;
 begin
@@ -37,10 +38,12 @@ end $$;
 -- ---------------------------------------------------------------------------
 -- Perfiles y gustos
 -- ---------------------------------------------------------------------------
-insert into public.profiles (id, full_name, home_city, travel_style) values
-  ('11111111-1111-4111-8111-111111111111', 'Sofía Álvarez', 'Montevideo', 'Curiosa, camina todo, ama los fierros'),
-  ('22222222-2222-4222-8222-222222222222', 'Mateo Rossi',   'Buenos Aires', 'Museos, historia y librerías'),
-  ('33333333-3333-4333-8333-333333333333', 'Lucía Méndez',  'Santiago', 'Foodie, mercados y parques');
+insert into public.profiles (id, full_name, home_city, travel_style, onboarded_at) values
+  ('11111111-1111-4111-8111-111111111111', 'Sofía Álvarez', 'Montevideo', 'Curiosa, camina todo, ama los fierros', now()),
+  ('22222222-2222-4222-8222-222222222222', 'Mateo Rossi',   'Buenos Aires', 'Museos, historia y librerías', now()),
+  ('33333333-3333-4333-8333-333333333333', 'Lucía Méndez',  'Santiago', 'Foodie, mercados y parques', now()),
+  -- Primer login: sin gustos ni onboarding (al entrar se resetea, ver loginAsDemo).
+  ('44444444-4444-4444-8444-444444444444', 'Alex Romero',   'Montevideo', null, null);
 
 insert into public.interests (user_id, tag) values
   ('11111111-1111-4111-8111-111111111111', 'autos'),
@@ -61,7 +64,8 @@ insert into public.interests (user_id, tag) values
 insert into public.trips (id, user_id, destination, country, lat, lng, start_date, end_date) values
   ('aaaaaaa1-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'París', 'Francia', 48.8606, 2.3522, current_date - 2, current_date + 5),
   ('aaaaaaa1-0000-4000-8000-000000000002', '22222222-2222-4222-8222-222222222222', 'París', 'Francia', 48.8606, 2.3522, current_date - 1, current_date + 3),
-  ('aaaaaaa1-0000-4000-8000-000000000003', '33333333-3333-4333-8333-333333333333', 'París', 'Francia', 48.8606, 2.3522, current_date,     current_date + 6);
+  ('aaaaaaa1-0000-4000-8000-000000000003', '33333333-3333-4333-8333-333333333333', 'París', 'Francia', 48.8606, 2.3522, current_date,     current_date + 6),
+  ('aaaaaaa1-0000-4000-8000-000000000004', '44444444-4444-4444-8444-444444444444', 'París', 'Francia', 48.8606, 2.3522, current_date,     current_date + 4);
 
 insert into public.itinerary_items (trip_id, title, notes, starts_at, ends_at, lat, lng) values
   ('aaaaaaa1-0000-4000-8000-000000000001', 'Almuerzo con amigos', 'Le Marais',

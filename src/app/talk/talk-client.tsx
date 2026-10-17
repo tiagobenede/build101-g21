@@ -28,7 +28,7 @@ import { PlaceNotification } from "@/components/rumbo/place-notification"
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
 import { CameraSheet } from "@/components/camera/camera-sheet"
 import { TranslatorPanel } from "@/components/translate/translator-panel"
-import { VoiceOrb } from "@/components/rumbo/voice-orb"
+import { VoiceStage } from "@/components/rumbo/voice-stage"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
@@ -53,6 +53,10 @@ const MapView = dynamic(() => import("@/components/location/map-view"), {
 
 /** Más lejos que esto, la tarjeta no dice el nombre de un lugar cercano. */
 const NEAR_PLACE_MAX_M = 600
+
+/** Botones de arriba: blancos translúcidos con sombra, para que se lean sobre el glow azul. */
+const GLASS_BUTTON =
+  "size-10 rounded-full bg-white/85 text-foreground shadow-[0_2px_12px_rgba(0,0,0,0.12)] backdrop-blur-md hover:bg-white"
 
 const STATUS_LABEL: Record<CallState, string> = {
   off: "Tocá para empezar a hablar",
@@ -214,8 +218,9 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
     }
   }, [showScreen])
   const now = useNow()
-  const [showMap, setShowMap] = useState(true)
-  // Cuando llega una pantalla generada, el mini mapa se pliega para darle lugar.
+  // Arranca mínima: el mapa se abre con el botón de arriba.
+  const [showMap, setShowMap] = useState(false)
+  // Cuando llega una pantalla generada, el mapa se cierra para darle lugar.
   const screenId = genui.screen?.id
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- responde a una pantalla nueva que llega por streaming
@@ -223,7 +228,6 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   }, [screenId])
   const active = call.state !== "off"
   const hasPlaces = call.places.length > 0 || genui.screen !== null
-  const compact = hasPlaces || showMap
 
   const placeName = useMemo(() => {
     const [closest] = [...mapPlaces].sort((a, b) => distanceMeters(position, a) - distanceMeters(position, b))
@@ -231,21 +235,18 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   }, [mapPlaces, position])
 
   return (
-    <main className="flex h-dvh flex-col overflow-hidden">
-      <header className="mx-auto grid w-full max-w-md grid-cols-[40px_1fr_40px] items-center px-3 pt-3">
-        <Button asChild variant="ghost" size="icon" className="rounded-full" aria-label="Volver">
+    <main className="relative flex h-dvh flex-col overflow-hidden">
+      {/* Solo volver y el mapa, flotando: se tienen que ver sobre el glow. */}
+      <header className="absolute inset-x-0 top-0 z-30 mx-auto flex w-full max-w-md items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <Button asChild variant="ghost" size="icon" className={GLASS_BUTTON} aria-label="Volver">
           <Link href="/">
             <ChevronLeftIcon className="size-5" />
           </Link>
         </Button>
-        <div className="text-center">
-          <p className="text-[15px] font-semibold">Rumbo</p>
-          {active && <p className="text-muted-foreground text-xs tabular-nums">US${call.costUsd.toFixed(call.costUsd < 0.01 ? 4 : 3)}</p>}
-        </div>
         <Button
           variant="ghost"
           size="icon"
-          className={cn("rounded-full", showMap && "text-brand")}
+          className={cn(GLASS_BUTTON, showMap && "bg-foreground text-background hover:bg-foreground/90 hover:text-background")}
           aria-label={showMap ? "Ocultar mapa" : "Mostrar mapa"}
           aria-pressed={showMap}
           onClick={() => setShowMap(!showMap)}
@@ -254,30 +255,32 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
         </Button>
       </header>
 
-      <div className="mx-auto w-full max-w-md px-4 pt-3">
-        <LocationCard
-          location={location}
-          placeName={placeName}
-          nextCommitment={nextCommitment}
-          now={now}
-          map={
-            showMap ? (
-              <div className="relative h-40">
-                <MapView
-                  position={position}
-                  heading={heading}
-                  places={mapPlaces}
-                  stops={stops}
-                  follow
-                  onTeleport={teleport}
-                  onUserPan={() => undefined}
-                />
-                {source === "mock" && <Joystick size={80} className="absolute right-2 bottom-2 z-[1000]" />}
-              </div>
-            ) : null
-          }
-        />
-      </div>
+      {showMap && (
+        <div className="animate-in fade-in slide-in-from-top-2 absolute inset-x-0 top-16 z-20 mx-auto w-full max-w-md px-4 duration-300">
+          <div className="overflow-hidden rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <LocationCard
+              location={location}
+              placeName={placeName}
+              nextCommitment={nextCommitment}
+              now={now}
+              map={
+                <div className="relative h-44">
+                  <MapView
+                    position={position}
+                    heading={heading}
+                    places={mapPlaces}
+                    stops={stops}
+                    follow
+                    onTeleport={teleport}
+                    onUserPan={() => undefined}
+                  />
+                  {source === "mock" && <Joystick size={80} className="absolute right-2 bottom-2 z-[1000]" />}
+                </div>
+              }
+            />
+          </div>
+        </div>
+      )}
 
       {translating ? (
         <TranslatorPanel location={position} onTurn={onTurn} onExit={closeTranslator}>
@@ -291,25 +294,20 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
         </TranslatorPanel>
       ) : (
         <>
-          <section
-            className={cn(
-              "mx-auto flex w-full max-w-md shrink-0 flex-col items-center gap-3 transition-[padding] duration-500",
-              compact ? "pt-4" : "flex-1 justify-center"
-            )}
-          >
-            <VoiceOrb
-              state={call.state}
-              inputVolumeRef={call.inputVolumeRef}
-              outputVolumeRef={call.outputVolumeRef}
-              className={cn("transition-[width] duration-500 ease-out", compact ? "w-28" : "w-56")}
-            />
-            <p className="text-muted-foreground h-5 text-[15px]">{STATUS_LABEL[call.state]}</p>
-          </section>
+          {/* El blob: en el medio, o arriba como glow cuando hay recomendaciones. */}
+          <VoiceStage
+            state={call.state}
+            inputVolumeRef={call.inputVolumeRef}
+            outputVolumeRef={call.outputVolumeRef}
+            glow={hasPlaces}
+            status={STATUS_LABEL[call.state]}
+            className="absolute inset-x-0 top-[30%] z-0"
+          />
 
-          {!hasPlaces && compact && <div className="flex-1" />}
+          {!hasPlaces && <div className="flex-1" />}
 
           {hasPlaces && (
-            <ScrollFade className="mx-auto mt-2 min-h-0 w-full max-w-md flex-1 px-4">
+            <ScrollFade className="relative z-10 mx-auto min-h-0 w-full max-w-md flex-1 px-4 pt-28">
               <div className="flex flex-col gap-2 py-2">
                 {genui.screen ? (
                   <GenUiPanel key={genui.screen.id} screen={genui.screen} ask={ask} addToPlan={addToPlan} />
@@ -320,7 +318,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
             </ScrollFade>
           )}
 
-          <footer className="mx-auto w-full max-w-md px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <footer className="relative z-10 mx-auto w-full max-w-md px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             {active ? (
               <div className="flex items-center justify-center gap-4">
                 <RoundToggle

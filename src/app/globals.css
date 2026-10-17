@@ -139,3 +139,14 @@
   }
 }
 
+
+/* Burbujas del onboarding: al pasar el mouse toman su color (como el BubbleMenu). */
+.keyword-bubble {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+.keyword-bubble:hover {
+  background-color: var(--hover-bg);
+  color: #fff;
+}
