@@ -173,7 +173,7 @@ Reglas: zod 4 con `.nullable()` (nunca `.optional()`); `fillMissingNulls` comple
 - [x] **B-1** Mapa y GPS simulado, salto a cualquier ciudad, joystick en `/talk`.
 - [x] **B-2** Onboarding por voz y gustos editables en el perfil (también propios).
 - [x] **B-3** Itinerario editable en la home, con Realtime.
-- [x] **B-5** UI del traductor (hecha por C): idiomas, "¿Cómo se usa?" que se puede ocultar, burbujas de cada lado, Mostrar a pantalla completa, cards de recomendaciones solo durante la charla.
+- [x] **B-5** UI del traductor (hecha por C): idiomas, "¿Cómo se usa?" que se puede ocultar, burbujas de cada lado con "Repetir", cards de recomendaciones solo durante la charla.
 - [x] **B-6** Avisos (hecho por C): banner en todas las pantallas y Web Push.
 - [x] Home nueva con mapa y barra de pestañas, blob de voz con transición a `/talk`, nivel del mic.
 - [ ] **B-2b** Editar restricciones (dieta, movilidad, presupuesto, ritmo) desde el perfil: hoy se ven pero solo cambian por voz o en el onboarding.

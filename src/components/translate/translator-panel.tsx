@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeftRightIcon, CircleHelpIcon, Maximize2Icon, MicIcon, Volume2Icon, XIcon } from "lucide-react"
+import { ArrowLeftRightIcon, CircleHelpIcon, MicIcon, Volume2Icon, XIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { ScrollFade } from "@/components/rumbo/scroll-fade"
@@ -68,8 +68,6 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
     onTurn: (turn, recent, conversationId) => onTurn(turn, recent, conversationId, theirLang),
   })
   const busy = t.state === "connecting" || t.state === "listening" || t.state === "finishing"
-  /** Frase a pantalla completa para que la lea la persona local (B-5). */
-  const [shown, setShown] = useState<Utterance | null>(null)
   /** Las instrucciones se ven hasta que alguien habla; después quedan plegadas. */
   // Si el viajero ya las ocultó alguna vez, arrancan plegadas (se recuerda en este navegador).
   const [helpOpen, setHelpOpen] = useState(() => readHelpHidden() !== true)
@@ -227,7 +225,7 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
                 <p className="text-[17px] leading-snug">{u.translated || "…"}</p>
                 {u.original && <p className="mt-1 text-xs opacity-75">{u.original}</p>}
                 {u.final && u.translated && (
-                  <div className="mt-1.5 flex gap-1.5">
+                  <div className="mt-1.5 flex">
                     {/* Volver a escuchar la traducción (la persona local, o vos si no la oíste bien). */}
                     <button
                       type="button"
@@ -240,16 +238,6 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
                       <Volume2Icon className="size-3" />
                       Repetir
                     </button>
-                    {u.speaker === "me" && (
-                      <button
-                        type="button"
-                        onClick={() => setShown(u)}
-                        className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
-                      >
-                        <Maximize2Icon className="size-3" />
-                        Mostrar
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
@@ -259,22 +247,6 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
         </ScrollFade>
         {children}
       </section>
-
-      {shown && (
-        <button
-          type="button"
-          onClick={() => setShown(null)}
-          aria-label="Cerrar"
-          className="animate-in fade-in bg-background fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8 text-center duration-200"
-        >
-          <span className="text-muted-foreground text-[15px] font-medium">{LANGUAGES[theirLang]}</span>
-          <p className="text-[clamp(28px,8vw,52px)] leading-tight font-semibold text-balance">
-            {/* Francés: espacio antes de ? ! : ; » — que no corte la línea ahí. */}
-            {shown.translated.replace(/ ([?!:;»])/g, "\u00a0$1").replace(/« /g, "«\u00a0")}
-          </p>
-          <span className="text-muted-foreground text-[13px]">Tocá para volver</span>
-        </button>
-      )}
 
       <footer className="mx-auto w-full max-w-md px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <p className="text-muted-foreground mb-3 text-center text-[13px]">
@@ -376,7 +348,7 @@ function writeHelpHidden(hidden: boolean) {
 function HowItWorks({ theirLang, onHide }: { theirLang: string; onHide: () => void }) {
   const steps = [
     <>Cuando hable la otra persona ({theirLang}), tocá <b>Habla la otra persona</b> y otra vez al terminar.</>,
-    <>Para responder, <b>Hablo yo</b>. Con <b>Mostrar</b> le enseñás tu frase en grande.</>,
+    <>Para responder, <b>Hablo yo</b>. Con <b>Repetir</b> volvés a escuchar una traducción.</>,
     <>Si te recomienda un lugar, aparece abajo, queda guardado y te aviso cuando pases cerca.</>,
   ]
   return (
