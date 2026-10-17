@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { buildGenUiUserMessage, namedPlaceIds, pickPlaces } from "./context"
+import { buildGenUiUserMessage, namedPlaceIds, screenPlaces } from "./context"
 import type { GenUiPlace } from "./types"
 
 const place = (id: string, walk: number): GenUiPlace => ({
@@ -16,16 +16,20 @@ const place = (id: string, walk: number): GenUiPlace => ({
   lng: 2.35,
 })
 
-describe("pickPlaces", () => {
-  const nearby = [place("a", 1), place("b", 3), place("c", 5), place("d", 7)]
+describe("screenPlaces", () => {
+  const all = [place("a", 1), place("b", 3), place("c", 5), place("d", 7)]
 
-  it("pone primero los pedidos y completa con los más cercanos", () => {
-    const picked = pickPlaces(nearby, [place("z", 20)], ["z", "c"], 4)
-    expect(picked.map((p) => p.id)).toEqual(["z", "c", "a", "b"])
+  it("devuelve exactamente los pedidos, en el orden del agente", () => {
+    expect(screenPlaces(all, ["c", "a"], 5).map((p) => p.id)).toEqual(["c", "a"])
   })
 
-  it("no repite ni pasa del máximo", () => {
-    expect(pickPlaces(nearby, [], ["a", "a"], 2).map((p) => p.id)).toEqual(["a", "b"])
+  it("nunca completa con otros lugares cercanos", () => {
+    expect(screenPlaces(all, ["b"], 5).map((p) => p.id)).toEqual(["b"])
+    expect(screenPlaces(all, [], 5)).toEqual([])
+  })
+
+  it("ignora ids desconocidos, no repite y respeta el máximo", () => {
+    expect(screenPlaces(all, ["x", "a", "a", "b", "c"], 2).map((p) => p.id)).toEqual(["a", "b"])
   })
 })
 
@@ -63,18 +67,3 @@ describe("namedPlaceIds", () => {
   })
 })
 
-describe("buildGenUiUserMessage con sugeridos", () => {
-  it("marca el orden de los lugares sugeridos", () => {
-    const msg = buildGenUiUserMessage({
-      request: "recomendaciones",
-      places: [place("a", 4), place("b", 2)],
-      suggestedIds: ["b"],
-      itinerary: [],
-      weather: null,
-      localTime: "16:00",
-    })
-    expect(msg).toContain('"id":"b"')
-    expect(msg).toContain('"suggested":1')
-    expect(msg.match(/suggested/g)).toHaveLength(1)
-  })
-})

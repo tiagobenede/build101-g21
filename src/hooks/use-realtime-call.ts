@@ -5,6 +5,7 @@ import { toast } from "sonner"
 
 import { saveTurn } from "@/app/talk/actions"
 import { distanceMeters, type LatLng } from "@/lib/geo"
+import { screenFromTool } from "@/lib/genui/screen-from-tool"
 import type { GenUiRequest } from "@/lib/genui/types"
 import { locationUpdateText, shouldAnnounce } from "@/lib/location/announce"
 import {
@@ -41,27 +42,11 @@ type ResponseDone = {
  * Ahorro: modelo mini, respuestas cortas, solo se factura la voz detectada,
  * se corta sola tras 1 min sin actividad, al salir o al pasar el presupuesto.
  */
-/** Texto para pedir la pantalla que acompaña el resultado de un tool de lugares. */
-function screenRequestFor(name: unknown, rawArgs: unknown): string | null {
-  let args: Record<string, unknown> = {}
-  try {
-    args = JSON.parse(typeof rawArgs === "string" ? rawArgs : "{}") as Record<string, unknown>
-  } catch {
-    // Sin argumentos legibles: se pide igual con un texto genérico.
-  }
-  if (name === "recommend_nearby") {
-    const minutes = typeof args.available_minutes === "number" ? ` para ${args.available_minutes} minutos libres` : ""
-    const interest = typeof args.interest === "string" ? `, con ganas de ${args.interest}` : ""
-    return `Recomendaciones${minutes}${interest}`
-  }
-  if (name === "search_places") return `Resultados de buscar "${String(args.query ?? "")}"`
-  return null
-}
-
 export function useRealtimeCall(
   knownPlaces: PlaceCard[],
   location: LatLng | null = null,
-  onUi?: (request: GenUiRequest) => void
+  /** La pantalla: lugares del último tool del agente, o null para vaciarla. */
+  onScreen?: (screen: GenUiRequest | null) => void
 ): VoiceCall {
   const [state, setState] = useState<CallState>("off")
   const [places, setPlaces] = useState<MentionedPlace[]>([])
@@ -78,10 +63,10 @@ export function useRealtimeCall(
   const inputVolumeRef = useRef(0)
   const outputVolumeRef = useRef(0)
   const queueRef = useRef<ResponseQueue | null>(null)
-  const onUiRef = useRef(onUi)
+  const onScreenRef = useRef(onScreen)
   useEffect(() => {
-    onUiRef.current = onUi
-  }, [onUi])
+    onScreenRef.current = onScreen
+  }, [onScreen])
   /** Ubicación en vivo (joystick o GPS) y la última que se le avisó a la llamada. */
   const locationRef = useRef(location)
   const announcedRef = useRef<LatLng | null>(null)
@@ -158,17 +143,14 @@ export function useRealtimeCall(
       if (queueRef.current !== queue) return
       touch()
 
-      // UI generativa: show_ui la pide explícitamente; los tools de lugares, con sus resultados.
-      if (result.ui) {
-        onUiRef.current?.({ ...result.ui, placeIds: toolPlacesRef.current.slice(0, 6).map((p) => p.id) })
-      } else if (result.cards.length > 0) {
-        const request = screenRequestFor(ev.name, ev.arguments)
-        if (request) onUiRef.current?.({ request, placeIds: result.cards.map((c) => c.id) })
-      }
-      // El agente recomienda el primero: esa tarjeta sale ya; las demás, si las nombra.
+      // Un solo agente: la pantalla cambia en el mismo momento en que el resultado entra a la
+      // conversación, con exactamente esos lugares (o se vacía si no encontró nada).
+      const screen = screenFromTool(ev.name, ev.arguments, result.cards)
       queue.resolve(callId, result.output, () => {
         toolPlacesRef.current = [...result.cards, ...toolPlacesRef.current]
         showPlaces(result.cards.slice(0, 1))
+        if (screen.kind === "show") onScreenRef.current?.({ request: screen.request, placeIds: screen.placeIds })
+        if (screen.kind === "clear") onScreenRef.current?.(null)
       })
     },
     [showPlaces]
@@ -382,6 +364,13 @@ export function useRealtimeCall(
 
   const hangUp = useCallback(() => end(), [end])
 
+  const note = useCallback((text: string) => {
+    connRef.current?.send({
+      type: "conversation.item.create",
+      item: { type: "message", role: "system", content: [{ type: "input_text", text }] },
+    })
+  }, [])
+
   return {
     state,
     places,
@@ -394,5 +383,6 @@ export function useRealtimeCall(
     costUsd,
     start,
     end: hangUp,
+    note,
   }
 }

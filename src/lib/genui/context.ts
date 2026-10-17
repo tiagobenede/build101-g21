@@ -21,24 +21,20 @@ export function namedPlaceIds(request: string, places: { id: string; name: strin
     .map((p) => p.id)
 }
 
-/** Lugares que van al modelo: los pedidos primero, después los más cercanos, sin repetir. */
-export function pickPlaces(nearby: GenUiPlace[], extra: GenUiPlace[], requestedIds: string[], max: number): GenUiPlace[] {
-  const byId = new Map([...nearby, ...extra].map((p) => [p.id, p]))
-  const requested = requestedIds.map((id) => byId.get(id)).filter((p): p is GenUiPlace => Boolean(p))
-  const rest = [...nearby].sort((a, b) => a.walkMinutes - b.walkMinutes)
-  const out: GenUiPlace[] = []
-  for (const p of [...requested, ...rest]) {
-    if (out.length >= max) break
-    if (!out.some((o) => o.id === p.id)) out.push(p)
-  }
-  return out
+/**
+ * Lugares de la pantalla: exactamente los que eligió el agente (los de su último tool),
+ * en su orden. Nunca se completa con otros: la pantalla muestra lo mismo que dice la voz.
+ */
+export function screenPlaces(all: GenUiPlace[], placeIds: string[], max: number): GenUiPlace[] {
+  const byId = new Map(all.map((p) => [p.id, p]))
+  const ids = [...new Set(placeIds)].filter((id) => byId.has(id)).slice(0, max)
+  return ids.map((id) => byId.get(id)!)
 }
 
 interface UserMessageInput {
   request: string
+  /** Los lugares de la pantalla, en el orden del agente: el primero es el principal. */
   places: GenUiPlace[]
-  /** Ids que eligió la voz o un tool, en orden: el primero es la recomendación principal. */
-  suggestedIds?: string[]
   itinerary: { time: string; title: string; locked: boolean }[]
   weather: string | null
   localTime: string
@@ -48,7 +44,6 @@ interface UserMessageInput {
 export function buildGenUiUserMessage({
   request,
   places,
-  suggestedIds = [],
   itinerary,
   weather,
   localTime,
@@ -65,7 +60,6 @@ export function buildGenUiUserMessage({
       walk_min: p.walkMinutes,
       visit_min: p.visitMinutes,
       rating: p.rating,
-      ...(suggestedIds.includes(p.id) ? { suggested: suggestedIds.indexOf(p.id) + 1 } : {}),
     })),
     itinerary_today: itinerary,
   }

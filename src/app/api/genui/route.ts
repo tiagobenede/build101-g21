@@ -3,7 +3,7 @@ import { z } from "zod"
 import type { Place } from "@/lib/agent/types"
 import { getTravelerContext, TRIP_TIME_ZONE } from "@/lib/data/session"
 import { walkMinutes } from "@/lib/geo"
-import { buildGenUiUserMessage, namedPlaceIds, pickPlaces } from "@/lib/genui/context"
+import { buildGenUiUserMessage, namedPlaceIds, screenPlaces } from "@/lib/genui/context"
 import { buildGenUiLibrary, GENUI_COMPONENTS, GENUI_EXAMPLES } from "@/lib/genui/library"
 import { genUiProvider, streamCompletion } from "@/lib/genui/provider"
 import { GENUI_DATA_PREFIX, type GenUiData, type GenUiPlace } from "@/lib/genui/types"
@@ -13,7 +13,7 @@ import { getWeatherSummary } from "@/lib/weather"
 import { createClient } from "@/lib/supabase/server"
 import { zonedDateKey, zonedTimeValue } from "@/lib/time/zoned"
 
-const MAX_PLACES = 8
+const MAX_PLACES = 6
 /** Cada recomendación y cada "Llevame" piden una pantalla. */
 const MAX_SCREENS_PER_MINUTE = 20
 const TIMEOUT_MS = 15_000
@@ -33,8 +33,7 @@ const SYSTEM_PROMPT = buildGenUiLibrary(
   additionalRules: [
     "Pantallas cortas: 2 a 4 bloques. Empezá con Say.",
     "Usá solo ids que aparecen en places. Si el pedido nombra un lugar, buscalo por nombre en places.",
-    "Si hay lugares con `suggested`, respetá ese orden: suggested 1 es el PlaceHero (o el destino de RouteMap) y los siguientes van en PlaceList.",
-    "Sin suggested, elegí según los tags y lo que pide: PlaceHero con el mejor y PlaceList con 1 o 2 alternativas.",
+    "places son los lugares que el agente de voz está nombrando, en su orden: mostrá esos y ninguno más. El primero es el principal (PlaceHero, o destino de RouteMap si pide cómo llegar); los demás van en PlaceList, o en Compare si pide comparar.",
     "Say y PlaceHero hablan del MISMO lugar. El reason de PlaceHero explica por qué ESE lugar, sin nombrar otros.",
     "Cada sentencia en UNA sola línea: nunca partas un array en varias líneas.",
     "Timeline: todas las paradas son después de local_time, en orden, y respetan las actividades de itinerary_today (usá su título exacto, con placeId null).",
@@ -78,22 +77,26 @@ export async function POST(req: Request) {
   const ctxMs = Math.round(performance.now() - t0)
   if (!allowRequest(`genui:${ctx.userId}`, MAX_SCREENS_PER_MINUTE)) return Response.json({ error: "Demasiados pedidos seguidos." }, { status: 429 })
 
-  // Lugares de la ciudad: los que pidió la voz por id y los que el pedido nombra ("llevame al Picasso").
+  // Solo los lugares que eligió el agente (los de su último tool). Sin ids (pruebas en desarrollo),
+  // los que el pedido nombra. Nunca se completa con otros: pantalla y voz dicen lo mismo.
   const supabase = await createClient()
-  const { data: cityRows } = await supabase
-    .from("places")
-    .select("id, name, category, tags, description, lat, lng, rating, typical_visit_minutes")
-    .eq("city", ctx.trip?.destination ?? "París")
-  const cityPlaces = (cityRows ?? []) as Place[]
-  const requestedIds = [...parsed.data.placeIds, ...namedPlaceIds(parsed.data.request, cityPlaces)]
-  const extra = cityPlaces.filter((p) => requestedIds.includes(p.id))
-
-  const places = pickPlaces(
-    ctx.nearby.map((p) => toGenUiPlace(p, ctx.location)),
-    extra.map((p) => toGenUiPlace(p, ctx.location)),
-    requestedIds,
+  const columns = "id, name, category, tags, description, lat, lng, rating, typical_visit_minutes"
+  let placeIds = parsed.data.placeIds
+  let rows: Place[]
+  if (placeIds.length > 0) {
+    const { data } = await supabase.from("places").select(columns).in("id", placeIds)
+    rows = (data ?? []) as Place[]
+  } else {
+    const { data } = await supabase.from("places").select(columns).eq("city", ctx.trip?.destination ?? "París")
+    rows = (data ?? []) as Place[]
+    placeIds = namedPlaceIds(parsed.data.request, rows)
+  }
+  const places = screenPlaces(
+    rows.map((p) => toGenUiPlace(p, ctx.location)),
+    placeIds,
     MAX_PLACES
   )
+  if (places.length === 0) return Response.json({ error: "No hay lugares para mostrar." }, { status: 422 })
   const now = new Date()
   const today = zonedDateKey(now, TRIP_TIME_ZONE)
   const itinerary = ctx.itinerary
@@ -109,7 +112,6 @@ export async function POST(req: Request) {
   const user = buildGenUiUserMessage({
     request: parsed.data.request,
     places,
-    suggestedIds: requestedIds,
     itinerary,
     weather: data.weather,
     localTime: zonedTimeValue(now.toISOString(), TRIP_TIME_ZONE),
