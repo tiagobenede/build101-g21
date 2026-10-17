@@ -23,7 +23,7 @@ Rumbo es un guía de viaje por voz. Conoce tus gustos y restricciones, lee y mod
 | App | Next.js 16 + shadcn/ui, UI estilo iOS, `src/` | `src/app`, `src/components/rumbo`, `src/components/ui` |
 | Login | 3 cuentas demo en París: **Sofía** (autos, diseño, café), **Mateo** (arte, historia, libros), **Lucía** (comida, mercados, parques) | `src/app/login`, `src/lib/demo-accounts.ts`, `supabase/seed.sql` |
 | Base de datos | Supabase local en Docker, permisos por usuario en todas las tablas: `profiles`, `interests`, `trips`, `itinerary_items`, `places`, `conversations`, `messages`, `recommendations` | `supabase/migrations/20261017000000_init.sql` |
-| Lugares | 15 lugares cargados alrededor del Centre Pompidou y el Marais, con tags, descripción y minutos típicos de visita | `supabase/seed.sql` |
+| Lugares | 15 lugares cargados a mano alrededor del Centre Pompidou y el Marais. **Son transitorios:** los lugares pasan a salir de Google Places (sección 3) y estos se borran del seed cuando C-1b y el tool de A estén andando | `supabase/seed.sql` |
 | Home | Ubicación, día del viaje, gustos, itinerario de hoy y "Para vos" (lugares cercanos que coinciden con los gustos) | `src/app/page.tsx` |
 | Contexto del viajero | `getTravelerContext()`: perfil, gustos, viaje activo, itinerario y lugares cercanos con distancia y minutos a pie | `src/lib/data/session.ts` |
 | Geo | Distancia haversine, minutos caminando (factor 1,3 por calles) | `src/lib/geo.ts` |
@@ -42,7 +42,7 @@ Rumbo es un guía de viaje por voz. Conoce tus gustos y restricciones, lee y mod
 7. **`/talk` es una llamada, no un chat.** Nunca se muestra la transcripción. Lo único que aparece en pantalla además del blob es información útil: dónde estás y lo que el agente te va recomendando.
 4. **Los tools llaman a server actions.** El mismo patrón que `src/app/talk/actions.ts`: respetan el login y los permisos por usuario sin trabajo extra.
 5. **Un solo camino de código por operación.** Las funciones de itinerario las usan la UI y los tools por igual.
-6. **El lugar es la entidad que conecta todo.** Recomendaciones del agente, recomendaciones de residentes, itinerario y avisos apuntan a una fila de `places`.
+6. **El lugar es la entidad que conecta todo.** Recomendaciones del agente, recomendaciones de residentes, itinerario y avisos apuntan a una fila de `places`. `places` **no es un catálogo**: guarda solo los lugares que algo referencia, con el place id de Google como `id`. Los lugares cercanos los busca el agente en Google y no se guardan.
 
 ---
 
@@ -54,9 +54,20 @@ Rumbo es un guía de viaje por voz. Conoce tus gustos y restricciones, lee y mod
 | Cuenta de la demo | **Lucía** (comida, mercados, parques): es la que mejor encaja con "un residente te recomienda un lugar" |
 | Dónde se muestra | **Desde la laptop en `localhost`.** El micrófono funciona en localhost, el GPS es simulado y la cámara es la webcam o una foto subida. Deploy a la nube (Vercel + Supabase Cloud, o ngrok para HTTPS) **solo si sobra tiempo** |
 | Residente en la demo | Alguien del equipo que hable **francés** (definir quién en F0) |
-| Lugares | Los del seed alcanzan para la prioridad alta. **Google Places es opcional** y entra después, para enriquecer o resolver nombres que no estén en el seed |
+| Lugares | **Google Places (API New) es la fuente de lugares.** El agente busca con tools (Nearby Search y Text Search) y los resultados van directo al modelo, sin guardarse. Un lugar se guarda en `places` (upsert por place id de Google) solo cuando algo lo referencia: itinerario, recomendación de residente, aviso o recomendación del agente. La escritura la hace el server con la secret key de Supabase; para los usuarios `places` sigue siendo de solo lectura. Ver decisiones pendientes en la sección 3.1 |
 | Traducción | **`gpt-realtime-translate`**, portado desde el mock. No una sesión del guía en modo intérprete |
 | Visión | Una llamada aparte del server a un modelo de visión barato, no imágenes dentro de la sesión de voz. El resultado entra a la sesión como texto |
+
+### 3.1 Decisiones pendientes (Google Places)
+
+Salen de pasar los lugares del seed a Google. **Decidirlas entre los tres antes del checkpoint 1.**
+
+| # | Tema | Qué pasa | Propuesta | Afecta a |
+|---|---|---|---|---|
+| 1 | **"Para vos" en la home y lugares en el mapa** | No pasan por el agente. Sin catálogo local, o llaman a Google en cada carga (y `router.refresh()` de B-1 lo multiplica) o se sacan | Llamar a Nearby Search desde el server con caché en memoria de unos minutos por zona. Si no llega, la home muestra solo itinerario y lugares guardados | B (B-1, home), C (C-1b) |
+| 2 | **Avisos por "lugares que coinciden con tus gustos"** | El motor de avisos corre en cada ping (cada 5 s), sin el agente. Ese tipo de candidato necesitaría Google en cada ping | Sacarlo. Avisar solo por recomendaciones de residentes y actividades del plan, que tienen coordenadas en la base. Es lo que cuenta la historia de la demo | C (C-6), A (A-6) |
+| 3 | **La sorpresa de la demo** | Antes, la crêperie se escondía con `places.listed = false`. Esa columna ya no existe, y si Lucía pregunta "¿dónde como?" antes de hablar con Camille, Google puede devolver justo la crêperie | Una lista chica de place ids a excluir en los tools de búsqueda, configurable, solo para la demo | A (tools), C (C-1b) |
+| 4 | **Principio 2: contexto en las instrucciones** | El agente ya no arranca sabiendo qué hay cerca: lo pide con `recommend_nearby`. Suma una llamada a Google (cientos de ms) en la primera pregunta | Aceptarlo: los cercanos salen de las instrucciones y quedan solo en el tool. El resto del contexto (perfil, restricciones, itinerario, tips, ubicación) sigue en las instrucciones | A (A-1, A-2) |
 
 ---
 
@@ -86,10 +97,10 @@ alter table public.itinerary_items
   add column locked     boolean not null default false;  -- reserva: el planner no la mueve
 -- place_id ya existe (text, sin FK): apunta a places.id
 
--- places: lugares que existen pero no se ofrecen como "cercanos"
+-- places: solo los lugares que algo referencia; id = place id de Google ("ChIJ...")
 alter table public.places
-  add column listed boolean not null default true;
--- opening_hours, google_place_id y demás datos van en places.data (jsonb)
+  alter column city drop not null;            -- Google no siempre la devuelve
+-- opening_hours, address y demás datos de Google van en places.data (jsonb)
 
 -- conversations: guía o traducción
 alter table public.conversations
@@ -136,7 +147,8 @@ Activar Supabase Realtime en `itinerary_items`, `local_tips`, `notifications` y 
 
 ### Seed
 
-- Agregar a `seed.sql` los lugares que el residente va a recomendar en la demo, con `listed = false` para que el agente no los sugiera antes. Ejemplo: una crêperie del Marais.
+- Borrar los 15 lugares escritos a mano cuando C-1b y el tool de Google de A estén andando (antes no: la home y el agente se quedan sin lugares).
+- Elegir en Google el lugar que el residente recomienda en la demo (ejemplo: una crêperie del Marais) y anotar su place id. No hace falta precargarlo: C-5 lo crea al anclar la recomendación. Para que el agente no lo sugiera antes, ver la decisión pendiente 3.
 - Una ruta de caminata para la demo que pase cerca de ese lugar.
 - Restricciones y ritmo para las 3 cuentas.
 
@@ -144,7 +156,7 @@ Activar Supabase Realtime en `itinerary_items`, `local_tips`, `notifications` y 
 
 ## 5. Contexto del agente
 
-`buildInstructions()` en `src/lib/realtime/instructions.ts` ya arma el contexto con el nombre, los gustos, el estilo, la ubicación, la hora, el próximo compromiso y 8 lugares cercanos. Se extiende con:
+`buildInstructions()` en `src/lib/realtime/instructions.ts` ya arma el contexto con el nombre, los gustos, el estilo, la ubicación, la hora, el próximo compromiso y 8 lugares cercanos. Los 8 lugares salen del seed y dejan de existir con Google Places: el agente los pide con un tool (ver decisión pendiente 4). Se extiende con:
 
 - **Restricciones** marcadas como no negociables (dieta, movilidad, presupuesto).
 - **Perfil compilado** (`profiles.compiled_summary`), con lo aprendido en `profile_facts`.
@@ -158,7 +170,7 @@ Hay que cuidar el presupuesto de tokens: lo que entra en las instrucciones se le
 
 Hoy `getTravelerContext()` usa **el centro del destino como ubicación fija**, y "Centre Pompidou" está escrito a mano en `locationLabel`. Se cambia a:
 - `location` = último registro de `pings` del usuario, con el centro del viaje como respaldo.
-- `locationLabel` = nombre del lugar más cercano del seed ("cerca de Place des Vosges").
+- `locationLabel` = solo el nombre, sin "cerca de" (`/talk` y la home ya le ponen el texto alrededor). Mientras exista el seed, el lugar más cercano a menos de ~300 m ("Place des Vosges"). Sin catálogo local, el barrio vía Google (Geocoding inverso, con caché en memoria para no pagarlo en cada request) y la ciudad como respaldo.
 
 ---
 
@@ -168,8 +180,10 @@ Se agregan a la sesión en `/api/realtime/session` (`tools` y `tool_choice` en l
 
 ```
 recommend_nearby(available_minutes: number|null, interest: string|null)
-                                         → base: recommend.ts recuperado de 58e8870; hasta 3 lugares
-get_place(place_id: string)              → descripción, horarios, minutos a pie
+                                         → Google Nearby Search (C-1b) + reglas de recommend.ts
+                                           recuperado de 58e8870; hasta 3 lugares
+search_places(query: string)             → Google Text Search (C-1b): "una farmacia", "bar con terraza"
+get_place(place_id: string)              → Google Place Details: descripción, horarios, minutos a pie
 edit_itinerary(op: 'add'|'move'|'remove'|'done'|'skip'|'undo',
                item_id: string|null, place_id: string|null, title: string|null,
                starts_at: string|null, ends_at: string|null)
@@ -181,6 +195,7 @@ Reglas:
 - **zod 4: usar `.nullable()` y nunca `.optional()`** en los parámetros. El modo strict exige que todas las propiedades estén en `required`; si no, el tool falla en silencio.
 - **Las restricciones se filtran en el server**, no en el prompt.
 - **Respuestas cortas:** como máximo 3 resultados y pocos campos. Todo lo que devuelve un tool se lee como tokens de entrada.
+- **Los resultados de Google no se guardan.** Se guardan en `places` solo cuando algo los referencia (por ejemplo `edit_itinerary` con un `place_id` de Google): el server hace el upsert antes de escribir la fila que apunta al lugar.
 - **Las notificaciones de `/talk` pasan a salir del tool:** cuando `recommend_nearby` o `get_place` devuelven lugares, la UI los muestra como notificación (más confiable que detectar nombres en la transcripción, que queda como respaldo).
 - `MAX_OUTPUT_TOKENS` sigue en 500: el agente confirma en una frase, no lee el itinerario en voz alta.
 
@@ -214,11 +229,11 @@ Horas relativas desde que arranca este plan. Está pensado para **~16 horas**: s
 | Horas | Dev A — Agente y voz | Dev B — App y UX | Dev C — Datos y backend |
 |---|---|---|---|
 | H0–1 | **F0 (los tres)** | **F0** | **F0** |
-| H1–3 | A-1 Tools en la sesión + `recommend_nearby` | B-1 Mapa + joystick | C-1 Migración + pings + ubicación en el contexto |
-| H3–4 | A-2 Contexto ampliado | B-2 Onboarding / editar perfil | C-2 Server actions de itinerario y perfil |
+| H1–3 | A-1 Tools en la sesión + `recommend_nearby` | B-1 Mapa + joystick | C-1 Migración + ubicación en el contexto |
+| H3–4 | A-2 Contexto ampliado | B-2 Onboarding / editar perfil | C-1b Cliente de Google Places |
 | **H4** | **Checkpoint 1** | | |
-| H4–6 | A-3 `edit_itinerary`, `remember`, `get_place` | B-3 UI de itinerario | C-3 Visión con lugares candidatos |
-| H6–8 | A-4 Foto en la sesión | B-4 Cámara | C-4 Seed de la demo |
+| H4–6 | A-3 `edit_itinerary`, `remember`, `get_place` | B-3 UI de itinerario | C-2 Server actions de itinerario y perfil |
+| H6–8 | A-4 Foto en la sesión | B-4 Cámara | C-3 Visión con lugares candidatos + C-4 Seed de la demo (más chico: sin lugares) |
 | **H8** | **Checkpoint 2 — prioridad alta completa** | | |
 | H8–10 | A-5 Traductor portado del mock | B-5 UI de traducción | C-5 Extracción de recomendaciones |
 | H10–11 | A-6 Avisos en voz | B-6 UI de avisos | C-6 Motor proactivo |
@@ -241,7 +256,8 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 - [ ] **F0-3** Acordar la migración de la sección 4 (C la escribe y la mergea primero).
 - [ ] **F0-4** Acordar las firmas de los tools de la sección 6.
 - [ ] **F0-5** Definir quién hace de residente francés y qué lugar recomienda en la demo.
-- [ ] **F0-6** Completar `.env.example` con `GOOGLE_MAPS_API_KEY` (opcional) y el modelo de visión.
+- [ ] **F0-6** Completar `.env.example` con `GOOGLE_MAPS_API_KEY` (**obligatoria**: los lugares salen de Google), `SUPABASE_SECRET_KEY` (para escribir en `places` desde el server) y el modelo de visión.
+- [ ] **F0-7** Resolver las decisiones pendientes de la sección 3.1.
 
 ### Dev A — Agente y voz
 
@@ -249,6 +265,7 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
   - Agregar `tools` y `tool_choice` al mint en `/api/realtime/session`.
   - En `use-realtime-call.ts`, manejar las llamadas a función: ejecutar la server action, enviar `function_call_output` y `response.create`.
   - Primer tool: `recommend_nearby`, sobre `recommend.ts` recuperado del commit `58e8870` (con sus tests). Sus resultados se muestran como las notificaciones de `/talk`.
+  - Arranca leyendo los lugares del seed; cuando llega C-1b (H4) cambia la fuente a Google Nearby Search sin cambiar la firma del tool.
   - *Terminado:* "tengo una hora, ¿qué hago?" responde con un lugar que entra en el tiempo, y aparece la card.
 - [ ] **A-2** Contexto ampliado (H3–4). Extender `buildInstructions()` con lo de la sección 5. Actualizar `instructions.test.ts`.
 - [ ] **A-3** Tools de itinerario y memoria (H4–6). `edit_itinerary`, `remember`, `get_place`. `session.update` solo cuando la ubicación cambia más de 300 m con la sesión abierta.
@@ -281,16 +298,18 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 
 ### Dev C — Datos y backend
 
-- [ ] **C-1** Migración, pings y ubicación (H1–3). Escribir y mergear la migración de la sección 4 **primero**, porque A y B dependen de ella. Server action para guardar pings. Cambiar `getTravelerContext()` para que use el último ping y calcule `locationLabel` con el lugar más cercano.
-- [ ] **C-2** Server actions de itinerario y perfil (H3–4). Agregar, editar, mover, borrar, cambiar estado y deshacer (con `itinerary_snapshots`). Guardar `profile_facts` y regenerar `compiled_summary`: con una plantilla alcanza, sin llamar a un modelo. Las usan la UI (B-3) y los tools (A-3).
-- [ ] **C-3** Visión con lugares candidatos (H4–6). Ruta que recibe la foto y la ubicación, busca los lugares a menos de 250 m y se los pasa al modelo de visión como opciones: "Estás acá. Cerca hay: A, B, C. ¿Cuál se ve en la foto?". Devuelve lugar, confianza y una descripción corta.
+- [ ] **C-1** Migración y ubicación (H1–3). Escribir y mergear la migración de la sección 4 **primero**, porque A y B dependen de ella. La tabla `pings` es de C; la server action `savePing` es de B (B-1). Cambiar `getTravelerContext()` para que use el último ping y calcule `locationLabel` (sección 5).
+- [ ] **C-1b** Cliente de Google Places (H3–4). Módulo server-only (`src/lib/google/places.ts`) sobre la Places API (New): Nearby Search, Text Search y Place Details, con **field mask mínimo** (los campos pedidos definen el costo). Traduce los `types` de Google a nuestros tags (`cafe` → `café`, `comida`) y pone `typical_visit_minutes` por categoría. `upsertPlace()` con un cliente admin de Supabase (`src/lib/supabase/admin.ts`, secret key) para guardar un lugar cuando algo lo referencia. Lo usan los tools de A, C-2, C-3, C-5 y la home (decisión pendiente 1).
+  - *Terminado:* desde Place des Vosges, `nearby()` devuelve lugares reales con tags nuestros, y `upsertPlace()` dos veces con el mismo id deja una sola fila.
+- [ ] **C-2** Server actions de itinerario y perfil (H4–6). Si la actividad apunta a un lugar de Google, `upsertPlace()` (C-1b) antes de escribirla. Agregar, editar, mover, borrar, cambiar estado y deshacer (con `itinerary_snapshots`). Guardar `profile_facts` y regenerar `compiled_summary`: con una plantilla alcanza, sin llamar a un modelo. Las usan la UI (B-3) y los tools (A-3).
+- [ ] **C-3** Visión con lugares candidatos (H6–8). Ruta que recibe la foto y la ubicación, busca en Google (Nearby Search de C-1b) los lugares a menos de 250 m y se los pasa al modelo de visión como opciones: "Estás acá. Cerca hay: A, B, C. ¿Cuál se ve en la foto?". Devuelve lugar, confianza y una descripción corta.
   - *Terminado:* con el GPS en Place des Vosges, una foto de la plaza la identifica en menos de 5 s.
-- [ ] **C-4** Seed de la demo (H6–8). Lo de la sección 4: lugares con `listed = false`, restricciones de las 3 cuentas, y una ruta que pase cerca del lugar que recomienda el residente.
-- [ ] **C-5** Extracción de recomendaciones (H8–10). Transcript de la traducción → modelo de texto con salida estructurada → filas en `local_tips`. Anclar cada una a `places` con **búsqueda tolerante a errores**, porque los nombres propios llegan deformados ("La Mallorquina" → "La Maloyoschina"). Si no aparece en `places` y hay key de Google, buscar con Text Search y crear el lugar.
+- [ ] **C-4** Seed de la demo (H6–8). Lo de la sección 4: borrar los lugares escritos a mano, restricciones de las 3 cuentas, place id del lugar que recomienda el residente y una ruta que pase cerca de él.
+- [ ] **C-5** Extracción de recomendaciones (H8–10). Transcript de la traducción → modelo de texto con salida estructurada → filas en `local_tips`. Anclar cada una a un lugar con **Text Search de Google (C-1b) sesgado a la ubicación**, que tolera nombres deformados por la traducción ("La Mallorquina" → "La Maloyoschina"), y guardarlo con `upsertPlace()`. Si la confianza es baja, `place_id` queda en null y la card pide confirmar.
   - *Terminado:* la charla de la demo produce la card de la crêperie, anclada al lugar correcto.
-- [ ] **C-6** Motor proactivo (H10–11). Se ejecuta en cada ping. Candidatos: `local_tips` guardados, actividades futuras del itinerario y lugares que coinciden con los gustos. Reglas: menos de 150 m, nunca repetido, una pausa entre avisos configurable (1 min en la demo) y sin chocar con la próxima actividad `locked`. **El texto se arma con una plantilla**, sin modelo: "Estás a 2 min de X, que te recomendó Y". Inserta en `notifications`.
+- [ ] **C-6** Motor proactivo (H10–11). Se ejecuta en cada ping. Candidatos: `local_tips` guardados y actividades futuras del itinerario (lugares que coinciden con los gustos: ver decisión pendiente 2). Reglas: menos de 150 m, nunca repetido, una pausa entre avisos configurable (1 min en la demo) y sin chocar con la próxima actividad `locked`. **El texto se arma con una plantilla**, sin modelo: "Estás a 2 min de X, que te recomendó Y". Inserta en `notifications`.
   - *Terminado:* caminar con el joystick junto a la crêperie dispara el aviso con el nombre de quien la recomendó.
-- [ ] **C-7** Planner (H11–13). Modelo de texto con salida estructurada. Recibe perfil, restricciones, `local_tips`, lugares con minutos de visita y actividades `locked`. **Solo puede usar lugares de `places`.** Los traslados salen de `walkMinutes()`. Guarda un snapshot antes de escribir y marca lo nuevo con `source = 'agent'`.
+- [ ] **C-7** Planner (H11–13). Modelo de texto con salida estructurada. Recibe perfil, restricciones, `local_tips`, lugares con minutos de visita y actividades `locked`. **Solo puede usar lugares que existen en Google** (resultados de C-1b que se le pasan como opciones; los elegidos se guardan con `upsertPlace()`). Los traslados salen de `walkMinutes()`. Guarda un snapshot antes de escribir y marca lo nuevo con `source = 'agent'`.
 
 ### Prioridad baja — Viaje compartido (solo con todo en verde en el checkpoint 3)
 
