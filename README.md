@@ -40,27 +40,28 @@ Otros comandos útiles:
 
 ### Voz
 
-La pantalla usa `VoiceSession` (`src/hooks/voice-session-types.ts`) con dos implementaciones, elegidas con `VOICE_PROVIDER`:
+`/talk` es una **llamada en tiempo real** con OpenAI Realtime (WebRTC, full-duplex): hablás cuando querés,
+el servidor detecta los turnos (VAD) y si lo interrumpís se calla. La UI no muestra transcripción ni chat:
+solo el blob, dónde estás (lugar, hora local, día del viaje, próximo compromiso) y tarjetas de los lugares
+que el agente va nombrando (se detectan en su transcripción de audio, en vivo).
 
-**`openai` — voz real con OpenAI Realtime (por defecto si hay `OPENAI_API_KEY`), en modo ahorro:**
+Modo ahorro:
 
 | Medida | Por qué ahorra |
 |---|---|
 | Modelo `gpt-realtime-2.1-mini` | ~3× más barato que `gpt-realtime-2.1` |
-| Push-to-talk (sin VAD) | Solo se factura el audio entre que tocás y soltás el mic, no el silencio |
-| Sin transcripción de OpenAI | Tu texto lo transcribe gratis el navegador (Web Speech) |
+| VAD del servidor | Solo se factura la voz detectada, no el silencio |
+| Sin transcripción del usuario | Cuesta aparte y la UI no la usa |
 | Respuestas de 1–2 oraciones + `max_output_tokens: 500` | El audio de salida es lo más caro |
 | Contexto en las instrucciones (gustos, 8 lugares, itinerario) | Se cachea entre turnos; sin tools extra |
-| Sesión lazy, cierre a los 45 s inactiva, al salir y a los US$0.30 | Nada queda abierto facturando |
-| Medidor de costo en el header | Estimado desde `response.usage` |
+| Corte a 1 min sin actividad, al salir de la pantalla y a los US$0.30 | Nada queda abierto facturando |
+| Pide el mic antes de abrir la sesión | Sin permiso, no se abre nada en OpenAI |
 
-Medido: **~US$0.002 por turno** de texto con respuesta hablada. Archivos: `src/app/api/realtime/session/route.ts`
-(acuña la key efímera con el contexto del viajero), `src/lib/realtime/*`, `src/hooks/use-realtime-session.ts`.
+Costo estimado en vivo en el header. Archivos: `src/app/api/realtime/session/route.ts` (key efímera con el
+contexto del viajero), `src/lib/realtime/*`, `src/hooks/use-realtime-call.ts`, `src/app/talk/talk-client.tsx`.
 
-**`browser` — simulada, gratis:** mic + dictado + `speechSynthesis` del navegador y el motor de reglas
-`src/lib/agent/recommend.ts`. Útil para desarrollar la UI sin gastar.
-
-> El micrófono no funciona dentro del browser integrado de Claude; probalo en Chrome.
+> El micrófono no funciona dentro del browser integrado de Claude; probalo en Chrome y con auriculares
+> (si no, el agente se puede escuchar a sí mismo).
 > El mock de comparación OpenAI vs ElevenLabs está en `docs/realtime-mock/` (`npm run mock`).
 
 ## Base de datos

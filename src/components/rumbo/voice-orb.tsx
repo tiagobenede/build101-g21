@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from "react"
 
-import type { VoiceState } from "@/hooks/voice-session-types"
+import type { CallState } from "@/hooks/voice-session-types"
 import { cn } from "@/lib/utils"
 
 const POINTS = 96
@@ -10,11 +10,11 @@ const BLUE = "#0071E3"
 const HALO = "rgba(0, 113, 227, 0.12)"
 
 /** Cuánto se deforma el borde en cada estado (además del volumen). */
-const BASE_WOBBLE: Record<VoiceState, number> = { idle: 0.015, listening: 0.03, thinking: 0.04, talking: 0.03 }
+const BASE_WOBBLE: Record<CallState, number> = { off: 0.012, connecting: 0.04, listening: 0.03, thinking: 0.04, talking: 0.03 }
 const VOLUME_GAIN = 0.16
 
 interface VoiceOrbProps {
-  state: VoiceState
+  state: CallState
   inputVolumeRef: RefObject<number>
   outputVolumeRef: RefObject<number>
   className?: string
@@ -55,8 +55,8 @@ export function VoiceOrb({ state, inputVolumeRef, outputVolumeRef, className }: 
       const center = (size * dpr) / 2
       const radius = center * 0.62
       const wobble = BASE_WOBBLE[s] + level * VOLUME_GAIN
-      const breathe = s === "idle" ? Math.sin(t / 900) * 0.015 : 0
-      const time = t / (s === "thinking" ? 350 : 600)
+      const breathe = s === "off" || s === "listening" ? Math.sin(t / 900) * 0.015 : 0
+      const time = t / (s === "thinking" || s === "connecting" ? 350 : 600)
 
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       drawBlob(ctx, center, radius * (1.12 + level * 0.25 + breathe), wobble * 1.6, time * 0.8, HALO)

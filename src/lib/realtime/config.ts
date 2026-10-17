@@ -14,8 +14,21 @@ export const EPHEMERAL_KEY_TTL_SECONDS = 60
 /** Cantidad de lugares cercanos que van en las instrucciones (más = más tokens por turno). */
 export const MAX_PLACES_IN_CONTEXT = 8
 
+/**
+ * Detección de turnos del servidor: el modelo responde cuando dejás de hablar y
+ * se corta solo si lo interrumpís. Solo se factura el audio que el VAD detecta como voz.
+ */
+export const TURN_DETECTION = {
+  type: "server_vad",
+  threshold: 0.6,
+  prefix_padding_ms: 300,
+  silence_duration_ms: 500,
+  create_response: true,
+  interrupt_response: true,
+} as const
+
 /** Límites del lado del cliente. */
-export const SESSION_IDLE_MS = 45_000
+export const SESSION_IDLE_MS = 60_000
 export const SESSION_BUDGET_USD = 0.3
 
 /**

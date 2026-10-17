@@ -6,6 +6,7 @@ import {
   MAX_OUTPUT_TOKENS,
   REALTIME_MODEL,
   REALTIME_VOICE,
+  TURN_DETECTION,
 } from "@/lib/realtime/config"
 import { buildInstructions } from "@/lib/realtime/instructions"
 import { allowSessionMint } from "@/lib/realtime/rate-limit"
@@ -50,8 +51,8 @@ export async function POST() {
         output_modalities: ["audio"],
         max_output_tokens: MAX_OUTPUT_TOKENS,
         audio: {
-          // Push-to-talk: sin detección de turnos ni transcripción (ambas cuestan).
-          input: { turn_detection: null, transcription: null },
+          // Conversación full-duplex con VAD; sin transcripción del usuario (cuesta y la UI no la muestra).
+          input: { turn_detection: TURN_DETECTION, noise_reduction: { type: "near_field" }, transcription: null },
           output: { voice: REALTIME_VOICE },
         },
       },

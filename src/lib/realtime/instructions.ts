@@ -33,7 +33,7 @@ Hora local: ${formatTime(now, timeZone)}. Ubicación: ${ctx.locationLabel}.
 Gustos (en orden de importancia): ${ctx.interests.join(", ")}.${ctx.travelStyle ? ` Estilo: ${ctx.travelStyle}.` : ""}
 ${commitment}
 
-Lugares cerca (recomendá solo de esta lista):
+Lugares cerca (recomendá solo de esta lista y nombralos con el nombre exacto, así la app muestra la tarjeta):
 ${places}
 
 Cuando diga cuánto tiempo tiene, recomendá un lugar que entre en ese tiempo (ida a pie + visita) y que vaya con sus gustos; decí cuántos minutos camina y cuánto puede quedarse. Si tiene un compromiso, que llegue con margen.`

@@ -6,8 +6,6 @@ export type RealtimeEvent = { type: string; [key: string]: unknown }
 
 export interface RealtimeConnection {
   conversationId: string
-  /** false si el usuario no dio permiso de micrófono (solo texto). */
-  hasMic: boolean
   send: (event: RealtimeEvent) => void
   setMicOpen: (open: boolean) => void
   setMuted: (muted: boolean) => void
@@ -33,15 +31,18 @@ async function mintSession(): Promise<{ key: string; conversationId: string }> {
 }
 
 /**
- * Abre WebRTC directo a OpenAI Realtime. El mic arranca cerrado (push-to-talk):
- * solo se envía audio mientras el usuario mantiene la sesión de habla abierta.
+ * Abre WebRTC directo a OpenAI Realtime con el mic del usuario. El track arranca
+ * apagado; la llamada lo prende al conectar (y lo apaga al silenciarse).
  */
 export async function connectRealtime({ onEvent, onDisconnect }: ConnectOptions): Promise<RealtimeConnection> {
+  // Primero el mic: si no hay permiso, cortamos antes de abrir (y pagar) una sesión.
   const mic = await navigator.mediaDevices
     .getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
-    .catch(() => null)
-  const track = mic?.getAudioTracks()[0] ?? null
-  if (track) track.enabled = false
+    .catch(() => {
+      throw new Error("Necesito permiso de micrófono para hablar con vos.")
+    })
+  const track = mic.getAudioTracks()[0]
+  track.enabled = false
 
   let inputMeter: VolumeMeter | null = null
   let outputMeter: VolumeMeter | null = null
@@ -52,7 +53,7 @@ export async function connectRealtime({ onEvent, onDisconnect }: ConnectOptions)
   const cleanup = () => {
     inputMeter?.stop()
     outputMeter?.stop()
-    mic?.getTracks().forEach((t) => t.stop())
+    mic.getTracks().forEach((t) => t.stop())
     audio.srcObject = null
     pc.close()
   }
@@ -67,12 +68,8 @@ export async function connectRealtime({ onEvent, onDisconnect }: ConnectOptions)
     pc.onconnectionstatechange = () => {
       if (["failed", "disconnected", "closed"].includes(pc.connectionState)) onDisconnect()
     }
-    if (mic && track) {
-      pc.addTrack(track, mic)
-      inputMeter = createVolumeMeter(mic)
-    } else {
-      pc.addTransceiver("audio", { direction: "recvonly" })
-    }
+    pc.addTrack(track, mic)
+    inputMeter = createVolumeMeter(mic)
 
     const dc = pc.createDataChannel("oai-events")
     dc.onmessage = (e) => {
@@ -97,17 +94,16 @@ export async function connectRealtime({ onEvent, onDisconnect }: ConnectOptions)
 
     return {
       conversationId,
-      hasMic: Boolean(track),
       send: (event) => {
         if (dc.readyState === "open") dc.send(JSON.stringify(event))
       },
       setMicOpen: (open) => {
-        if (track) track.enabled = open
+        track.enabled = open
       },
       setMuted: (muted) => {
         audio.muted = muted
       },
-      inputVolume: () => (track?.enabled ? (inputMeter?.read() ?? 0) : 0),
+      inputVolume: () => (track.enabled ? (inputMeter?.read() ?? 0) : 0),
       outputVolume: () => outputMeter?.read() ?? 0,
       close: () => {
         dc.onmessage = null

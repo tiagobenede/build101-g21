@@ -1,34 +1,32 @@
 import type { RefObject } from "react"
 
-export type VoiceState = "idle" | "listening" | "thinking" | "talking"
+export type CallState = "off" | "connecting" | "listening" | "thinking" | "talking"
 
-export type RecommendationCard = {
+export type PlaceCard = {
   id: string
   name: string
   category: string
+  description: string | null
   walkMinutes: number
   stayMinutes: number
 }
 
-export type Turn =
-  | { id: string; role: "user"; text: string }
-  | { id: string; role: "agent"; text: string; recommendations: RecommendationCard[] }
+/** Lugar que el agente nombró durante la llamada. */
+export type MentionedPlace = PlaceCard & { mentionedAt: number }
 
-/** Contrato común de la sesión de voz (simulada o real) que consume la UI. */
-export interface VoiceSession {
-  state: VoiceState
-  turns: Turn[]
-  /** Caracteres revelados del último turno del agente (karaoke). */
-  revealed: number
-  interim: string
-  muted: boolean
-  setMuted: (muted: boolean) => void
+/** Llamada de voz en tiempo real que consume la UI. */
+export interface VoiceCall {
+  state: CallState
+  /** Lugares que el agente fue nombrando, el más reciente primero. */
+  places: MentionedPlace[]
+  micMuted: boolean
+  setMicMuted: (muted: boolean) => void
+  speakerMuted: boolean
+  setSpeakerMuted: (muted: boolean) => void
   inputVolumeRef: RefObject<number>
   outputVolumeRef: RefObject<number>
-  /** Costo estimado en USD de la sesión (null si es gratis). */
-  costUsd: number | null
-  listen: () => Promise<void>
-  stopListening: () => void
-  interrupt: () => void
-  send: (text: string) => Promise<void>
+  /** Costo estimado en USD de la llamada. */
+  costUsd: number
+  start: () => Promise<void>
+  end: () => void
 }
