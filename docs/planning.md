@@ -216,7 +216,7 @@ Reglas:
 | 2 | Onboarding y edición de gustos y restricciones | Alta | B (UI), C (datos) |
 | 3 | Itinerario manual | Alta | C (server actions), B (UI) |
 | 4 | ¿Qué hago? — voz con tools | Alta | A |
-| 5 | ¿Qué estoy viendo? — foto | Alta | B (cámara), C (visión), A (sesión) |
+| 5 | ¿Qué estoy viendo? — foto | Alta | A (cámara y sesión), C (visión) |
 | 6 | Traducción con residentes | Media | A (sesiones), B (UI), C (extracción) |
 | 7 | Avisos proactivos por cercanía | Media | C (motor), B (UI), A (voz) |
 | 8 | Itinerario creado por el agente | Media | C (planner), A (tool) |
@@ -241,7 +241,7 @@ Horas relativas desde que arranca este plan. Está pensado para **~16 horas**: s
 | H3–4 | A-1b Tareas en segundo plano + A-2 Contexto ampliado | B-2 Onboarding / editar perfil | C-2 Server actions de itinerario y perfil |
 | **H4** | **Checkpoint 1** | | |
 | H4–6 | A-3 `edit_itinerary`, `remember`, `get_place` + `session.update` | B-3 UI de itinerario | C-3 Visión con lugares candidatos |
-| H6–8 | A-4 Foto en la sesión | B-4 Cámara | C-4 Seed de la demo |
+| H6–8 | A-4 Foto en la sesión + B-4 Cámara | — (B-4 pasó a A) | C-4 Seed de la demo |
 | **H8** | **Checkpoint 2 — prioridad alta completa** | | |
 | H8–10 | A-5 Traductor portado del mock | B-5 UI de traducción | C-5 Extracción de recomendaciones |
 | H10–11 | A-6 Avisos en voz | B-6 UI de avisos | C-6 Motor proactivo |
@@ -277,6 +277,7 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 - [x] **A-3d** `web_search` sobre Serper (`SERPER_API_KEY`): menús, si tienen algo puntual, precios, eventos. Si la pregunta es sobre lo que tiene un lugar, **lee su web oficial** (`websiteUri` de Google Places, en paralelo con la búsqueda; si no, la oficial entre los resultados; nunca directorios) y sigue el link a "menu/carte". Probado con voz: Bouillon République → platos de su web en ~4 s. No sirve con menús en PDF o imagen, ni con webs que se arman con JavaScript.
 - [ ] **A-3c** `add_to_calendar` (cuando C-8 esté). "Agendame la clase de cocina" o "pasá el plan de hoy a mi calendario".
 - [ ] **A-4** Foto en la sesión (H6–8). Cuando la cámara devuelve un resultado, inyectarlo como texto en la sesión (`conversation.item.create`) para poder repreguntar. De C-3 llega `name` y, si respondió Jev, `place` con su descripción; si respondió el LLM, solo el nombre: el agente lo explica con búsqueda web y, para sumarlo al plan, lo busca con `search_places`.
+- [ ] **B-4** Cámara (H6–8) — **reasignada de Dev B a Dev A** (va junto con A-4). Botón fijo: webcam o foto subida desde archivo. Card con el resultado de C-3 y "Agregar al plan".
   - *Terminado:* después de la foto, "¿cuánto tarda la visita?" responde sobre ese lugar.
 - [x] **A-5** Traductor (H8–10). Probado con audio generado (francés → español y español → francés, ~US$0,03). Hecho:
   - **Hook** `useTranslator` (`src/hooks/use-translator.ts`). Hay una sola sesión abierta por vez y solo mientras alguien habla: apretar "hablo yo" o "habla" abre esa dirección; soltar o cambiar de quien habla deja terminar la traducción, manda `session.close` y corta. Si nadie habla durante un minuto, se corta solo. Al cerrar la pestaña no queda nada abierto.
@@ -301,7 +302,6 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 - [ ] **B-2** Onboarding y edición de perfil (H3–4). Las cuentas demo ya tienen perfil, así que esto es sobre todo **"Editar mis gustos"**: chips para `interests` y selectores para dieta, movilidad, presupuesto, ritmo y horario. El mismo formulario sirve de onboarding para una cuenta nueva.
   - *Terminado:* cambio una restricción y la siguiente respuesta del agente la respeta.
 - [ ] **B-3** UI de itinerario (H4–6). Arranca sumando el **cliente de Supabase para el navegador** (`src/lib/supabase/client.ts`), que también usa B-6 para Realtime. Sobre la sección que ya existe en la home: agregar (eligiendo de `places` o con texto libre), editar horario, marcar hecho o saltado, borrar. Mostrar el origen de cada actividad ("recomendado por Camille"). Suscripción Realtime a `itinerary_items`, para que lo que agrega el agente aparezca solo.
-- [ ] **B-4** Cámara (H6–8). Botón fijo: webcam o foto subida desde archivo. Card con el resultado de C-3 y "Agregar al plan".
 - [ ] **B-5** UI de traducción (H8–10). **Pantalla propia `/translate`**, separada de `/talk`: acá sí hay burbujas, porque mostrarle el texto al residente es la función. Burbujas bilingües en vivo, botón para mostrarle el texto grande al residente y, al terminar, cards de recomendaciones con la cita original y la traducción (guardar, al plan, descartar).
 - [ ] **B-6** UI de avisos (H10–11). La notificación de `/talk` para los lugares que recomienda el agente ya existe; falta la de **cercanía**: aviso con el mismo estilo que `PlaceNotification` (no un toast genérico) y sonido cuando entra una fila en `notifications`, también fuera de `/talk`. Tocar el aviso abre `/talk`.
 - [ ] **B-8** Botón "Conectar Google Calendar" en el perfil (aparte del login demo) e ícono de calendario en las actividades que vienen de ahí.
