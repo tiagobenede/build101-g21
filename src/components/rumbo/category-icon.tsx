@@ -32,6 +32,10 @@ const CATEGORIES: Record<string, { icon: LucideIcon; color: string }> = {
 
 const FALLBACK = { icon: MapPinIcon, color: "#8E8E93" }
 
+export function categoryColor(category: string): string {
+  return (CATEGORIES[category] ?? FALLBACK).color
+}
+
 export function CategoryIcon({ category, className }: { category: string; className?: string }) {
   const { icon: Icon, color } = CATEGORIES[category] ?? FALLBACK
   return (

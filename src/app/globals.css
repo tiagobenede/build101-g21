@@ -138,3 +138,8 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/* Mapa: tiles de OSM más suaves, para que destaquen los pines. */
+.rumbo-tiles {
+  filter: saturate(0.55) brightness(1.04);
+}

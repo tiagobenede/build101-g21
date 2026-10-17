@@ -27,6 +27,8 @@ export type ItineraryItem = {
   notes: string | null
   starts_at: string
   ends_at: string | null
+  lat: number | null
+  lng: number | null
 }
 
 export type NearbyPlace = Place & { distanceMeters: number; walkMinutes: number }
@@ -85,7 +87,7 @@ export async function getTravelerContext(): Promise<TravelerContext> {
     trip
       ? supabase
           .from("itinerary_items")
-          .select("id, title, notes, starts_at, ends_at")
+          .select("id, title, notes, starts_at, ends_at, lat, lng")
           .eq("trip_id", trip.id)
           .order("starts_at")
       : Promise.resolve({ data: [], error: null }),
