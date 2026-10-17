@@ -19,6 +19,8 @@ export function AgentLauncher() {
   const router = useRouter()
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [from, setFrom] = useState<DOMRect | null>(null)
+  /** Con el mouse encima el blob se despierta: se mueve más rápido, como si fuera a hablar. */
+  const [hovered, setHovered] = useState(false)
 
   useEffect(() => {
     router.prefetch("/talk")
@@ -37,12 +39,27 @@ export function AgentLauncher() {
         type="button"
         aria-label="Hablar con Polo"
         onClick={() => setFrom(buttonRef.current?.getBoundingClientRect() ?? null)}
+        onPointerEnter={(e) => e.pointerType === "mouse" && setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
         className={cn(
-          "relative -mt-6 flex size-16 items-center justify-center rounded-full transition-transform active:scale-90",
+          "group relative -mt-6 flex size-16 items-center justify-center rounded-full transition-transform active:scale-90",
           from && "opacity-0",
         )}
       >
-        <VoiceSphere state="off" inputVolumeRef={NO_VOLUME} outputVolumeRef={NO_VOLUME} className="size-14" />
+        {/* Brillo detrás que aparece con el hover. */}
+        <span
+          aria-hidden
+          className="absolute inset-0 scale-75 rounded-full bg-[conic-gradient(from_200deg,#2F6BFF,#7B5CFF,#FF7AC8,#12B8FF,#2F6BFF)] opacity-0 blur-xl transition-[opacity,transform] duration-500 ease-out group-hover:scale-110 group-hover:opacity-50"
+        />
+        {/* Sube y crece con un rebote suave. */}
+        <span className="relative block transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:-translate-y-1 group-hover:scale-110">
+          <VoiceSphere
+            state={hovered ? "talking" : "off"}
+            inputVolumeRef={NO_VOLUME}
+            outputVolumeRef={NO_VOLUME}
+            className="size-14"
+          />
+        </span>
       </button>
       {from && <BlobFlight from={from} onArrive={() => router.push("/talk")} />}
     </>
