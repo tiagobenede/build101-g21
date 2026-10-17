@@ -19,6 +19,8 @@ interface VoiceStageProps {
   glow: boolean
   /** Texto chico debajo del blob ("Tocá para empezar a hablar"). Se oculta con el glow. */
   status: string
+  /** Tocar el blob empieza la llamada (solo con la llamada cortada y sin glow). */
+  onStart?: () => void
   className?: string
 }
 
@@ -27,7 +29,7 @@ interface VoiceStageProps {
  * primera, se estira, sube y se abre hasta salir por arriba: queda un halo difuso con sus
  * colores (sigue reaccionando a la voz). Si la pantalla se vacía, vuelve al centro.
  */
-export function VoiceStage({ state, inputVolumeRef, outputVolumeRef, glow, status, className }: VoiceStageProps) {
+export function VoiceStage({ state, inputVolumeRef, outputVolumeRef, glow, status, onStart, className }: VoiceStageProps) {
   const blobRef = useRef<HTMLDivElement>(null)
   const statusRef = useRef<HTMLParagraphElement>(null)
   const first = useRef(true)
@@ -65,10 +67,23 @@ export function VoiceStage({ state, inputVolumeRef, outputVolumeRef, glow, statu
     }
   }, [glow])
 
+  const tappable = Boolean(onStart) && state === "off" && !glow
+
   return (
     <div className={cn("pointer-events-none flex flex-col items-center gap-3", className)}>
       <div ref={blobRef} className="will-change-transform">
-        <VoiceSphere state={state} inputVolumeRef={inputVolumeRef} outputVolumeRef={outputVolumeRef} className="size-56" />
+        <button
+          type="button"
+          onClick={onStart}
+          disabled={!tappable}
+          aria-label="Empezar a hablar con Rumbo"
+          className={cn(
+            "block rounded-full transition-transform duration-200 focus-visible:ring-4 focus-visible:ring-[#0071E3]/30 focus-visible:outline-none",
+            tappable && "pointer-events-auto cursor-pointer hover:scale-[1.03] active:scale-95"
+          )}
+        >
+          <VoiceSphere state={state} inputVolumeRef={inputVolumeRef} outputVolumeRef={outputVolumeRef} className="size-56" />
+        </button>
       </div>
       <p ref={statusRef} className="text-muted-foreground h-5 text-[15px]">
         {status}

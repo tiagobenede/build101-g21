@@ -301,6 +301,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
             outputVolumeRef={call.outputVolumeRef}
             glow={hasPlaces}
             status={STATUS_LABEL[call.state]}
+            onStart={() => void call.start()}
             className="absolute inset-x-0 top-[30%] z-0"
           />
 
