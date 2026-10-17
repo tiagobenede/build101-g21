@@ -4,7 +4,15 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { placeFacts } from "@/lib/agent/facts"
 import { interestQuery, tagWithInterest } from "@/lib/agent/interest-fallback"
-import { INTEREST_TAGS, NEAR_ONLY_TAGS, rankPlaces, resolveAvailableMinutes, type RankablePlace } from "@/lib/agent/rank"
+import {
+  INTEREST_TAGS,
+  MAX_RECOMMENDATIONS,
+  NEAR_ONLY_TAGS,
+  rankPlaces,
+  resolveAvailableMinutes,
+  type RankablePlace,
+  type Ranked,
+} from "@/lib/agent/rank"
 import {
   addItineraryItem,
   removeItineraryItem,
@@ -26,6 +34,7 @@ import { walkMinutes, type LatLng } from "@/lib/geo"
 import { walkingRoute } from "@/lib/maps/walking-route"
 import { getOpeningInfo } from "@/lib/places/details"
 import { findPlaceByName } from "@/lib/places/lookup"
+import { openLongEnough } from "@/lib/places/opening"
 import { searchPlaces } from "@/lib/places/search"
 import { formatTodayPlan, itemRef } from "@/lib/realtime/instructions"
 import { fillMissingNulls, isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
@@ -40,6 +49,30 @@ const fail = (error: string): ToolResult => ({ output: JSON.stringify({ error })
 
 /** Lugares cercanos que entran al ranking de recommend_nearby. */
 const MAX_RANK_CANDIDATES = 150
+/** Se rankean de más para poder descartar los cerrados sin quedarse cortos. */
+const OPENING_CANDIDATES = MAX_RECOMMENDATIONS * 2
+/** Lo mismo que en /api/genui: si Google tarda, el lugar pasa sin horario. */
+const OPENING_TIMEOUT_MS = 1_500
+
+type PlaceData = { types?: string[]; google_place_id?: string } | null
+
+/** Descarta los cerrados o que cierran antes de que termine la visita (horarios de Google, en paralelo). */
+async function keepOpen(ranked: Ranked[], googleIds: Map<string, string>, timeZone: string): Promise<Ranked[]> {
+  const now = new Date()
+  const localTime = zonedTimeValue(now.toISOString(), timeZone)
+  const keep = await Promise.all(
+    ranked.map(async (r) => {
+      const googleId = googleIds.get(r.place.id)
+      if (!googleId) return true
+      const info = await Promise.race([
+        getOpeningInfo(googleId, now, timeZone),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), OPENING_TIMEOUT_MS)),
+      ])
+      return openLongEnough(info, localTime, r.walkMinutes, r.stayMinutes)
+    })
+  )
+  return ranked.filter((_, i) => keep[i]).slice(0, MAX_RECOMMENDATIONS)
+}
 
 async function recommendNearby(
   args: ToolArgs<"recommend_nearby">,
@@ -70,10 +103,17 @@ async function recommendNearby(
   const candidates = ctx.nearby.slice(0, MAX_RANK_CANDIDATES)
   // Los tipos de Google (en `places.data`) sirven para respetar la dieta.
   const { data: typed } = await supabase.from("places").select("id, data").in("id", candidates.map((p) => p.id))
-  const typesById = new Map((typed ?? []).map((p) => [p.id as string, (p.data as { types?: string[] } | null)?.types ?? []]))
+  const typesById = new Map((typed ?? []).map((p) => [p.id as string, (p.data as PlaceData)?.types ?? []]))
+  // Para pedir el horario a Google; los lugares semilla no tienen y pasan igual.
+  const googleIds = new Map<string, string>()
+  for (const p of typed ?? []) {
+    const googleId = (p.data as PlaceData)?.google_place_id
+    if (googleId) googleIds.set(p.id as string, googleId)
+  }
 
-  const rank = (places: RankablePlace[]) =>
-    rankPlaces({
+  let closedDropped = false
+  const rank = async (places: RankablePlace[]) => {
+    const all = rankPlaces({
       places,
       interests: ctx.interests,
       requestedTag: args.interest,
@@ -82,8 +122,13 @@ async function recommendNearby(
       alreadyRecommended: previous.map((r) => r.place_id as string),
       // En un viaje compartido se respeta la dieta de todos.
       dietary: [...new Set([...ctx.constraints.dietary, ...ctx.companions.flatMap((c) => c.dietary)])],
+      limit: OPENING_CANDIDATES,
     })
-  let ranked = rank(candidates.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
+    const open = await keepOpen(all, googleIds, ctx.timeZone)
+    if (open.length === 0 && all.length > 0) closedDropped = true
+    return open
+  }
+  let ranked = await rank(candidates.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
   // Nada guardado para lo que pidió (p. ej. "compras" sin shoppings en caché): se busca en Google.
   if (ranked.length === 0 && args.interest) {
     const found = await searchPlaces(interestQuery(args.interest), null, ctx.location, ctx.city ?? "", { maxWalkMinutes }).catch(
@@ -92,8 +137,12 @@ async function recommendNearby(
         return []
       }
     )
-    ranked = rank(
-      tagWithInterest(found, args.interest).map((p) => ({ ...p, googleTypes: (p.data as { types?: string[] }).types }))
+    for (const p of found) {
+      const googleId = (p.data as PlaceData)?.google_place_id
+      if (googleId) googleIds.set(p.id, googleId)
+    }
+    ranked = await rank(
+      tagWithInterest(found, args.interest).map((p) => ({ ...p, googleTypes: (p.data as PlaceData)?.types }))
     )
   }
 
@@ -114,7 +163,13 @@ async function recommendNearby(
       available_minutes: availableMinutes,
       max_walk_min: maxWalkMinutes,
       next_commitment: commitment?.title ?? null,
-      ...(ranked.length === 0 ? { note: `Nada a menos de ${maxWalkMinutes} min a pie. Decíselo y preguntá si quiere caminar más.` } : {}),
+      ...(ranked.length === 0
+        ? {
+            note: closedDropped
+              ? "Lo que hay cerca está cerrado o cierra antes de que llegue a disfrutarlo. Decíselo y ofrecé otra cosa."
+              : `Nada a menos de ${maxWalkMinutes} min a pie. Decíselo y preguntá si quiere caminar más.`,
+          }
+        : {}),
       places: ranked.map((r) => ({
         name: r.place.name,
         category: r.place.category,

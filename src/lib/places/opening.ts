@@ -26,3 +26,20 @@ export function closingInfo(hoursToday: string | null, localTime: string): Closi
   }
   return null
 }
+
+/**
+ * ¿Conviene recomendarlo ahora? No si está cerrado, ni si cierra antes de que el viajero
+ * llegue caminando y termine la visita. Sin datos de horario (lugares semilla, Google sin
+ * horario o que no respondió) se lo deja pasar.
+ */
+export function openLongEnough(
+  info: { openNow: boolean | null; hoursToday: string | null } | null,
+  localTime: string,
+  walkMinutes: number,
+  stayMinutes: number
+): boolean {
+  if (!info) return true
+  if (info.openNow === false) return false
+  const closing = closingInfo(info.hoursToday, localTime)
+  return !closing || walkMinutes + stayMinutes <= closing.closesInMinutes
+}
