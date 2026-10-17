@@ -1,11 +1,13 @@
 import type { ReactNode } from "react"
 
-import { CategoryIcon } from "@/components/rumbo/category-icon"
+import { placePhotoUrl, PlaceThumb } from "@/components/rumbo/place-thumb"
 import type { MentionedPlace } from "@/hooks/voice-session-types"
 import { cn } from "@/lib/utils"
 
 interface NotificationCardProps {
   category: string
+  /** Foto del local: va en lugar del ícono, con el ícono chico encima. null = solo el ícono. */
+  photoUrl?: string | null
   title: string
   /** A la derecha del título ("ahora", "hace 3 min", un estado). */
   trailing?: ReactNode
@@ -21,7 +23,7 @@ interface NotificationCardProps {
  * tres líneas. La usan los lugares que nombra el agente en la llamada y las
  * recomendaciones de personas locales en el traductor, así tienen el mismo tamaño.
  */
-export function NotificationCard({ category, title, trailing, children, actions, className }: NotificationCardProps) {
+export function NotificationCard({ category, photoUrl = null, title, trailing, children, actions, className }: NotificationCardProps) {
   return (
     <article
       className={cn(
@@ -30,7 +32,7 @@ export function NotificationCard({ category, title, trailing, children, actions,
       )}
     >
       <div className="flex gap-3">
-        <CategoryIcon category={category} className="size-10 shrink-0 rounded-[11px]" />
+        <PlaceThumb category={category} photoUrl={photoUrl} className="size-10 rounded-[11px]" />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
             <h3 className="truncate text-[15px] font-semibold">{title}</h3>
@@ -59,6 +61,7 @@ export function PlaceNotification({ place, now }: PlaceNotificationProps) {
   return (
     <NotificationCard
       category={place.category}
+      photoUrl={placePhotoUrl(place.id)}
       title={place.name}
       trailing={<span suppressHydrationWarning>{ago(now, place.mentionedAt)}</span>}
     >

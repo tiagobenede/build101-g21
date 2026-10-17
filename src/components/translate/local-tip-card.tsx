@@ -6,6 +6,7 @@ import { toast } from "sonner"
 
 import { addTipToItinerary, dismissTip, saveTip } from "@/app/tips/actions"
 import { NotificationCard } from "@/components/rumbo/place-notification"
+import { placePhotoUrl } from "@/components/rumbo/place-thumb"
 import { Button } from "@/components/ui/button"
 import { zonedTimeValue } from "@/lib/time/zoned"
 import { planSlots, splitRecommender, type LocalTipView } from "@/lib/tips/view"
@@ -69,6 +70,7 @@ export function LocalTipCard({ tip, timeZone, onChange, onGo, className }: Local
     <NotificationCard
       className={className}
       category={tip.category ?? "Lugar"}
+      photoUrl={tip.placeId ? placePhotoUrl(tip.placeId) : null}
       title={tip.placeName}
       trailing={
         !tip.placeId ? null : scheduled ? (
