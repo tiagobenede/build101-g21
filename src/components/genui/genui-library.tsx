@@ -9,6 +9,7 @@ import { createContext, useContext, type ReactNode } from "react"
 
 import { CategoryIcon, categoryColor } from "@/components/rumbo/category-icon"
 import { Button } from "@/components/ui/button"
+import { useWalkingRoute } from "@/hooks/use-walking-route"
 import { buildGenUiLibrary, type GenUiComponentName, type genUiSchemas } from "@/lib/genui/library"
 import type { GenUiData, GenUiPlace } from "@/lib/genui/types"
 import { formatDistance, distanceMeters } from "@/lib/geo"
@@ -145,22 +146,32 @@ const PlaceList: ComponentRenderer<Props<"PlaceList">> = ({ props }) => {
 
 const RouteMap: ComponentRenderer<Props<"RouteMap">> = ({ props }) => {
   const place = usePlace(props.placeId)
-  const { data } = useEnv()
   if (!place) return null
+  return <RouteMapCard place={place} />
+}
+
+function RouteMapCard({ place }: { place: GenUiPlace }) {
+  const { data } = useEnv()
+  const walk = useWalkingRoute(data.origin, place)
+  const route = walk.status === "ready" ? walk.route : null
+  const minutes = route?.minutes ?? place.walkMinutes
+  const meters = route?.meters ?? distanceMeters(data.origin, place)
   return (
     <article className="bg-card overflow-hidden rounded-[22px]">
       <div className="relative h-44">
-        <RouteMapView from={data.origin} to={place} category={place.category} />
+        <RouteMapView from={data.origin} to={place} category={place.category} path={route?.path ?? null} />
         <div className="bg-card/95 absolute top-2.5 right-2.5 z-[1000] rounded-xl px-3 py-1.5 shadow-md backdrop-blur-md">
-          <span className="block text-[17px] leading-tight font-semibold tabular-nums">{place.walkMinutes} min</span>
-          <span className="text-muted-foreground text-[11px]">{formatDistance(distanceMeters(data.origin, place))} a pie</span>
+          <span className="block text-[17px] leading-tight font-semibold tabular-nums">{minutes} min</span>
+          <span className="text-muted-foreground text-[11px]">{formatDistance(meters)} a pie</span>
         </div>
       </div>
       <div className="flex items-center gap-3 p-3">
         <CategoryIcon category={place.category} className="size-8" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-medium">{place.name}</span>
-          <span className="text-muted-foreground text-[13px]">Caminando, en línea recta en el mapa</span>
+          <span className="text-muted-foreground text-[13px]">
+            {walk.status === "failed" ? "Caminando, en línea recta en el mapa" : "Caminando"}
+          </span>
         </span>
       </div>
     </article>

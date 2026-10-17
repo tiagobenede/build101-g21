@@ -34,6 +34,7 @@ const SYSTEM_PROMPT = buildGenUiLibrary(
     "Pantallas cortas: 2 a 4 bloques. Empezá con Say.",
     "Usá solo ids que aparecen en places. Si el pedido nombra un lugar, buscalo por nombre en places.",
     "places son los lugares que el agente de voz está nombrando, en su orden: mostrá esos y ninguno más. El primero es el principal (PlaceHero, o destino de RouteMap si pide cómo llegar); los demás van en PlaceList, o en Compare si pide comparar.",
+    "Si el pedido es 'Llevame a…' o cómo llegar: Say corto sin minutos ni metros (el mapa muestra los de la ruta real) y RouteMap del primero, nada más.",
     "Say y PlaceHero hablan del MISMO lugar. El reason de PlaceHero explica por qué ESE lugar, sin nombrar otros.",
     "Cada sentencia en UNA sola línea: nunca partas un array en varias líneas.",
     "Timeline: todas las paradas son después de local_time, en orden, y respetan las actividades de itinerary_today (usá su título exacto, con placeId null).",

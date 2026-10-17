@@ -326,6 +326,21 @@ export function useRealtimeCall(
     if (distanceMeters(at, location) >= CONTEXT_REFRESH_DISTANCE_M) scheduleRefresh()
   }, [location, scheduleRefresh])
 
+  // Solo en desarrollo: hablarle al agente por texto, sin micrófono (window.rumboSay("llevame")).
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return
+    const w = window as unknown as { rumboSay?: (text: string) => void }
+    w.rumboSay = (text) => {
+      const conn = connRef.current
+      if (!conn) return console.warn("[rumboSay] la llamada no está abierta")
+      conn.send({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } })
+      conn.send({ type: "response.create" })
+    }
+    return () => {
+      delete w.rumboSay
+    }
+  }, [])
+
   // Volúmenes para el blob, por frame.
   useEffect(() => {
     let frame = 0

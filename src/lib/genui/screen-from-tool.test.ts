@@ -24,6 +24,14 @@ describe("screenFromTool", () => {
     })
   })
 
+  it("show_route pide el mapa de la caminata al lugar, igual que el botón Llevame", () => {
+    expect(screenFromTool("show_route", JSON.stringify({ place_name: "picasso" }), [card("picasso")])).toEqual({
+      kind: "show",
+      request: "Llevame a picasso",
+      placeIds: ["picasso"],
+    })
+  })
+
   it("no toca la pantalla con tools que no son de lugares", () => {
     expect(screenFromTool("remember", "{}", [])).toEqual({ kind: "none" })
     expect(screenFromTool("edit_itinerary", "{}", [])).toEqual({ kind: "none" })

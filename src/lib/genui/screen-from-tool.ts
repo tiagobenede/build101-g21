@@ -1,7 +1,7 @@
 import type { PlaceCard } from "@/hooks/voice-session-types"
 
 /** Tools cuyo resultado son lugares: lo que devuelven es lo que se ve en pantalla. */
-const PLACE_TOOLS = new Set(["recommend_nearby", "search_places", "search_events", "get_place"])
+const PLACE_TOOLS = new Set(["recommend_nearby", "search_places", "search_events", "get_place", "show_route"])
 const MAX_SCREEN_PLACES = 6
 
 export type ScreenUpdate =
@@ -41,5 +41,7 @@ export function screenFromTool(name: unknown, rawArgs: unknown, cards: PlaceCard
   } catch {
     // Argumentos ilegibles: el pedido queda genérico, los lugares son los mismos.
   }
+  // "Llevame": el mismo pedido que el botón de la tarjeta, así la pantalla es el mapa.
+  if (name === "show_route") return { kind: "show", request: `Llevame a ${cards[0].name}`, placeIds: [cards[0].id] }
   return { kind: "show", request: describe(name, args), placeIds: cards.slice(0, MAX_SCREEN_PLACES).map((c) => c.id) }
 }

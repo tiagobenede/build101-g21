@@ -38,6 +38,9 @@ export const toolSchemas = {
   get_place: z.object({
     place_name: z.string().min(2).max(120).describe("Nombre del lugar, como aparece en la lista o en un resultado."),
   }),
+  show_route: z.object({
+    place_name: z.string().min(2).max(120).describe("El lugar adonde quiere ir, con el nombre que aparece en la pantalla o en un resultado."),
+  }),
   edit_itinerary: z.object({
     op: z.enum(["add", "move", "remove", "done", "skip", "undo"]),
     item_ref: z.string().max(36).nullable().describe("Ref entre corchetes del plan (para move, remove, done, skip)."),
@@ -79,6 +82,8 @@ const descriptions: Record<ToolName, string> = {
     "Busca en Google lo que no sabés de un lugar o del momento: el menú, si tienen algo puntual, precios, eventos, noticias. Es rápido; decí algo corto como 'me fijo' antes de llamarlo. Lo que encuentres puede estar desactualizado: decí de dónde lo sacaste.",
   get_place:
     "Detalle de un lugar: descripción, si está abierto ahora, el horario de hoy, minutos a pie y de visita. Usalo cuando pregunte por un lugar puntual.",
+  show_route:
+    "Muestra en la pantalla el mapa con la caminata hasta un lugar y devuelve los minutos y metros reales a pie. Usalo cuando quiera ir a un lugar: 'llevame', 'dale, vamos', '¿cómo llego?', 'mostrame cómo ir'.",
   edit_itinerary:
     "Cambia el plan del viaje: add (agrega un lugar o actividad), move (cambia el horario), remove, done, skip, undo (deshace el último cambio). Devuelve el plan de hoy actualizado. Las reservas no se pueden cambiar.",
   remember:

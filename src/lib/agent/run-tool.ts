@@ -22,6 +22,7 @@ import {
 } from "@/lib/data/session"
 import { fetchParisEvents } from "@/lib/events/paris"
 import { walkMinutes, type LatLng } from "@/lib/geo"
+import { walkingRoute } from "@/lib/maps/walking-route"
 import { getOpeningInfo } from "@/lib/places/details"
 import { findPlaceByName } from "@/lib/places/lookup"
 import { searchPlaces } from "@/lib/places/search"
@@ -268,6 +269,34 @@ async function getPlaceTool(args: ToolArgs<"get_place">, location: LatLng | null
   }
 }
 
+async function showRouteTool(args: ToolArgs<"show_route">, location: LatLng | null): Promise<ToolResult> {
+  const ctx = await getTravelerContext({ location })
+  const place = await findPlaceByName(await createClient(), args.place_name, ctx.location)
+  if (!place) return fail("No conozco ese lugar. Probá con search_places.")
+
+  // La misma ruta (cacheada) que después dibuja el mapa de la pantalla.
+  const route = await walkingRoute(ctx.location, place)
+  const walk = route?.minutes ?? walkMinutes(ctx.location, place)
+  return {
+    output: JSON.stringify({
+      name: place.name,
+      walk_min: walk,
+      walk_meters: route?.meters ?? null,
+      shown: "El mapa con la caminata ya está en la pantalla.",
+    }),
+    cards: [
+      {
+        id: place.id,
+        name: place.name,
+        category: place.category,
+        description: place.description,
+        walkMinutes: walk,
+        stayMinutes: place.typical_visit_minutes,
+      },
+    ],
+  }
+}
+
 /** Para que Google devuelva resultados del país del viaje (`trips.country` viene en español). */
 const COUNTRY_CODES: Record<string, string> = {
   francia: "fr",
@@ -466,6 +495,10 @@ export async function runTool(
     case "get_place": {
       const args = toolSchemas.get_place.safeParse(json)
       return args.success ? getPlaceTool(args.data, location) : invalid
+    }
+    case "show_route": {
+      const args = toolSchemas.show_route.safeParse(json)
+      return args.success ? showRouteTool(args.data, location) : invalid
     }
     case "edit_itinerary": {
       const args = toolSchemas.edit_itinerary.safeParse(json)
