@@ -138,12 +138,16 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   // (si la llamada no está abierta, se lo cuenta al abrirla).
   const [cameraOpen, setCameraOpen] = useState(false)
   const onPhotoMatch = useCallback(
-    ({ name, description, place }: PhotoMatch) => {
+    ({ name, kind, where, description, place }: PhotoMatch) => {
       if (place) void showScreen({ request: `Lo que estás viendo: ${place.name}`, placeIds: [place.id] })
-      else toast(`Es ${name}`)
+      else toast(where ? `Es ${name}, en ${where}` : `Es ${name}`)
+      const about = description ? ` (${description})` : ""
       note(
-        `El viajero le sacó una foto a lo que tiene enfrente: es ${name}${description ? ` (${description})` : ""}.` +
-          `${place ? " Ya se muestra en la pantalla." : ""} Si pregunta por "esto", "acá" o "lo de la foto", hablá de ese lugar; para horarios o detalles usá get_place.`,
+        kind === "lugar"
+          ? `El viajero le sacó una foto a lo que tiene enfrente: es ${name}${about}.${place ? " Ya se muestra en la pantalla." : ""} ` +
+              `Si pregunta dónde está o por "esto", "acá" o "lo de la foto", es ${name}.`
+          : `El viajero le sacó una foto a ${kind === "obra" ? "una obra" : "algo"}: ${name}${about}${where ? `, en ${where}` : ""}. ` +
+              `Si pregunta qué es o por "esto" o "lo de la foto", hablá de ${name}, no del edificio.`,
         { keep: true }
       )
     },

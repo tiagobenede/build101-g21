@@ -81,7 +81,7 @@ const descriptions: Record<ToolName, string> = {
   web_search:
     "Busca en Google lo que no sabés de un lugar o del momento: el menú, si tienen algo puntual, precios, eventos, noticias. Es rápido; decí algo corto como 'me fijo' antes de llamarlo. Lo que encuentres puede estar desactualizado: decí de dónde lo sacaste.",
   get_place:
-    "Detalle de un lugar: descripción, si está abierto ahora, el horario de hoy, minutos a pie y de visita. Usalo cuando pregunte por un lugar puntual.",
+    "Datos prácticos de un lugar: si está abierto ahora, el horario de hoy, minutos a pie y de visita. Usalo cuando pregunte eso de un lugar puntual; para contar su historia no hace falta.",
   show_route:
     "Muestra en la pantalla el mapa con la caminata hasta un lugar y devuelve los minutos y metros reales a pie. Usalo cuando quiera ir a un lugar: 'llevame', 'dale, vamos', '¿cómo llego?', 'mostrame cómo ir'.",
   edit_itinerary:

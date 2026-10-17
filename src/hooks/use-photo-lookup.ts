@@ -6,12 +6,23 @@ import { toast } from "sonner"
 import type { PlaceCard } from "@/hooks/voice-session-types"
 import type { LatLng } from "@/lib/geo"
 
-type VisionData = { via: "jev" | "llm"; name: string | null; description: string | null; place: PlaceCard | null }
+type SeenKind = "lugar" | "obra" | "otro"
+type VisionData = {
+  via: "jev" | "llm"
+  name: string | null
+  kind: SeenKind | null
+  where: string | null
+  description: string | null
+  place: PlaceCard | null
+}
 type ApiResponse<T> = { success: true; data: T } | { success: false; error: string }
 
 export type PhotoMatch = {
-  /** Qué es, según la visión. */
+  /** Qué es, según la visión: un lugar, una obra o una cosa. */
   name: string
+  kind: SeenKind
+  /** Para una obra o una cosa: dónde está (el museo). */
+  where: string | null
   description: string | null
   /** El lugar de `places` (para la pantalla y "Al plan"), si se pudo ubicar. */
   place: PlaceCard | null
@@ -26,7 +37,7 @@ async function postJson<T>(url: string, init: RequestInit): Promise<T> {
 
 /**
  * "¿Qué estoy viendo?": foto → `/api/vision` (C-3) → lugar. Si la visión solo da el
- * nombre (respaldo con LLM), se busca ese nombre para tener el lugar en pantalla.
+ * nombre de un lugar (respaldo con LLM), se busca ese nombre para tener el lugar en pantalla.
  */
 export function usePhotoLookup(getLocation: () => LatLng | null, onMatch: (match: PhotoMatch) => void) {
   const [busy, setBusy] = useState(false)
@@ -52,8 +63,10 @@ export function usePhotoLookup(getLocation: () => LatLng | null, onMatch: (match
           return
         }
 
+        const kind = seen.kind ?? "lugar"
         let place = seen.place
-        if (!place && location) {
+        // Solo un lugar se busca en el mapa: "La Gioconda" no es una dirección.
+        if (!place && kind === "lugar" && location) {
           place = await postJson<{ place: PlaceCard | null }>("/api/places/resolve", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -63,7 +76,7 @@ export function usePhotoLookup(getLocation: () => LatLng | null, onMatch: (match
             .catch(() => null)
         }
         toast.dismiss(toastId)
-        onMatch({ name: place?.name ?? seen.name, description: seen.description ?? place?.description ?? null, place })
+        onMatch({ name: place?.name ?? seen.name, kind, where: seen.where, description: seen.description ?? place?.description ?? null, place })
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "No pude reconocer la foto.", { id: toastId })
       } finally {
