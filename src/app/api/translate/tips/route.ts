@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { walkMinutes } from "@/lib/geo"
+import { placeNameAt } from "@/lib/location/locale"
 import { latLngSchema } from "@/lib/location/schema"
 import { findPlaceByName } from "@/lib/places/lookup"
 import { searchPlaces } from "@/lib/places/search"
@@ -91,8 +92,9 @@ export async function POST(req: Request) {
   if (!user) return fail(401, "Iniciá sesión.")
   if (!allowRequest(`tips:${user.id}`, MAX_PER_MINUTE)) return fail(429, "Demasiados pedidos seguidos.")
 
-  const trip = await activeTrip(supabase)
-  const city = trip?.destination ?? "París"
+  // La ciudad es la de donde está ahora (no la del viaje), como en el resto de las búsquedas.
+  const [trip, place] = await Promise.all([activeTrip(supabase), placeNameAt(location)])
+  const city = place?.city ?? trip?.destination ?? ""
 
   let extracted: ExtractedTip[]
   try {
