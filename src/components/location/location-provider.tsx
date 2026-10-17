@@ -66,12 +66,25 @@ function writeStored(value: Stored) {
 export function LocationProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  // La última posición simulada se restaura de localStorage (en el server no hay: queda el default).
-  const [stored] = useState(readStored)
-  const [position, setPosition] = useState<LatLng>(stored?.position ?? DEFAULT_POSITION)
+  const [position, setPosition] = useState<LatLng>(DEFAULT_POSITION)
   const [heading, setHeading] = useState<number | null>(null)
-  const [source, setSourceState] = useState<LocationSource>(stored?.source ?? "mock")
-  const [speed, setSpeed] = useState<SpeedMultiplier>(stored?.speed ?? 1)
+  const [source, setSourceState] = useState<LocationSource>("mock")
+  const [speed, setSpeed] = useState<SpeedMultiplier>(1)
+  const [restored, setRestored] = useState(false)
+
+  // Restaurar la última posición simulada después de hidratar (el server no tiene localStorage,
+  // así que el primer render tiene que ser igual en los dos lados).
+  useEffect(() => {
+    const stored = readStored()
+    /* eslint-disable react-hooks/set-state-in-effect -- sincroniza con localStorage una sola vez al montar */
+    if (stored) {
+      setPosition(stored.position)
+      setSourceState(stored.source)
+      setSpeed(stored.speed)
+    }
+    setRestored(true)
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [])
 
   const vectorRef = useRef<Vector>({ x: 0, y: 0 })
   const speedRef = useRef<SpeedMultiplier>(speed)
@@ -144,7 +157,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   // Pings al server (cada 5 s o 25 m) y refresh de las pantallas al moverse 100 m.
   const sendingRef = useRef(false)
   useEffect(() => {
-    if (NO_PINGS_PATHS.some((p) => pathname.startsWith(p))) return
+    if (!restored || NO_PINGS_PATHS.some((p) => pathname.startsWith(p))) return
     const now = Date.now()
     if (sendingRef.current || !shouldSendPing(lastPingRef.current, position, now)) return
 
@@ -162,7 +175,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         sendingRef.current = false
       })
-  }, [position, heading, source, speed, pathname, router])
+  }, [position, heading, source, speed, pathname, router, restored])
 
   const value = useMemo<LocationContextValue>(
     () => ({ position, heading, source, setSource, speed, setSpeed, setVector, teleport }),

@@ -97,7 +97,18 @@ export default function MapView({ position, heading, places, stops, follow, onTe
           </Tooltip>
         </Marker>
       ))}
-      <Marker position={[position.lat, position.lng]} icon={icon} zIndexOffset={1000} interactive={false} />
+      <Marker
+        position={[position.lat, position.lng]}
+        icon={icon}
+        zIndexOffset={1000}
+        draggable
+        eventHandlers={{
+          dragend: (e) => {
+            const { lat, lng } = (e.target as L.Marker).getLatLng()
+            onTeleport({ lat, lng })
+          },
+        }}
+      />
       <Interactions position={position} follow={follow} onTeleport={onTeleport} onUserPan={onUserPan} />
     </MapContainer>
   )
