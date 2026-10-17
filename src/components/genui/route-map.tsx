@@ -14,10 +14,14 @@ interface RouteMapViewProps {
   category: string
   /** La caminata por calles. Null: línea recta (mientras carga o si no hay ruta). */
   path: LatLng[] | null
+  /** Pantalla completa: se puede mover y hacer zoom. */
+  interactive?: boolean
 }
 
-/** El mapa es bajo (176 px): poco margen arriba y abajo para que la caminata no quede chiquita. */
-const BOUNDS_PADDING_PX = { top: 20, bottom: 20, left: 36, right: 36 }
+/** En la tarjeta el mapa es bajo (176 px): poco margen arriba y abajo para que la caminata no quede chiquita. */
+const CARD_PADDING_PX = { top: 20, bottom: 20, left: 36, right: 36 }
+/** En pantalla completa: lugar para el botón de cerrar arriba y el panel de abajo. */
+const FULL_PADDING_PX = { top: 96, bottom: 180, left: 48, right: 48 }
 
 type MapParts = { map: google.maps.Map; line: google.maps.Polyline; moveStart: (position: LatLng) => void }
 
@@ -26,7 +30,8 @@ type MapParts = { map: google.maps.Map; line: google.maps.Polyline; moveStart: (
  * ruta, si no en línea recta. El mapa se crea una vez por destino; mientras caminás se
  * mueven tu punto y la línea, y al llegar una ruta nueva se vuelve a encuadrar.
  */
-export default function RouteMapView({ from, to: { lat: toLat, lng: toLng }, category, path }: RouteMapViewProps) {
+export default function RouteMapView({ from, to: { lat: toLat, lng: toLng }, category, path, interactive = false }: RouteMapViewProps) {
+  const padding = interactive ? FULL_PADDING_PX : CARD_PADDING_PX
   const containerRef = useRef<HTMLDivElement>(null)
   const [parts, setParts] = useState<MapParts | null>(null)
   // El primer encuadre usa la posición del momento; después la sigue el otro efecto.
@@ -52,8 +57,8 @@ export default function RouteMapView({ from, to: { lat: toLat, lng: toLng }, cat
           center: fromRef.current,
           zoom: 15,
           disableDefaultUI: true,
-          gestureHandling: "none",
-          keyboardShortcuts: false,
+          gestureHandling: interactive ? "greedy" : "none",
+          keyboardShortcuts: interactive,
           clickableIcons: false,
           // Sin redondear el zoom al encuadrar: con zoom entero, una caminata de 1 km quedaba a la mitad.
           isFractionalZoomEnabled: true,
@@ -73,7 +78,7 @@ export default function RouteMapView({ from, to: { lat: toLat, lng: toLng }, cat
         const end = new marker.AdvancedMarkerElement({ map, position: to, content: dotElement(categoryColor(category), 22) })
         // La tarjeta entra animada: si el mapa cambia de tamaño, se vuelve a encuadrar la caminata.
         const resize = new ResizeObserver(() => {
-          if (boundsRef.current) map.fitBounds(boundsRef.current, BOUNDS_PADDING_PX)
+          if (boundsRef.current) map.fitBounds(boundsRef.current, padding)
         })
         resize.observe(el)
         setParts({
@@ -99,6 +104,7 @@ export default function RouteMapView({ from, to: { lat: toLat, lng: toLng }, cat
       boundsRef.current = null
       el.replaceChildren()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- interactive y padding no cambian en la vida del mapa
   }, [toLat, toLng, category])
 
   // Ruta nueva (o la primera): encuadrar toda la caminata que falta.
@@ -107,7 +113,8 @@ export default function RouteMapView({ from, to: { lat: toLat, lng: toLng }, cat
     const bounds = new google.maps.LatLngBounds()
     for (const point of remainingWalk(fromRef.current, path, { lat: toLat, lng: toLng })) bounds.extend(point)
     boundsRef.current = bounds
-    parts.map.fitBounds(bounds, BOUNDS_PADDING_PX)
+    parts.map.fitBounds(bounds, padding)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- padding no cambia en la vida del mapa
   }, [parts, path, toLat, toLng])
 
   // Mientras caminás: tu punto y lo que falta de la línea, sin mover el encuadre.

@@ -3,9 +3,10 @@
 import "@/lib/genui/no-devtools"
 
 import type { ComponentRenderer } from "@openuidev/react-lang"
-import { CalendarPlusIcon, CloudSunIcon, FootprintsIcon, LockIcon, NavigationIcon, StarIcon } from "lucide-react"
+import { CalendarPlusIcon, CloudSunIcon, FootprintsIcon, LockIcon, NavigationIcon, StarIcon, XIcon } from "lucide-react"
 import dynamic from "next/dynamic"
 import { createContext, useContext, useState, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 
 import { CategoryIcon, categoryColor } from "@/components/rumbo/category-icon"
 import { Button } from "@/components/ui/button"
@@ -160,16 +161,25 @@ function RouteMapCard({ place }: { place: GenUiPlace }) {
   const [routeFrom, setRouteFrom] = useState(data.origin)
   if (distanceMeters(routeFrom, position) >= REROUTE_METERS) setRouteFrom(position)
   const { route, failed } = useWalkingRoute(routeFrom, place)
+  const [expanded, setExpanded] = useState(false)
   // Lo que falta, sobre la ruta: los minutos bajan a medida que avanzás.
   const meters = route ? pathMeters(remainingWalk(position, route.path, place)) : distanceMeters(position, place)
   const minutes = route
     ? Math.max(1, Math.round((route.minutes * meters) / Math.max(route.meters, 1)))
     : walkMinutes(position, place)
+  const path = route?.path ?? null
+  const subtitle = failed ? "Caminando, en línea recta en el mapa" : "Caminando"
   return (
     <article className="bg-card overflow-hidden rounded-[22px]">
       <div className="relative h-44">
-        <RouteMapView from={position} to={place} category={place.category} path={route?.path ?? null} />
-        <div className="bg-card/95 absolute top-2.5 right-2.5 z-[1000] rounded-xl px-3 py-1.5 shadow-md backdrop-blur-md">
+        <RouteMapView from={position} to={place} category={place.category} path={path} />
+        <button
+          type="button"
+          aria-label="Agrandar el mapa"
+          onClick={() => setExpanded(true)}
+          className="absolute inset-0 z-[1] cursor-zoom-in"
+        />
+        <div className="bg-card/95 pointer-events-none absolute top-2.5 right-2.5 z-[2] rounded-xl px-3 py-1.5 shadow-md backdrop-blur-md">
           <span className="block text-[17px] leading-tight font-semibold tabular-nums">{minutes} min</span>
           <span className="text-muted-foreground text-[11px]">{formatDistance(meters)} a pie</span>
         </div>
@@ -178,9 +188,43 @@ function RouteMapCard({ place }: { place: GenUiPlace }) {
         <CategoryIcon category={place.category} className="size-8" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-medium">{place.name}</span>
-          <span className="text-muted-foreground text-[13px]">{failed ? "Caminando, en línea recta en el mapa" : "Caminando"}</span>
+          <span className="text-muted-foreground text-[13px]">{subtitle}</span>
         </span>
       </div>
+      {expanded &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Mapa hasta ${place.name}`}
+            className="bg-background animate-in fade-in zoom-in-[0.98] fixed inset-0 z-[3000] duration-200"
+            onKeyDown={(e) => e.key === "Escape" && setExpanded(false)}
+          >
+            <RouteMapView from={position} to={place} category={place.category} path={path} interactive />
+            <Button
+              size="icon"
+              variant="secondary"
+              aria-label="Cerrar el mapa"
+              autoFocus
+              onClick={() => setExpanded(false)}
+              className="bg-card/95 absolute top-[max(1rem,env(safe-area-inset-top))] left-4 size-11 rounded-full shadow-md backdrop-blur-md"
+            >
+              <XIcon className="size-5" />
+            </Button>
+            <div className="bg-card/95 absolute inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] flex items-center gap-3 rounded-[22px] p-4 shadow-lg backdrop-blur-md">
+              <CategoryIcon category={place.category} className="size-10" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[17px] font-semibold">{place.name}</span>
+                <span className="text-muted-foreground text-[13px]">{subtitle}</span>
+              </span>
+              <span className="text-right">
+                <span className="block text-[22px] leading-tight font-semibold tabular-nums">{minutes} min</span>
+                <span className="text-muted-foreground text-[12px]">{formatDistance(meters)} a pie</span>
+              </span>
+            </div>
+          </div>,
+          document.body
+        )}
     </article>
   )
 }
