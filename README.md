@@ -14,7 +14,7 @@ npx supabase start      # Postgres + Auth locales en Docker (la 1ª vez descarga
 npm run dev             # http://localhost:3000
 ```
 
-Entrás con una de las 3 **cuentas demo** (Sofía: autos y diseño, Mateo: arte e historia, Lucía: comida y mercados).
+Entrás con una de las 3 **cuentas demo** (Tiago: autos y diseño, Lucas: arte e historia, Nicolas: comida y mercados).
 Todas están en París, cerca del Centre Pompidou, con itinerario para hoy.
 
 Otros comandos útiles:

@@ -3,11 +3,12 @@ import { Suspense } from "react"
 
 import { logout } from "@/app/login/actions"
 import { PushToggle } from "@/components/notifications/push-toggle"
+import { InterestsEditor } from "@/components/profile/interests-editor"
 import { PageSkeleton } from "@/components/rumbo/page-skeleton"
 import { GroupedList, Section } from "@/components/rumbo/section"
 import { UserAvatar } from "@/components/rumbo/user-avatar"
-import { Badge } from "@/components/ui/badge"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
+import { INTEREST_TAGS } from "@/lib/agent/rank"
 import { FALLBACK_TINT } from "@/lib/demo-accounts"
 import { getTravelerContext } from "@/lib/data/session"
 
@@ -37,17 +38,7 @@ async function ProfileContent() {
         </div>
       </div>
 
-      {ctx.interests.length > 0 && (
-        <Section title="Tus gustos">
-          <div className="flex flex-wrap gap-2">
-            {ctx.interests.map((tag) => (
-              <Badge key={tag} variant="secondary" className="bg-card h-7 rounded-full px-3 text-[13px] capitalize">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        </Section>
-      )}
+      <InterestsEditor interests={ctx.interests} options={INTEREST_TAGS} />
 
       {details.length > 0 && (
         <Section title="Sobre vos">
