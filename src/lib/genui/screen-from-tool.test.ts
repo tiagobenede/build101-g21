@@ -40,4 +40,29 @@ describe("screenFromTool", () => {
   it("tolera argumentos ilegibles", () => {
     expect(screenFromTool("recommend_nearby", "no-json", [card("a")])).toMatchObject({ request: "Recomendaciones" })
   })
+
+  it("place_facts muestra la historia con los datos del resultado", () => {
+    const output = JSON.stringify({ facts: ["Abrió en 1985."], anecdote: "Salé = salado." })
+    expect(screenFromTool("place_facts", JSON.stringify({ subject: "Museo Picasso", question: null }), [], output)).toEqual({
+      kind: "show",
+      request: "La historia de Museo Picasso",
+      placeIds: [],
+      story: { subject: "Museo Picasso", facts: ["Abrió en 1985."], anecdote: "Salé = salado." },
+    })
+  })
+
+  it("place_facts sin datos seguros no cambia la pantalla", () => {
+    const output = JSON.stringify({ known: false, note: "No hay datos seguros" })
+    expect(screenFromTool("place_facts", JSON.stringify({ subject: "Fuente inventada" }), [], output)).toEqual({ kind: "none" })
+  })
+
+  it("show_phrase arma la frase con los argumentos", () => {
+    const args = JSON.stringify({ text: "Merci", translation: "Gracias", pronunciation: "mersí", lang: "fr-FR" })
+    expect(screenFromTool("show_phrase", args, [])).toEqual({
+      kind: "show",
+      request: 'Cómo decir: "Gracias"',
+      placeIds: [],
+      phrase: { text: "Merci", translation: "Gracias", pronunciation: "mersí", lang: "fr-FR" },
+    })
+  })
 })

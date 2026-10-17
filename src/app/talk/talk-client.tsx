@@ -39,7 +39,7 @@ import { useRealtimeCall } from "@/hooks/use-realtime-call"
 import type { CallState, PlaceCard } from "@/hooks/voice-session-types"
 import type { FoundTip } from "@/app/api/translate/tips/route"
 import { distanceMeters } from "@/lib/geo"
-import type { GenUiPlace } from "@/lib/genui/types"
+import type { GenUiPlace, GenUiRequest } from "@/lib/genui/types"
 import { addMinutesIso, zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
 import { LANGUAGES, type Lang } from "@/lib/translate/config"
 import type { Utterance } from "@/lib/translate/utterances"
@@ -142,15 +142,18 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   // (si la llamada no está abierta, se lo cuenta al abrirla).
   const [cameraOpen, setCameraOpen] = useState(false)
   const onPhotoMatch = useCallback(
-    ({ name, kind, where, description, place }: PhotoMatch) => {
-      if (place) void showScreen({ request: `Lo que estás viendo: ${place.name}`, placeIds: [place.id] })
-      else toast(where ? `Es ${name}, en ${where}` : `Es ${name}`)
+    ({ name, kind, where, description, place, photoUrl }: PhotoMatch) => {
+      void showScreen({
+        request: `Lo que estás viendo: ${name}`,
+        placeIds: place ? [place.id] : [],
+        seen: { name, kind, where, description, placeId: place?.id ?? null, photoUrl },
+      })
       const about = description ? ` (${description})` : ""
       note(
         kind === "lugar"
-          ? `El viajero acaba de sacarle una foto con la cámara a lo que tiene enfrente: está frente a ${name}${about}.${place ? " Ya se muestra en la pantalla." : ""} ` +
+          ? `El viajero acaba de sacarle una foto con la cámara a lo que tiene enfrente: está frente a ${name}${about}. Ya se muestra en la pantalla. ` +
               `Si pregunta dónde está, decile que está frente a ${name}; no hables de distancias ni de cuánto le queda. Si pregunta por "esto", "acá" o "lo de la foto", es ${name}. Si pide la historia o más datos, llamá a place_facts con ${name}.`
-          : `El viajero le sacó una foto a ${kind === "obra" ? "una obra" : "algo"}: ${name}${about}${where ? `, en ${where}` : ""}. ` +
+          : `El viajero le sacó una foto a ${kind === "obra" ? "una obra" : "algo"}: ${name}${about}${where ? `, en ${where}` : ""}. Ya se muestra en la pantalla. ` +
               `Si pregunta qué es o por "esto" o "lo de la foto", hablá de ${name}, no del edificio. Si pide la historia o más datos, llamá a place_facts con ${name}.`,
         { keep: true }
       )
@@ -208,11 +211,12 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
     [note, showScreen]
   )
 
-  // Solo en desarrollo: probar la UI generativa sin micrófono (window.rumboShow("llevame al Picasso")).
+  // Solo en desarrollo: probar la UI generativa sin micrófono (window.rumboShow("llevame al Picasso"),
+  // o un pedido completo con lugares, historia, foto o frase).
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return
-    const w = window as unknown as { rumboShow?: (request: string) => void }
-    w.rumboShow = (request) => void showScreen({ request, placeIds: [] })
+    const w = window as unknown as { rumboShow?: (request: string | GenUiRequest) => void }
+    w.rumboShow = (request) => void showScreen(typeof request === "string" ? { request, placeIds: [] } : request)
     return () => {
       delete w.rumboShow
     }

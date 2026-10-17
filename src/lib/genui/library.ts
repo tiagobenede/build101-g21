@@ -19,6 +19,9 @@ export const GENUI_COMPONENTS = [
   "Stop",
   "Timeline",
   "Weather",
+  "Phrase",
+  "Story",
+  "Seen",
 ] as const
 export type GenUiComponentName = (typeof GENUI_COMPONENTS)[number]
 
@@ -35,10 +38,13 @@ export const genUiSchemas = {
   Compare: z.object({ placeIds: z.array(placeId).describe("2 o 3 lugares para comparar a pie y por rating") }),
   Stop: z.object({
     time: z.string().describe("Hora local HH:MM"),
-    placeId: placeId.nullable(),
-    title: z.string().nullable().describe("Solo si no es un lugar de la lista (ej. una actividad del itinerario)"),
+    placeId: placeId.optional(),
+    title: z.string().optional().describe("Solo si no es un lugar de la lista (ej. una actividad del itinerario)"),
   }),
   Weather: z.object({}),
+  Phrase: z.object({}),
+  Story: z.object({}),
+  Seen: z.object({}),
 } as const
 
 const descriptions: Record<GenUiComponentName, string> = {
@@ -51,6 +57,9 @@ const descriptions: Record<GenUiComponentName, string> = {
   Stop: "Una parada de un Timeline.",
   Timeline: "Plan de varias paradas con horario, para 'armame la tarde'. Respetá las actividades fijas del itinerario.",
   Weather: "Chip con el clima actual. Solo si cambia la recomendación (lluvia, frío, calor).",
+  Phrase: "La frase de `phrase` para decirle a alguien del lugar, con traducción, cómo se lee y botón para escucharla. Solo si hay `phrase`.",
+  Story: "Los datos y la anécdota de `story`, como un guía. Solo si hay `story`.",
+  Seen: "Lo que reconoció la cámara (`seen`): la foto del viajero, qué es y dónde está. Solo si hay `seen`; va primero.",
 }
 
 /** Arma la biblioteca con los renderers que le pases (React en el cliente, null en el server). */
@@ -93,7 +102,21 @@ export function buildGenUiLibrary<C>(renderers: Record<GenUiComponentName, C>) {
     description: descriptions.Weather,
     component: renderers.Weather,
   })
-  const block = z.union([Say.ref, PlaceHero.ref, PlaceList.ref, RouteMap.ref, Compare.ref, Timeline.ref, Weather.ref])
+  const Phrase = defineComponent({ name: "Phrase", props: genUiSchemas.Phrase, description: descriptions.Phrase, component: renderers.Phrase })
+  const Story = defineComponent({ name: "Story", props: genUiSchemas.Story, description: descriptions.Story, component: renderers.Story })
+  const Seen = defineComponent({ name: "Seen", props: genUiSchemas.Seen, description: descriptions.Seen, component: renderers.Seen })
+  const block = z.union([
+    Say.ref,
+    PlaceHero.ref,
+    PlaceList.ref,
+    RouteMap.ref,
+    Compare.ref,
+    Timeline.ref,
+    Weather.ref,
+    Phrase.ref,
+    Story.ref,
+    Seen.ref,
+  ])
   const Screen = defineComponent({
     name: "Screen",
     props: z.object({ blocks: z.array(block) }),
@@ -102,7 +125,7 @@ export function buildGenUiLibrary<C>(renderers: Record<GenUiComponentName, C>) {
   })
 
   return createLibrary({
-    components: [Screen, Say, PlaceHero, PlaceList, RouteMap, Compare, Stop, Timeline, Weather],
+    components: [Screen, Say, PlaceHero, PlaceList, RouteMap, Compare, Stop, Timeline, Weather, Phrase, Story, Seen],
     root: "Screen",
   })
 }
@@ -122,4 +145,13 @@ plan = Timeline([s1, s2, s3])
 s1 = Stop("16:15", "picasso", null)
 s2 = Stop("17:25", "vosges", null)
 s3 = Stop("18:00", null, "Clase de cocina")`,
+  `root = Screen([say, phrase])
+say = Say("Así pedís la mesa:")
+phrase = Phrase()`,
+  `root = Screen([say, story])
+say = Say("El Picasso está en una mansión de 1659.")
+story = Story()`,
+  `root = Screen([seen, story])
+seen = Seen()
+story = Story()`,
 ]

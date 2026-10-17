@@ -160,13 +160,14 @@ export function useRealtimeCall(
 
       // Un solo agente: la pantalla cambia en el mismo momento en que el resultado entra a la
       // conversación, con exactamente esos lugares (o se vacía si no encontró nada).
-      const screen = screenFromTool(ev.name, ev.arguments, result.cards)
+      const screen = screenFromTool(ev.name, ev.arguments, result.cards, result.output)
       queue.resolve(callId, result.output, () => {
         toolPlacesRef.current = [...result.cards, ...toolPlacesRef.current]
         showPlaces(result.cards.slice(0, 1))
         placesScreenRef.current =
           screen.kind === "show" && screen.placeIds.length > 1 ? { request: screen.request, placeIds: screen.placeIds, followed: false } : null
-        if (screen.kind === "show") onScreenRef.current?.({ request: screen.request, placeIds: screen.placeIds })
+        if (screen.kind === "show")
+          onScreenRef.current?.({ request: screen.request, placeIds: screen.placeIds, story: screen.story, phrase: screen.phrase })
         if (screen.kind === "clear") onScreenRef.current?.(null)
       })
     },

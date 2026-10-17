@@ -522,6 +522,11 @@ export async function runTool(
       const args = toolSchemas.place_facts.safeParse(json)
       return args.success ? placeFactsTool(args.data, location) : invalid
     }
+    case "show_phrase": {
+      // La pantalla la arma el cliente con los mismos argumentos: acá solo se valida.
+      const args = toolSchemas.show_phrase.safeParse(json)
+      return args.success ? { output: JSON.stringify({ shown: true }), cards: [] } : invalid
+    }
     case "get_place": {
       const args = toolSchemas.get_place.safeParse(json)
       return args.success ? getPlaceTool(args.data, location) : invalid

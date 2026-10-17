@@ -1,4 +1,4 @@
-import type { GenUiPlace } from "./types"
+import type { GenUiPhrase, GenUiPlace, GenUiSeen, GenUiStory } from "./types"
 
 const normalize = (s: string) =>
   s
@@ -38,6 +38,9 @@ interface UserMessageInput {
   itinerary: { time: string; title: string; locked: boolean }[]
   weather: string | null
   localTime: string
+  story?: GenUiStory | null
+  seen?: GenUiSeen | null
+  phrase?: GenUiPhrase | null
 }
 
 /** Mensaje compacto para el modelo de UI: solo lo necesario para componer la pantalla. */
@@ -47,6 +50,9 @@ export function buildGenUiUserMessage({
   itinerary,
   weather,
   localTime,
+  story = null,
+  seen = null,
+  phrase = null,
 }: UserMessageInput): string {
   const data = {
     request,
@@ -60,8 +66,14 @@ export function buildGenUiUserMessage({
       walk_min: p.walkMinutes,
       visit_min: p.visitMinutes,
       rating: p.rating,
+      open_now: p.openNow,
+      closes_in_min: p.closesInMinutes,
     })),
     itinerary_today: itinerary,
+    // Solo lo que hace falta para decidir el layout: los componentes leen el resto de los datos.
+    ...(story && { story: { subject: story.subject, facts: story.facts.length, anecdote: Boolean(story.anecdote) } }),
+    ...(seen && { seen: { name: seen.name, kind: seen.kind, placeId: seen.placeId } }),
+    ...(phrase && { phrase: { translation: phrase.translation } }),
   }
   return `Armá la pantalla para este pedido. Usá solo ids de "places".\n${JSON.stringify(data)}`
 }
