@@ -5,7 +5,10 @@
  *   npm run test:vision                                  # imagen que no es ningún lugar
  *   VISION_PHOTO=~/fotos/vosges.jpg npm run test:vision  # una foto tuya (JPEG o PNG)
  *
- * Opcional: VISION_LAT / VISION_LNG (por defecto, Place des Vosges).
+ * Opcional: VISION_LAT / VISION_LNG / VISION_CITY (por defecto, Place des Vosges en París).
+ * Ejemplo con el Capitolio de EE. UU.:
+ *
+ *   VISION_PHOTO=src/lib/vision/fixtures/capitolio-eeuu.jpg VISION_LAT=38.8899 VISION_LNG=-77.0091 VISION_CITY=Washington npm run test:vision
  */
 import { readFileSync } from "node:fs"
 import { homedir } from "node:os"
@@ -27,15 +30,16 @@ describe.skipIf(!enabled)("identifyPhoto (e2e, APIs reales)", () => {
     const { identifyPhoto } = await import("./identify")
     const { pickCandidates } = await import("./choose")
 
+    const city = process.env.VISION_CITY ?? "París"
     const here = { lat: Number(process.env.VISION_LAT ?? 48.8556), lng: Number(process.env.VISION_LNG ?? 2.3655) }
     const photoPath = (process.env.VISION_PHOTO ?? "src/lib/vision/fixtures/no-es-un-lugar.jpg").replace(/^~/, homedir())
     const mime = photoPath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg"
 
-    await ensureNearbyPlaces(here, "París")
+    await ensureNearbyPlaces(here, city)
     const { data, error } = await createAdminClient()
       .from("places")
       .select("id, name, category, tags, description, lat, lng, rating, typical_visit_minutes")
-      .eq("city", "París")
+      .eq("city", city)
       .eq("listed", true)
     if (error) throw new Error(error.message)
 
@@ -46,8 +50,8 @@ describe.skipIf(!enabled)("identifyPhoto (e2e, APIs reales)", () => {
     const ctx = {
       nearby,
       location: here,
-      locationLabel: nearestPlaceLabel(here, nearby, "París"),
-      trip: { destination: "París" },
+      locationLabel: nearestPlaceLabel(here, nearby, city),
+      trip: { destination: city },
     } as unknown as Parameters<typeof identifyPhoto>[1]
 
     console.log(`\nFoto: ${photoPath}`)
