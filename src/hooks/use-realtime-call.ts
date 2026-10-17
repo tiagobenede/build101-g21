@@ -5,6 +5,7 @@ import { toast } from "sonner"
 
 import { saveTurn } from "@/app/talk/actions"
 import { distanceMeters, type LatLng } from "@/lib/geo"
+import type { GenUiRequest } from "@/lib/genui/types"
 import { locationUpdateText, shouldAnnounce } from "@/lib/location/announce"
 import {
   CONTEXT_REFRESH_DISTANCE_M,
@@ -18,11 +19,13 @@ import { estimateUsageCost, type RealtimeUsage } from "@/lib/realtime/cost"
 import { findNewPlaces } from "@/lib/realtime/match-places"
 import { ResponseQueue } from "@/lib/realtime/response-queue"
 import type { ToolResult } from "@/lib/realtime/tools"
-import { onTableChange } from "@/lib/supabase/browser"
+import { onTableChange } from "@/lib/supabase/client"
 
 import type { CallState, MentionedPlace, PlaceCard, VoiceCall } from "./voice-session-types"
 
 const IDLE_CHECK_MS = 5_000
+/** Tablas que cambian lo que sabe el agente: si se tocan con la llamada abierta, se rearman las instrucciones. */
+const CONTEXT_TABLES = ["itinerary_items", "profiles", "interests"] as const
 
 type ResponseDone = {
   usage?: RealtimeUsage
@@ -38,7 +41,28 @@ type ResponseDone = {
  * Ahorro: modelo mini, respuestas cortas, solo se factura la voz detectada,
  * se corta sola tras 1 min sin actividad, al salir o al pasar el presupuesto.
  */
-export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | null = null): VoiceCall {
+/** Texto para pedir la pantalla que acompaña el resultado de un tool de lugares. */
+function screenRequestFor(name: unknown, rawArgs: unknown): string | null {
+  let args: Record<string, unknown> = {}
+  try {
+    args = JSON.parse(typeof rawArgs === "string" ? rawArgs : "{}") as Record<string, unknown>
+  } catch {
+    // Sin argumentos legibles: se pide igual con un texto genérico.
+  }
+  if (name === "recommend_nearby") {
+    const minutes = typeof args.available_minutes === "number" ? ` para ${args.available_minutes} minutos libres` : ""
+    const interest = typeof args.interest === "string" ? `, con ganas de ${args.interest}` : ""
+    return `Recomendaciones${minutes}${interest}`
+  }
+  if (name === "search_places") return `Resultados de buscar "${String(args.query ?? "")}"`
+  return null
+}
+
+export function useRealtimeCall(
+  knownPlaces: PlaceCard[],
+  location: LatLng | null = null,
+  onUi?: (request: GenUiRequest) => void
+): VoiceCall {
   const [state, setState] = useState<CallState>("off")
   const [places, setPlaces] = useState<MentionedPlace[]>([])
   const [micMuted, setMicMutedState] = useState(false)
@@ -54,6 +78,10 @@ export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | nul
   const inputVolumeRef = useRef(0)
   const outputVolumeRef = useRef(0)
   const queueRef = useRef<ResponseQueue | null>(null)
+  const onUiRef = useRef(onUi)
+  useEffect(() => {
+    onUiRef.current = onUi
+  }, [onUi])
   /** Ubicación en vivo (joystick o GPS) y la última que se le avisó a la llamada. */
   const locationRef = useRef(location)
   const announcedRef = useRef<LatLng | null>(null)
@@ -129,6 +157,14 @@ export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | nul
       // Si la llamada se cortó mientras corría el tool, la cola ya no es la misma.
       if (queueRef.current !== queue) return
       touch()
+
+      // UI generativa: show_ui la pide explícitamente; los tools de lugares, con sus resultados.
+      if (result.ui) {
+        onUiRef.current?.({ ...result.ui, placeIds: toolPlacesRef.current.slice(0, 6).map((p) => p.id) })
+      } else if (result.cards.length > 0) {
+        const request = screenRequestFor(ev.name, ev.arguments)
+        if (request) onUiRef.current?.({ request, placeIds: result.cards.map((c) => c.id) })
+      }
       // El agente recomienda el primero: esa tarjeta sale ya; las demás, si las nombra.
       queue.resolve(callId, result.output, () => {
         toolPlacesRef.current = [...result.cards, ...toolPlacesRef.current]
@@ -254,12 +290,15 @@ export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | nul
       announcedRef.current = locationRef.current
       contextAtRef.current = locationRef.current
       contextRefreshedAtRef.current = Date.now()
-      // Cambios del itinerario (de la app, del agente o de otro dispositivo) → refrescar el contexto.
-      void onTableChange("itinerary_items", () => scheduleRefresh(2_000)).then((unsubscribe) => {
-        // Si la llamada se cortó mientras nos suscribíamos, soltamos el canal ya.
-        if (connRef.current === conn) unsubscribeRef.current = unsubscribe
-        else unsubscribe()
-      })
+      // Cambios del itinerario o del perfil (de la app, del agente o de otro dispositivo) → refrescar el contexto.
+      void Promise.all(CONTEXT_TABLES.map((table) => onTableChange(table, () => scheduleRefresh(2_000)))).then(
+        (unsubscribes) => {
+          const unsubscribe = () => unsubscribes.forEach((u) => u())
+          // Si la llamada se cortó mientras nos suscribíamos, soltamos los canales ya.
+          if (connRef.current === conn) unsubscribeRef.current = unsubscribe
+          else unsubscribe()
+        }
+      )
       conn.setMicOpen(!micMuted)
       conn.setMuted(speakerMuted)
       conn.send({

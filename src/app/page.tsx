@@ -2,6 +2,7 @@ import { ChevronRightIcon, MapIcon, MicIcon } from "lucide-react"
 import Link from "next/link"
 import { Suspense } from "react"
 
+import { ItinerarySection } from "@/components/itinerary/itinerary-section"
 import { AppHeader } from "@/components/rumbo/app-header"
 import { CategoryIcon } from "@/components/rumbo/category-icon"
 import { PageSkeleton } from "@/components/rumbo/page-skeleton"
@@ -10,13 +11,16 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
-import { getTravelerContext } from "@/lib/data/session"
-import { formatTime, tripDay } from "@/lib/format"
+import { getTravelerContext, TRIP_TIME_ZONE } from "@/lib/data/session"
+import { tripDay } from "@/lib/format"
+import { zonedDateKey } from "@/lib/time/zoned"
 
 const MAX_NEARBY = 6
 
 async function HomeContent() {
   const ctx = await getTravelerContext()
+  const today = zonedDateKey(new Date(), TRIP_TIME_ZONE)
+  const todayItems = ctx.itinerary.filter((i) => zonedDateKey(new Date(i.starts_at), TRIP_TIME_ZONE) === today)
   const day = ctx.trip ? tripDay(ctx.trip.start_date, ctx.trip.end_date) : null
   const forYou = (tags: string[]) => tags.some((t) => ctx.interests.includes(t))
   const nearby = [...ctx.nearby]
@@ -78,23 +82,18 @@ async function HomeContent() {
         </div>
       </Section>
 
-      {ctx.itinerary.length > 0 && (
-        <Section title="Hoy">
-          <GroupedList>
-            {ctx.itinerary.map((item) => (
-              <Item key={item.id} className="rounded-none px-4 py-3">
-                <ItemMedia className="w-12">
-                  <span className="text-[15px] font-semibold tabular-nums">{formatTime(item.starts_at)}</span>
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle className="text-[15px]">{item.title}</ItemTitle>
-                  {item.notes && <ItemDescription className="text-[13px]">{item.notes}</ItemDescription>}
-                </ItemContent>
-              </Item>
-            ))}
-          </GroupedList>
-        </Section>
-      )}
+      <ItinerarySection
+        items={todayItems}
+        timeZone={TRIP_TIME_ZONE}
+        today={today}
+        places={ctx.nearby.map((p) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          walkMinutes: p.walkMinutes,
+          visitMinutes: p.typical_visit_minutes,
+        }))}
+      />
 
       <Section title="Cerca tuyo">
         <GroupedList>

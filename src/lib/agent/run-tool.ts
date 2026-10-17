@@ -3,7 +3,6 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { INTEREST_TAGS, rankPlaces, resolveAvailableMinutes } from "@/lib/agent/rank"
-import { tripTimeToIso } from "@/lib/agent/trip-time"
 import {
   addItineraryItem,
   removeItineraryItem,
@@ -21,13 +20,16 @@ import {
   type ItineraryItem,
   type TravelerContext,
 } from "@/lib/data/session"
+import { fetchParisEvents } from "@/lib/events/paris"
 import { walkMinutes, type LatLng } from "@/lib/geo"
 import { getOpeningInfo } from "@/lib/places/details"
 import { findPlaceByName } from "@/lib/places/lookup"
 import { searchPlaces } from "@/lib/places/search"
 import { formatTodayPlan, itemRef } from "@/lib/realtime/instructions"
 import { isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
+import { zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
 import { readMenu } from "@/lib/web-page"
 import { pickReadableUrl, webSearch } from "@/lib/web-search"
 
@@ -132,6 +134,82 @@ async function searchPlacesTool(args: ToolArgs<"search_places">, location: LatLn
       description: p.description,
       walkMinutes: p.walkMinutes,
       stayMinutes: p.typical_visit_minutes,
+    })),
+  }
+}
+
+const EVENT_DEFAULT_MINUTES = 90
+const EVENT_MAX_MINUTES = 240
+
+async function searchEventsTool(args: ToolArgs<"search_events">, location: LatLng | null): Promise<ToolResult> {
+  const ctx = await getTravelerContext({ location })
+  const city = ctx.trip?.destination ?? "París"
+  if (!/par[ií]s/i.test(city)) return fail("Solo tengo la agenda de París. Probá con web_search.")
+
+  const now = new Date()
+  const events = await fetchParisEvents({
+    near: ctx.location,
+    when: args.when,
+    kind: args.kind,
+    freeOnly: args.free_only ?? false,
+    now,
+    timeZone: TRIP_TIME_ZONE,
+  }).catch((err: unknown) => {
+    console.error("[tools] search_events failed", err instanceof Error ? err.message : err)
+    return null
+  })
+  if (!events) return fail("No pude leer la agenda de la ciudad ahora.")
+
+  const rows = events.map((e) => {
+    const minutes = Math.round((new Date(e.endsAt).getTime() - new Date(e.startsAt).getTime()) / 60_000)
+    return {
+      id: `qfap:${e.id}`,
+      name: e.title,
+      category: "evento",
+      tags: [],
+      description: e.summary?.slice(0, DESCRIPTION_MAX_CHARS) ?? null,
+      city,
+      lat: e.lat,
+      lng: e.lng,
+      rating: null,
+      typical_visit_minutes: minutes > 0 && minutes <= EVENT_MAX_MINUTES ? minutes : EVENT_DEFAULT_MINUTES,
+      image_url: null,
+      data: { source: "que-faire-a-paris", venue: e.venue, url: e.url, starts_at: e.startsAt, ends_at: e.endsAt, free: e.free },
+      fetched_at: now.toISOString(),
+    }
+  })
+  // En `places` para que se pueda sumar al plan o pedir el detalle por nombre.
+  if (rows.length > 0) {
+    const { error } = await createAdminClient().from("places").upsert(rows)
+    if (error) console.error("[tools] upsert events failed", error.message)
+  }
+
+  const today = zonedDateKey(now, TRIP_TIME_ZONE)
+  const when = (iso: string) => {
+    const day = zonedDateKey(new Date(iso), TRIP_TIME_ZONE) === today ? "hoy" : "mañana"
+    return `${day} ${zonedTimeValue(iso, TRIP_TIME_ZONE)}`
+  }
+
+  return {
+    output: JSON.stringify({
+      events: events.map((e) => ({
+        name: e.title,
+        venue: e.venue,
+        starts: when(e.startsAt),
+        ends: zonedTimeValue(e.endsAt, TRIP_TIME_ZONE),
+        already_started: new Date(e.startsAt) < now,
+        walk_min: walkMinutes(ctx.location, e),
+        free: e.free,
+        summary: e.summary?.slice(0, SUMMARY_MAX_CHARS) ?? null,
+      })),
+    }),
+    cards: rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      description: r.description,
+      walkMinutes: walkMinutes(ctx.location, r),
+      stayMinutes: r.typical_visit_minutes,
     })),
   }
 }
@@ -241,7 +319,16 @@ async function editItinerary(args: ToolArgs<"edit_itinerary">, location: LatLng 
   const db = await createClient()
   const now = new Date()
 
-  const time = (hhmm: string | null) => (hhmm ? tripTimeToIso(hhmm, args.date, now, TRIP_TIME_ZONE) : null)
+  // El agente habla en hora local del viaje ("16:00", "mañana" → date); sin fecha es hoy allá.
+  const day = args.date ?? zonedDateKey(now, TRIP_TIME_ZONE)
+  const time = (hhmm: string | null) => {
+    if (!hhmm || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null
+    try {
+      return zonedTimeToIso(day, hhmm, TRIP_TIME_ZONE)
+    } catch {
+      return null
+    }
+  }
   const startsAt = time(args.start_time)
   const endsAt = time(args.end_time)
   if ((args.start_time && !startsAt) || (args.end_time && !endsAt)) return fail("Hora inválida: usá HH:MM.")
@@ -346,6 +433,10 @@ export async function runTool(
       const args = toolSchemas.search_places.safeParse(json)
       return args.success ? searchPlacesTool(args.data, location) : invalid
     }
+    case "search_events": {
+      const args = toolSchemas.search_events.safeParse(json)
+      return args.success ? searchEventsTool(args.data, location) : invalid
+    }
     case "web_search": {
       const args = toolSchemas.web_search.safeParse(json)
       return args.success ? webSearchTool(args.data) : invalid
@@ -361,6 +452,13 @@ export async function runTool(
     case "remember": {
       const args = toolSchemas.remember.safeParse(json)
       return args.success ? rememberTool(args.data, location) : invalid
+    }
+    case "show_ui": {
+      const args = toolSchemas.show_ui.safeParse(json)
+      // La pantalla la genera /api/genui desde el cliente; acá solo se confirma al modelo.
+      return args.success
+        ? { output: JSON.stringify({ shown: true }), cards: [], ui: { request: args.data.request, placeIds: [] } }
+        : invalid
     }
   }
 }

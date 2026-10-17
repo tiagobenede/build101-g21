@@ -13,7 +13,11 @@ import {
 } from "lucide-react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
+
+import { addItem } from "@/app/itinerary/actions"
+import { GenUiPanel } from "@/components/genui/genui-panel"
 
 import { Joystick } from "@/components/location/joystick"
 import { useLocation } from "@/components/location/location-provider"
@@ -25,9 +29,12 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Spinner } from "@/components/ui/spinner"
+import { useGenUi } from "@/hooks/use-genui"
 import { useRealtimeCall } from "@/hooks/use-realtime-call"
 import type { CallState, PlaceCard } from "@/hooks/voice-session-types"
 import { distanceMeters } from "@/lib/geo"
+import type { GenUiPlace } from "@/lib/genui/types"
+import { addMinutesIso, zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
 import { cn } from "@/lib/utils"
 
 // Leaflet usa `window`: solo en el cliente.
@@ -58,11 +65,57 @@ interface TalkClientProps {
 export function TalkClient({ location, nextCommitment, places, mapPlaces, stops }: TalkClientProps) {
   // La ubicación en vivo (joystick o GPS) llega a la llamada: tools y avisos de movimiento.
   const { position, heading, teleport, source } = useLocation()
-  const call = useRealtimeCall(places, position)
+  const positionRef = useRef(position)
+  useEffect(() => {
+    positionRef.current = position
+  }, [position])
+  const genui = useGenUi(useCallback(() => positionRef.current, []))
+  const showScreen = genui.show
+  const call = useRealtimeCall(places, position, showScreen)
+
+  const ask = useCallback(
+    (request: string, placeIds: string[]) => void showScreen({ request, placeIds }),
+    [showScreen]
+  )
+  const addToPlan = useCallback(
+    async (place: GenUiPlace) => {
+      const slot = nextHalfHour(location.timeZone)
+      const startsAt = zonedTimeToIso(zonedDateKey(new Date(), location.timeZone), slot, location.timeZone)
+      const res = await addItem({
+        title: null,
+        placeId: place.id,
+        startsAt,
+        endsAt: addMinutesIso(startsAt, place.visitMinutes),
+        notes: null,
+        source: "agent",
+        sourceRef: null,
+        locked: null,
+      })
+      if (res.ok) toast.success(`${place.name} quedó en tu plan a las ${slot}.`)
+      else toast.error(res.error)
+    },
+    [location.timeZone]
+  )
+
+  // Solo en desarrollo: probar la UI generativa sin micrófono (window.rumboShow("llevame al Picasso")).
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return
+    const w = window as unknown as { rumboShow?: (request: string) => void }
+    w.rumboShow = (request) => void showScreen({ request, placeIds: [] })
+    return () => {
+      delete w.rumboShow
+    }
+  }, [showScreen])
   const now = useNow()
   const [showMap, setShowMap] = useState(true)
+  // Cuando llega una pantalla generada, el mini mapa se pliega para darle lugar.
+  const screenId = genui.screen?.id
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- responde a una pantalla nueva que llega por streaming
+    if (screenId) setShowMap(false)
+  }, [screenId])
   const active = call.state !== "off"
-  const hasPlaces = call.places.length > 0
+  const hasPlaces = call.places.length > 0 || genui.screen !== null
   const compact = hasPlaces || showMap
 
   const placeName = useMemo(() => {
@@ -141,9 +194,11 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
       {hasPlaces && (
         <ScrollFade className="mx-auto mt-2 min-h-0 w-full max-w-md flex-1 px-4">
           <div className="flex flex-col gap-2 py-2">
-            {call.places.map((place) => (
-              <PlaceNotification key={place.id} place={place} now={now.getTime()} />
-            ))}
+            {genui.screen ? (
+              <GenUiPanel key={genui.screen.id} screen={genui.screen} ask={ask} addToPlan={addToPlan} />
+            ) : (
+              call.places.map((place) => <PlaceNotification key={place.id} place={place} now={now.getTime()} />)
+            )}
           </div>
         </ScrollFade>
       )}
@@ -256,6 +311,14 @@ function RoundToggle({ on, onClick, label, icon }: RoundToggleProps) {
       {icon}
     </Button>
   )
+}
+
+const SLOT_MS = 30 * 60_000
+
+/** Próxima media hora en la zona del viaje ("16:30"). */
+function nextHalfHour(timeZone: string): string {
+  const rounded = Math.ceil(Date.now() / SLOT_MS) * SLOT_MS
+  return zonedTimeValue(new Date(rounded).toISOString(), timeZone)
 }
 
 function untilLabel(now: Date, target: Date): string {

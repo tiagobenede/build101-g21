@@ -64,6 +64,28 @@ contexto del viajero), `src/lib/realtime/*`, `src/hooks/use-realtime-call.ts`, `
 > (si no, el agente se puede escuchar a sí mismo).
 > El mock de comparación OpenAI vs ElevenLabs está en `docs/realtime-mock/` (`npm run mock`).
 
+### UI generativa (OpenUI)
+
+Mientras Rumbo habla, la pantalla de `/talk` la arma un modelo de texto chico con
+[OpenUI](https://www.openui.com/) y nuestros componentes (tarjeta destacada, lista, ruta en el mapa,
+comparación, plan con horarios, clima).
+
+- **Cuándo se pide:** automáticamente con los resultados de `recommend_nearby` y `search_places`, y con el
+  tool `show_ui` (rutas, comparaciones, planes). Los botones "Llevame" y "Al plan" piden otra pantalla o
+  escriben en el itinerario.
+- **Cómo:** `POST /api/genui` arma los datos reales (lugares con minutos a pie, itinerario de hoy, clima) y
+  devuelve en streaming `DATA:{json}` + OpenUI Lang. El modelo solo compone: los componentes buscan nombre,
+  minutos y rating por id, así que no puede inventarlos.
+- **Modelo:** `gpt-6-luna` (US$0,10 / 0,50 por millón de tokens) con `reasoning_effort: "none"`.
+  Benchmark con 4 pantallas reales y 3 rondas: 12/12 correctas, ~0,9 s a la primera línea, ~1,3 s la
+  pantalla completa, ~US$0,0002 por pantalla. `gpt-5.4-mini` es ~250 ms más rápido pero 8x más caro;
+  `gpt-4.1-mini` (el anterior) es más lento y 4x más caro; `gpt-5.4-nano` falló 1 de 4.
+  `GENUI_MODEL` lo cambia; con `GROQ_API_KEY` usa Groq.
+- **Archivos:** `src/lib/genui/library.ts` (esquemas, compartidos server/cliente),
+  `src/components/genui/*` (componentes y `<Renderer>`), `src/app/api/genui/route.ts`.
+- Las devtools de OpenUI quedan apagadas (`src/lib/genui/no-devtools.ts`): bajan código de un CDN.
+- En desarrollo: `window.rumboShow("llevame al Picasso")` en `/talk` prueba una pantalla sin micrófono.
+
 ## Base de datos
 
 `supabase/migrations/20261017000000_init.sql` — con RLS (cada usuario ve solo lo suyo):
