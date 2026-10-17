@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { PlaceCard } from "@/hooks/voice-session-types"
 
-import { findNewPlaces } from "./match-places"
+import { findNewPlaces, placeToFeature } from "./match-places"
 
 const card = (id: string, name: string): PlaceCard => ({
   id,
@@ -33,5 +33,26 @@ describe("findNewPlaces", () => {
 
   it("no encuentra nombres incompletos (texto todavía en streaming)", () => {
     expect(findNewPlaces("Te recomiendo el Centre Pomp", places, new Set())).toEqual([])
+  })
+})
+
+describe("placeToFeature", () => {
+  const sushi = [card("hoki", "Hoki Sushi"), card("cote", "Côté Sushi Rambuteau"), card("petit", "Le Petit Japonais")]
+  const ids = sushi.map((p) => p.id)
+
+  it("la voz recomienda otro que el destacado: ese pasa adelante", () => {
+    expect(placeToFeature("Probá Côté Sushi Rambuteau, está a 3 minutos", ids, sushi)).toBe("cote")
+  })
+
+  it("alcanza con las dos primeras palabras de un nombre largo", () => {
+    expect(placeToFeature("Andá a Côté Sushi, a 3 minutos", ids, sushi)).toBe("cote")
+  })
+
+  it("si nombra primero el destacado, no cambia nada aunque después nombre otros", () => {
+    expect(placeToFeature("Hoki Sushi está a 9 minutos; también está Le Petit Japonais", ids, sushi)).toBeNull()
+  })
+
+  it("si no nombra ninguno, no cambia nada", () => {
+    expect(placeToFeature("Dejame buscar algo de sushi", ids, sushi)).toBeNull()
   })
 })
