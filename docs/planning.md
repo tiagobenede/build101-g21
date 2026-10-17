@@ -23,26 +23,28 @@ Rumbo es un guía de viaje por voz. Conoce tus gustos y restricciones, lee y mod
 | App | Next.js 16 + shadcn/ui, UI estilo iOS, `src/` | `src/app`, `src/components/rumbo`, `src/components/ui` |
 | Login | 3 cuentas demo en París: **Sofía** (autos, diseño, café), **Mateo** (arte, historia, libros), **Lucía** (comida, mercados, parques) | `src/app/login`, `src/lib/demo-accounts.ts`, `supabase/seed.sql` |
 | Base de datos | Supabase local en Docker, permisos por usuario en todas las tablas: `profiles`, `interests`, `trips`, `itinerary_items`, `places`, `conversations`, `messages`, `recommendations` | `supabase/migrations/20261017000000_init.sql` |
-| Lugares | 15 lugares cargados alrededor del Centre Pompidou y el Marais, con tags, descripción y minutos típicos de visita | `supabase/seed.sql` |
+| Lugares | **Google Places (New)**: Nearby Search alrededor de la ubicación (comida y lugares para ver), traducidos a categoría, tags de gustos y minutos de visita, y guardados en `places` como cache (máximo 2 llamadas por celda de ~1 km cada 24 h). Ya no hay lugares en el seed. Necesita `GOOGLE_API_KEY` y `SUPABASE_SECRET_KEY` | `src/lib/places/*`, `src/lib/supabase/admin.ts` |
 | Home | Ubicación, día del viaje, gustos, itinerario de hoy y "Para vos" (lugares cercanos que coinciden con los gustos) | `src/app/page.tsx` |
 | Contexto del viajero | `getTravelerContext()`: perfil, gustos, viaje activo, itinerario y lugares cercanos con distancia y minutos a pie | `src/lib/data/session.ts` |
 | Geo | Distancia haversine, minutos caminando (factor 1,3 por calles) | `src/lib/geo.ts` |
-| Motor de recomendaciones | **Borrado** al pasar a la llamada en tiempo real. Está en el historial (commit `58e8870`, con tests): A-1 lo recupera como base de `recommend_nearby` | `git show 58e8870:src/lib/agent/recommend.ts` |
-| **Voz real** | **Llamada en tiempo real** con OpenAI Realtime por WebRTC, full-duplex: el servidor detecta los turnos (VAD) y si lo interrumpís se calla. **Modo bajo costo**: `gpt-realtime-2.1-mini`, sin transcripción del usuario, máximo 500 tokens de salida, contexto en las instrucciones, pide el mic antes de abrir la sesión, corta a los 60 s sin actividad, al salir de la página o al llegar a US$0,30. Medidor de costo en vivo | `src/app/api/realtime/session/route.ts`, `src/lib/realtime/*`, `src/hooks/use-realtime-call.ts` |
-| Pantalla de voz | `/talk`: **sin chat ni transcripción**. Blob al centro que reacciona a tu voz y a la del agente, tarjeta de dónde estás (lugar, hora local, día del viaje, próximo compromiso) y **notificaciones estilo iOS** de los lugares que el agente va nombrando (se detectan en vivo en su transcripción de audio), apiladas con scroll y fade | `src/app/talk`, `src/components/rumbo/place-notification.tsx`, `scroll-fade.tsx` |
+| Ranking de lugares | Gustos × distancia × tiempo libre × próximo compromiso, máximo 3 resultados. Con tests | `src/lib/agent/rank.ts` |
+| **Voz real** | OpenAI Realtime por WebRTC, **llamada full-duplex**: `gpt-realtime-2.1-mini`, `server_vad` con `interrupt_response` (hablás cuando querés y lo interrumpís hablando), sin transcripción del usuario, pide el mic antes de abrir la sesión, máximo 500 tokens de salida, el contexto va en las instrucciones al abrir la sesión, corta a los 60 s sin actividad, al ocultar la página o al llegar a US$0,30. Medidor de costo en vivo | `src/app/api/realtime/session/route.ts`, `src/lib/realtime/*`, `src/hooks/use-realtime-call.ts` |
+| **Tools del agente** | Registro de tools con zod, `recommend_nearby`, route handler que los ejecuta y **cola de respuestas** para que corran en segundo plano sin chocar con las respuestas del VAD. Con tests | `src/lib/realtime/tools.ts`, `src/lib/realtime/response-queue.ts`, `src/lib/agent/run-tool.ts`, `src/app/api/realtime/tools/route.ts` |
+| Pantalla de voz | `/talk`: **sin chat ni transcripción**. Blob al centro que reacciona a tu voz y a la del agente, tarjeta de dónde estás (lugar, hora local, día del viaje, próximo compromiso) y **notificaciones estilo iOS** de los lugares que recomienda el agente (el primero del resultado del tool; los demás si los nombra, detectados en su transcripción de audio), apiladas con scroll y fade | `src/app/talk`, `src/components/rumbo/place-notification.tsx`, `scroll-fade.tsx` |
 | Voz simulada | **Eliminada.** Se trabaja siempre con la llamada real (es barata) | — |
 | Traductor (en el mock) | `gpt-realtime-translate` funcionando, una sesión por dirección, cierre automático | `docs/realtime-mock/public/app.js`, `docs/realtime-mock/server.mjs` |
 | Comparación de proveedores | OpenAI Realtime elegido frente a ElevenLabs por latencia y costo | `docs/realtime-mock/COMPARISON.md` |
 
 ### Principios que respetamos
 
-1. **Bajo costo primero.** Es una decisión del equipo: modelo `mini`, VAD del servidor (solo se factura la voz detectada, no el silencio), respuestas cortas, sesiones que se cierran solas. Ninguna feature nueva deja sesiones abiertas sin necesidad ni agrega llamadas a modelos donde una regla alcanza.
-2. **El contexto va en las instrucciones, no en tools.** Así se cachea entre turnos. Como la sesión se cierra a los 60 s sin actividad, la próxima sesión ya arranca con el contexto actualizado. Dentro de una sesión abierta, los resultados de los tools traen la información nueva; `session.update` se usa solo cuando cambia algo grande (por ejemplo, te moviste más de 300 m).
-3. **Seguimos con la conexión WebRTC propia.** No migramos al Agents SDK: los tools se agregan sobre `src/lib/realtime/connection.ts` y `src/hooks/use-realtime-call.ts`.
-7. **`/talk` es una llamada, no un chat.** Nunca se muestra la transcripción. Lo único que aparece en pantalla además del blob es información útil: dónde estás y lo que el agente te va recomendando.
-4. **Los tools llaman a server actions.** El mismo patrón que `src/app/talk/actions.ts`: respetan el login y los permisos por usuario sin trabajo extra.
-5. **Un solo camino de código por operación.** Las funciones de itinerario las usan la UI y los tools por igual.
-6. **El lugar es la entidad que conecta todo.** Recomendaciones del agente, recomendaciones de residentes, itinerario y avisos apuntan a una fila de `places`.
+1. **Bajo costo primero.** Es una decisión del equipo: modelo `mini`, respuestas cortas, solo se factura la voz que detecta el VAD, la llamada se corta sola (60 s sin actividad, al salir o a los US$0,30). Ninguna feature nueva deja sesiones abiertas sin necesidad ni agrega llamadas a modelos donde una regla alcanza.
+2. **El contexto va en las instrucciones, no en tools.** Así se cachea entre turnos. Con la llamada full-duplex las sesiones duran más, así que el contexto se desactualiza: `session.update` cuando cambia algo grande (te moviste más de 300 m, cambió el itinerario, entró un evento del calendario). Los tools traen lo que no entra en el contexto.
+3. **Seguimos con la conexión WebRTC propia.** No migramos al Agents SDK: los tools se agregan sobre `src/lib/realtime/connection.ts` y `use-realtime-call.ts`.
+4. **Los tools corren en el server con el login del usuario.** Pasan por el route handler `/api/realtime/tools`, que respeta el login y los permisos por usuario. **No son server actions** porque Next las despacha de a una por cliente: un tool lento (Google, el planner) bloquearía a los demás y a `saveTurn` mientras seguimos hablando. La lógica vive en funciones compartidas que también usa la UI.
+5. **Ninguna fuente externa por MCP dentro de la sesión.** Google Places, eventos y calendario entran como tools propios: así se recortan los resultados a 3, se guardan en `places` y se filtran las restricciones en el server.
+6. **Un solo camino de código por operación.** Las funciones de itinerario las usan la UI y los tools por igual.
+7. **El lugar es la entidad que conecta todo.** Recomendaciones del agente, recomendaciones de residentes, itinerario y avisos apuntan a una fila de `places`.
+8. **`/talk` es una llamada, no un chat.** Nunca se muestra la transcripción. Lo único que aparece en pantalla además del blob es información útil: dónde estás y lo que el agente te va recomendando.
 
 ---
 
@@ -54,7 +56,10 @@ Rumbo es un guía de viaje por voz. Conoce tus gustos y restricciones, lee y mod
 | Cuenta de la demo | **Lucía** (comida, mercados, parques): es la que mejor encaja con "un residente te recomienda un lugar" |
 | Dónde se muestra | **Desde la laptop en `localhost`.** El micrófono funciona en localhost, el GPS es simulado y la cámara es la webcam o una foto subida. Deploy a la nube (Vercel + Supabase Cloud, o ngrok para HTTPS) **solo si sobra tiempo** |
 | Residente en la demo | Alguien del equipo que hable **francés** (definir quién en F0) |
-| Lugares | Los del seed alcanzan para la prioridad alta. **Google Places es opcional** y entra después, para enriquecer o resolver nombres que no estén en el seed |
+| Lugares | **Todos de Google Places (New)**, sin seed. Los cercanos se cargan solos en `places`; el tool `search_places` (Text Search) busca lo que no aparece cerca. Un solo módulo de Google (`src/lib/places`) compartido entre A (tools) y C (C-5) |
+| Eventos | Tool `search_events` con un **proveedor intercambiable**. Para la demo: la API de datos abiertos "Que faire à Paris" (gratis, sin key). Más un evento en el seed para no depender de lo que publique ese día |
+| Clima | Open-Meteo (gratis, sin key), **en las instrucciones**, no como tool |
+| Calendario | Google Calendar con `calendar.events`. Se porta el cliente OAuth de `~/git/adven` (FastAPI) a TypeScript, con un **client OAuth nuevo "Rumbo"** (no el de Adven) y una cuenta de Google "Lucía" con eventos de la demo. Los eventos entran como actividades `locked` con `source = 'calendar'`. Sin webhooks: se lee al abrir la sesión |
 | Traducción | **`gpt-realtime-translate`**, portado desde el mock. No una sesión del guía en modo intérprete |
 | Visión | Una llamada aparte del server a un modelo de visión barato, no imágenes dentro de la sesión de voz. El resultado entra a la sesión como texto |
 
@@ -81,7 +86,8 @@ alter table public.itinerary_items
   add column status     text not null default 'planned'
              check (status in ('planned','in_progress','done','skipped')),
   add column source     text not null default 'user'
-             check (source in ('user','agent','local_tip','event')),
+             check (source in ('user','agent','local_tip','event','calendar')),
+  add column calendar_event_id text,          -- id del evento de Google Calendar
   add column source_ref uuid,                 -- id del local_tip que lo originó
   add column locked     boolean not null default false;  -- reserva: el planner no la mueve
 -- place_id ya existe (text, sin FK): apunta a places.id
@@ -130,13 +136,15 @@ pings (id, user_id, lat, lng, heading, source text /* 'mock' | 'real' */, create
 notifications (id, user_id, place_id, reason_text, candidate_type, created_at, seen_at)
 
 itinerary_snapshots (id, trip_id, items jsonb, created_at)  -- para "volvé al plan anterior"
+
+google_accounts (user_id pk, email, refresh_token, scope, updated_at)  -- solo lo lee el server
 ```
 
 Activar Supabase Realtime en `itinerary_items`, `local_tips`, `notifications` y `recommendations`.
 
 ### Seed
 
-- Agregar a `seed.sql` los lugares que el residente va a recomendar en la demo, con `listed = false` para que el agente no los sugiera antes. Ejemplo: una crêperie del Marais.
+- Los lugares ya no van en el seed (vienen de Google). El que recomienda el residente en la demo (la crêperie del Marais) se resuelve con Text Search en C-5; para que el agente no lo sugiera antes, marcarlo `listed = false` al guardarlo.
 - Una ruta de caminata para la demo que pase cerca de ese lugar.
 - Restricciones y ritmo para las 3 cuentas.
 
@@ -164,18 +172,32 @@ Hoy `getTravelerContext()` usa **el centro del destino como ubicación fija**, y
 
 ## 6. Tools del agente
 
-Se agregan a la sesión en `/api/realtime/session` (`tools` y `tool_choice` en la config). En `use-realtime-call.ts` se maneja la llamada a función: ejecutar la server action, enviar `conversation.item.create` con `function_call_output` y después `response.create`.
+**Cómo funciona (ya hecho en A-1):**
+- Cada tool es una entrada en `src/lib/realtime/tools.ts` (esquema zod + descripción). De ahí salen las definiciones que se mandan en `/api/realtime/session` y la validación en el server.
+- `use-realtime-call.ts` arranca el tool en `response.function_call_arguments.done`, sin esperar el `response.done`, y llama a `/api/realtime/tools`.
+- `ResponseQueue` decide cuándo entra el resultado: manda el `function_call_output` cuando terminó la respuesta que pidió el tool (si el usuario la interrumpió, se descarta) y pide `response.create` solo si no hay una respuesta activa, nadie habla y no queda otro tool pendiente. Así **el tool corre en segundo plano y la charla sigue**.
+- Mientras hay un tool pendiente, la llamada no se corta por inactividad.
+- Para agregar un tool: una entrada en `toolSchemas` + un caso en `runTool` (`src/lib/agent/run-tool.ts`).
+
+**Tareas largas** (Google, `plan_day`): el tool responde al instante "lo estoy buscando" y el resultado entra después con `conversation.item.create` a través de la cola, para que el agente lo cuente cuando corresponde (A-1b).
 
 ```
-recommend_nearby(available_minutes: number|null, interest: string|null)
-                                         → base: recommend.ts recuperado de 58e8870; hasta 3 lugares
+recommend_nearby(available_minutes: number|null, interest: tag|null)   ✅ hecho
+                                         → usa rank.ts; devuelve hasta 3 lugares
 get_place(place_id: string)              → descripción, horarios, minutos a pie
+search_places(query: string, open_now: boolean|null)
+                                         → Google Places; guarda en places; hasta 3
+search_events(when: 'now'|'today'|'tomorrow', interest: tag|null)
+                                         → proveedor París; hasta 3
 edit_itinerary(op: 'add'|'move'|'remove'|'done'|'skip'|'undo',
                item_id: string|null, place_id: string|null, title: string|null,
                starts_at: string|null, ends_at: string|null)
 remember(statement: string, kind: 'constraint'|'preference')
+add_to_calendar(item_id: string|null)    → null = todo el plan de hoy
 plan_day(date: string, brief: string)    → prioridad media, asíncrono
 ```
+
+Con 8 tools y descripciones cortas son ~1.000 tokens por turno, cacheados (~US$0,0001 por turno). No agregar más sin sacar otro.
 
 Reglas:
 - **zod 4: usar `.nullable()` y nunca `.optional()`** en los parámetros. El modo strict exige que todas las propiedades estén en `required`; si no, el tool falla en silencio.
@@ -198,6 +220,7 @@ Reglas:
 | 6 | Traducción con residentes | Media | A (sesiones), B (UI), C (extracción) |
 | 7 | Avisos proactivos por cercanía | Media | C (motor), B (UI), A (voz) |
 | 8 | Itinerario creado por el agente | Media | C (planner), A (tool) |
+| 8b | Google Calendar (leer y agendar) | Media | C (OAuth y API), B (botón), A (contexto y tool) |
 | 9 | Video en vivo | Media | A, B |
 | 10 | Viaje compartido | Baja | B, C |
 
@@ -214,10 +237,10 @@ Horas relativas desde que arranca este plan. Está pensado para **~16 horas**: s
 | Horas | Dev A — Agente y voz | Dev B — App y UX | Dev C — Datos y backend |
 |---|---|---|---|
 | H0–1 | **F0 (los tres)** | **F0** | **F0** |
-| H1–3 | A-1 Tools en la sesión + `recommend_nearby` | B-1 Mapa + joystick | C-1 Migración + pings + ubicación en el contexto |
-| H3–4 | A-2 Contexto ampliado | B-2 Onboarding / editar perfil | C-2 Server actions de itinerario y perfil |
+| H1–3 | A-1 Tools en la sesión + `recommend_nearby` ✅ | B-1 Mapa + joystick | C-1 Migración + pings + ubicación en el contexto |
+| H3–4 | A-1b Tareas en segundo plano + A-2 Contexto ampliado | B-2 Onboarding / editar perfil | C-2 Server actions de itinerario y perfil |
 | **H4** | **Checkpoint 1** | | |
-| H4–6 | A-3 `edit_itinerary`, `remember`, `get_place` | B-3 UI de itinerario | C-3 Visión con lugares candidatos |
+| H4–6 | A-3 `edit_itinerary`, `remember`, `get_place` + `session.update` | B-3 UI de itinerario | C-3 Visión con lugares candidatos |
 | H6–8 | A-4 Foto en la sesión | B-4 Cámara | C-4 Seed de la demo |
 | **H8** | **Checkpoint 2 — prioridad alta completa** | | |
 | H8–10 | A-5 Traductor portado del mock | B-5 UI de traducción | C-5 Extracción de recomendaciones |
@@ -241,24 +264,24 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 - [ ] **F0-3** Acordar la migración de la sección 4 (C la escribe y la mergea primero).
 - [ ] **F0-4** Acordar las firmas de los tools de la sección 6.
 - [ ] **F0-5** Definir quién hace de residente francés y qué lugar recomienda en la demo.
-- [ ] **F0-6** Completar `.env.example` con `GOOGLE_MAPS_API_KEY` (opcional) y el modelo de visión.
+- [ ] **F0-6** Completar `.env.example` con `GOOGLE_MAPS_API_KEY` (Places API New), `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` (client OAuth "Rumbo") y el modelo de visión.
 
 ### Dev A — Agente y voz
 
-- [ ] **A-1** Tools en la sesión (H1–3).
-  - Agregar `tools` y `tool_choice` al mint en `/api/realtime/session`.
-  - En `use-realtime-call.ts`, manejar las llamadas a función: ejecutar la server action, enviar `function_call_output` y `response.create`.
-  - Primer tool: `recommend_nearby`, sobre `recommend.ts` recuperado del commit `58e8870` (con sus tests). Sus resultados se muestran como las notificaciones de `/talk`.
+- [x] **A-1** Tools en la sesión (H1–3). Registro de tools, `/api/realtime/tools`, `ResponseQueue`, `recommend_nearby` con `rank.ts` y tarjetas desde el resultado del tool. Probado con voz real (~US$0,01 por pregunta).
   - *Terminado:* "tengo una hora, ¿qué hago?" responde con un lugar que entra en el tiempo, y aparece la card.
-- [ ] **A-2** Contexto ampliado (H3–4). Extender `buildInstructions()` con lo de la sección 5. Actualizar `instructions.test.ts`.
-- [ ] **A-3** Tools de itinerario y memoria (H4–6). `edit_itinerary`, `remember`, `get_place`. `session.update` solo cuando la ubicación cambia más de 300 m con la sesión abierta.
+- [ ] **A-1b** Tareas en segundo plano (H3–4). Tools que responden "lo estoy buscando" al instante y meten el resultado después por la cola. Base para `search_places`, `search_events` y `plan_day`.
+- [ ] **A-2** Contexto ampliado (H3–4). Extender `buildInstructions()` con lo de la sección 5, los eventos de hoy y mañana del calendario (cuando C-8 esté) y el clima de Open-Meteo. Actualizar `instructions.test.ts`.
+- [ ] **A-3** Tools de itinerario y memoria (H4–6). `edit_itinerary`, `remember`, `get_place`. `session.update` cuando la ubicación cambia más de 300 m, cuando cambia el itinerario o cuando entra un evento del calendario con la llamada abierta.
   - *Terminado:* "agregá el mercado a las cuatro" aparece en el itinerario de la home; "soy vegetariana" queda guardado y la siguiente recomendación lo respeta.
+- [ ] **A-3b** `search_places` y `search_events` (después del checkpoint 1). Usan el módulo de Google de C y el proveedor de eventos de París. Resultados recortados a 3 y guardados en `places`.
+- [ ] **A-3c** `add_to_calendar` (cuando C-8 esté). "Agendame la clase de cocina" o "pasá el plan de hoy a mi calendario".
 - [ ] **A-4** Foto en la sesión (H6–8). Cuando la cámara devuelve un resultado, inyectarlo como texto en la sesión (`conversation.item.create`) para poder repreguntar.
   - *Terminado:* después de la foto, "¿cuánto tarda la visita?" responde sobre ese lugar.
 - [ ] **A-5** Traductor (H8–10). Portar `gpt-realtime-translate` del mock a la app: ruta para el token, hook con dos sesiones (una por dirección), botones "hablo yo" y "habla él/ella". **Mantener el cierre automático**: se cobra cada minuto abierto. Guardar el transcript en `conversations` (`kind = 'translation'`) y `messages`. Al cerrar, llamar a la extracción (C-5).
   - Solo llega el transcript de **salida**. Lo que dice el residente se guarda ya traducido al español; eso alcanza para la extracción.
   - *Terminado:* charla de un minuto en francés, traducida en ambas direcciones.
-- [ ] **A-6** Avisos en voz (H10–11). Si llega una notificación con la sesión del guía abierta, inyectar el motivo con `conversation.item.create` y `response.create`, para que el agente lo diga sin que se lo pidan.
+- [ ] **A-6** Avisos en voz (H10–11). Si llega una notificación con la llamada abierta, inyectar el motivo con `conversation.item.create` y pedir la respuesta **por `ResponseQueue`**, para que el agente lo diga sin que se lo pidan y sin pisar a nadie.
 - [ ] **A-7** Tool `plan_day` (H11–13). Llama al planner (C-7), responde al instante y el resultado aparece en la UI por Realtime.
 - [ ] **A-8** Video en vivo (solo si en el checkpoint 3 todo está en verde y se acepta el costo). Mientras la cámara está abierta, capturar un cuadro chico al empezar a hablar y mandarlo a la visión de C-3. Es la feature más cara: medir antes con el medidor de costo.
 
@@ -276,7 +299,8 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 - [ ] **B-3** UI de itinerario (H4–6). Arranca sumando el **cliente de Supabase para el navegador** (`src/lib/supabase/client.ts`), que también usa B-6 para Realtime. Sobre la sección que ya existe en la home: agregar (eligiendo de `places` o con texto libre), editar horario, marcar hecho o saltado, borrar. Mostrar el origen de cada actividad ("recomendado por Camille"). Suscripción Realtime a `itinerary_items`, para que lo que agrega el agente aparezca solo.
 - [ ] **B-4** Cámara (H6–8). Botón fijo: webcam o foto subida desde archivo. Card con el resultado de C-3 y "Agregar al plan".
 - [ ] **B-5** UI de traducción (H8–10). **Pantalla propia `/translate`**, separada de `/talk`: acá sí hay burbujas, porque mostrarle el texto al residente es la función. Burbujas bilingües en vivo, botón para mostrarle el texto grande al residente y, al terminar, cards de recomendaciones con la cita original y la traducción (guardar, al plan, descartar).
-- [ ] **B-6** UI de avisos (H10–11). Aviso con el mismo estilo que `PlaceNotification` de `/talk` (no un toast genérico) y sonido cuando entra una fila en `notifications`. Tocar el aviso abre `/talk`.
+- [ ] **B-6** UI de avisos (H10–11). La notificación de `/talk` para los lugares que recomienda el agente ya existe; falta la de **cercanía**: aviso con el mismo estilo que `PlaceNotification` (no un toast genérico) y sonido cuando entra una fila en `notifications`, también fuera de `/talk`. Tocar el aviso abre `/talk`.
+- [ ] **B-8** Botón "Conectar Google Calendar" en el perfil (aparte del login demo) e ícono de calendario en las actividades que vienen de ahí.
 - [ ] **B-7** Panel de demo y pulido (H11–13). Reutiliza el joystick de B-1 y suma: velocidad, teletransporte, "forzar aviso", "ver contexto del agente" (lo que devuelve `buildInstructions()`) y **"reiniciar demo"** (`npx supabase db reset` o un reset equivalente desde la app).
 
 ### Dev C — Datos y backend
@@ -291,6 +315,9 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 - [ ] **C-6** Motor proactivo (H10–11). Se ejecuta en cada ping. Candidatos: `local_tips` guardados, actividades futuras del itinerario y lugares que coinciden con los gustos. Reglas: menos de 150 m, nunca repetido, una pausa entre avisos configurable (1 min en la demo) y sin chocar con la próxima actividad `locked`. **El texto se arma con una plantilla**, sin modelo: "Estás a 2 min de X, que te recomendó Y". Inserta en `notifications`.
   - *Terminado:* caminar con el joystick junto a la crêperie dispara el aviso con el nombre de quien la recomendó.
 - [ ] **C-7** Planner (H11–13). Modelo de texto con salida estructurada. Recibe perfil, restricciones, `local_tips`, lugares con minutos de visita y actividades `locked`. **Solo puede usar lugares de `places`.** Los traslados salen de `walkMinutes()`. Guarda un snapshot antes de escribir y marca lo nuevo con `source = 'agent'`.
+
+- [ ] **C-8** Google Calendar. Portar `~/git/adven/backend/app/integrations/google_calendar/oauth_client.py`: `access_type=offline` + `prompt=consent`, `singleEvents=true`, marca en los eventos que crea la app. Ruta de callback, tokens en `google_accounts`, eventos de hoy y mañana mezclados en `getTravelerContext()` como `locked`, y una función para crear eventos que usa A-3c. Sin sync token: `timeMin`/`timeMax` al abrir la sesión.
+- [ ] **C-9** Módulo de Google Places (New). Nearby Search con cache en `places` ya está (`src/lib/places/nearby.ts`); falta Text Search para `search_places` (A-3b) y para anclar las recomendaciones de residentes (C-5).
 
 ### Prioridad baja — Viaje compartido (solo con todo en verde en el checkpoint 3)
 
@@ -336,6 +363,8 @@ Con la cuenta de **Lucía**.
 - **Next.js 16:** leer la documentación local antes de usar cualquier API de Next.
 - **Costo:** el traductor se cobra por minuto abierto y el video es caro. Mirar el medidor de costo al probar.
 - **zod 4 + tools:** `.optional()` hace que el tool falle en silencio; usar `.nullable()`.
+- **Nunca mandar `response.create` directo** con la llamada abierta: el VAD crea sus propias respuestas y OpenAI rechaza una segunda. Todo pasa por `ResponseQueue`.
+- **Server actions en serie:** Next las despacha de a una por cliente. Para trabajo en paralelo o lento, route handler.
 - **Nombres propios deformados** por la traducción: anclar los lugares con búsqueda tolerante a errores y probar los nombres de la demo antes.
 - **Con el traductor no llega el transcript de entrada** por WebRTC, solo el de salida.
 - **Chrome no reenvía audio remoto directo a otra conexión WebRTC** (manda silencio): pasarlo por Web Audio. Detalle en `docs/realtime-mock/README.md`.

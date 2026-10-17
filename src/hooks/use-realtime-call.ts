@@ -8,6 +8,8 @@ import { SESSION_BUDGET_USD, SESSION_IDLE_MS } from "@/lib/realtime/config"
 import { connectRealtime, type RealtimeConnection, type RealtimeEvent } from "@/lib/realtime/connection"
 import { estimateUsageCost, type RealtimeUsage } from "@/lib/realtime/cost"
 import { findNewPlaces } from "@/lib/realtime/match-places"
+import { ResponseQueue } from "@/lib/realtime/response-queue"
+import type { ToolResult } from "@/lib/realtime/tools"
 
 import type { CallState, MentionedPlace, PlaceCard, VoiceCall } from "./voice-session-types"
 
@@ -43,6 +45,9 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
   const knownPlacesRef = useRef(knownPlaces)
   const inputVolumeRef = useRef(0)
   const outputVolumeRef = useRef(0)
+  const queueRef = useRef<ResponseQueue | null>(null)
+  /** Lugares que devolvieron los tools: se muestran si el agente los nombra. */
+  const toolPlacesRef = useRef<PlaceCard[]>([])
 
   useEffect(() => {
     knownPlacesRef.current = knownPlaces
@@ -55,18 +60,57 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
   const end = useCallback((reason?: string) => {
     connRef.current?.close()
     connRef.current = null
+    queueRef.current = null
     setState("off")
     if (reason) toast.info(reason)
   }, [])
 
-  const revealPlaces = useCallback(() => {
-    const found = findNewPlaces(agentTextRef.current, knownPlacesRef.current, seenRef.current)
+  const showPlaces = useCallback((cards: PlaceCard[]) => {
+    const found = cards.filter((p) => !seenRef.current.has(p.id))
     if (found.length === 0) return
     found.forEach((p) => seenRef.current.add(p.id))
     const mentionedAt = Date.now()
     const mentioned = found.map((p) => ({ ...p, mentionedAt })).reverse()
     setPlaces((prev) => [...mentioned, ...prev])
   }, [])
+
+  // Lugares que el agente nombra: los cercanos y los que trajo algún tool.
+  const revealPlaces = useCallback(() => {
+    const candidates = [...toolPlacesRef.current, ...knownPlacesRef.current]
+    showPlaces(findNewPlaces(agentTextRef.current, candidates, seenRef.current))
+  }, [showPlaces])
+
+  /** Corre el tool en segundo plano; la cola decide cuándo entra el resultado a la charla. */
+  const runToolCall = useCallback(
+    async (ev: RealtimeEvent) => {
+      const callId = typeof ev.call_id === "string" ? ev.call_id : null
+      const conn = connRef.current
+      const queue = queueRef.current
+      if (!callId || !conn || !queue) return
+      queue.begin(callId, typeof ev.response_id === "string" ? ev.response_id : "")
+
+      const result: ToolResult = await fetch("/api/realtime/tools", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: ev.name, arguments: ev.arguments, conversationId: conn.conversationId }),
+      })
+        .then((res) => (res.ok ? (res.json() as Promise<ToolResult>) : Promise.reject(new Error(String(res.status)))))
+        .catch((err: unknown) => {
+          console.error("[realtime] tool failed", ev.name, err)
+          return { output: JSON.stringify({ error: "No pude buscar eso ahora." }), cards: [] }
+        })
+
+      // Si la llamada se cortó mientras corría el tool, la cola ya no es la misma.
+      if (queueRef.current !== queue) return
+      touch()
+      // El agente recomienda el primero: esa tarjeta sale ya; las demás, si las nombra.
+      queue.resolve(callId, result.output, () => {
+        toolPlacesRef.current = [...result.cards, ...toolPlacesRef.current]
+        showPlaces(result.cards.slice(0, 1))
+      })
+    },
+    [showPlaces]
+  )
 
   const finishResponse = useCallback(
     (response: ResponseDone | undefined) => {
@@ -90,6 +134,7 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
 
   const handleEvent = useCallback(
     (ev: RealtimeEvent) => {
+      queueRef.current?.handle(ev)
       switch (ev.type) {
         case "input_audio_buffer.speech_started":
           touch()
@@ -103,6 +148,10 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
           agentTextRef.current += typeof ev.delta === "string" ? ev.delta : ""
           revealPlaces()
           break
+        case "response.function_call_arguments.done":
+          touch()
+          void runToolCall(ev)
+          break
         case "output_audio_buffer.started":
           touch()
           setState("talking")
@@ -115,7 +164,8 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
         case "response.done":
           touch()
           finishResponse(ev.response as ResponseDone | undefined)
-          setState((s) => (s === "thinking" ? "listening" : s))
+          // Con un tool corriendo seguimos "pensando" hasta que llegue su respuesta.
+          setState((s) => (s === "thinking" && !queueRef.current?.hasPending ? "listening" : s))
           break
         case "error": {
           const message = (ev.error as { message?: string } | undefined)?.message ?? "Error en la llamada."
@@ -125,12 +175,13 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
         }
       }
     },
-    [finishResponse, revealPlaces]
+    [finishResponse, revealPlaces, runToolCall]
   )
 
   const start = useCallback(async () => {
     if (connRef.current) return
     setState("connecting")
+    queueRef.current = new ResponseQueue((event) => connRef.current?.send(event))
     try {
       const conn = await connectRealtime({ onEvent: handleEvent, onDisconnect: () => end() })
       connRef.current = conn
@@ -160,6 +211,8 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
   // Corte por inactividad y al salir de la página: nada queda abierto facturando.
   useEffect(() => {
     const timer = setInterval(() => {
+      // Un tool en curso cuenta como actividad: no cortamos mientras busca.
+      if (queueRef.current?.hasPending) touch()
       if (connRef.current && Date.now() - lastActivityRef.current > SESSION_IDLE_MS) {
         end("Corté la llamada porque no hablamos en un rato.")
       }

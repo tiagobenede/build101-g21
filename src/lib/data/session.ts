@@ -6,6 +6,7 @@ import { connection } from "next/server"
 import type { Place } from "@/lib/agent/types"
 import { findDemoAccount, type DemoAccount } from "@/lib/demo-accounts"
 import { distanceMeters, walkMinutes, type LatLng } from "@/lib/geo"
+import { ensureNearbyPlaces } from "@/lib/places/nearby"
 import { createClient } from "@/lib/supabase/server"
 
 export { TRIP_TIME_ZONE } from "@/lib/config"
@@ -82,6 +83,10 @@ export async function getTravelerContext(): Promise<TravelerContext> {
   const trip = tripRes.data as Trip | null
   // Ubicación simulada: centro del destino. Luego: navigator.geolocation.
   const location: LatLng = trip ? { lat: trip.lat, lng: trip.lng } : FALLBACK_LOCATION
+  const city = trip?.destination ?? "París"
+
+  // Los lugares vienen de Google Places y quedan guardados en `places`.
+  await ensureNearbyPlaces(location, city)
 
   const [itineraryRes, placesRes] = await Promise.all([
     trip
@@ -94,7 +99,7 @@ export async function getTravelerContext(): Promise<TravelerContext> {
     supabase
       .from("places")
       .select("id, name, category, tags, description, lat, lng, rating, typical_visit_minutes")
-      .eq("city", trip?.destination ?? "París"),
+      .eq("city", city),
   ])
 
   if (itineraryRes.error) throw new Error(`No se pudo cargar el itinerario: ${itineraryRes.error.message}`)
