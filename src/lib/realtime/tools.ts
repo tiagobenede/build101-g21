@@ -87,6 +87,19 @@ const descriptions: Record<ToolName, string> = {
 
 export const isToolName = (name: string): name is ToolName => Object.hasOwn(toolSchemas, name)
 
+/**
+ * Realtime no exige el esquema estricto: a veces el modelo omite los campos que no usa
+ * (`edit_itinerary` sin `item_ref` ni `title`). Los que aceptan null y faltan, quedan en null.
+ */
+export function fillMissingNulls(name: ToolName, args: unknown): unknown {
+  if (typeof args !== "object" || args === null || Array.isArray(args)) return args
+  const filled: Record<string, unknown> = { ...args }
+  for (const [key, field] of Object.entries(toolSchemas[name].shape)) {
+    if (filled[key] === undefined && (field as z.ZodType).safeParse(null).success) filled[key] = null
+  }
+  return filled
+}
+
 /** Definiciones para `session.tools` de OpenAI Realtime. */
 export const TOOL_DEFINITIONS = Object.entries(toolSchemas).map(([name, schema]) => {
   const parameters: Record<string, unknown> = { ...z.toJSONSchema(schema) }

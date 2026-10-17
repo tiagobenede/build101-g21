@@ -153,6 +153,7 @@ describe("viaje compartido", () => {
 
   it("dice con quién viaja y lo que no negocia cada uno", () => {
     expect(companionsLine([sofia, mateo])).toMatch(/^Viaje compartido con Sofía \(vegetariano\), Mateo:/)
+    expect(companionsLine([sofia], "Lucía")).toContain("lo que no lo dice lo sumó Lucía")
     expect(companionsLine([])).toBeNull()
   })
 

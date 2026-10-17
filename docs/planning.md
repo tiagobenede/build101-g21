@@ -360,7 +360,9 @@ Se adelantó aunque era de prioridad baja. **Lo hizo todo Dev A**, incluida la b
     - En el itinerario, "Lo sumó Sofía".
     - Aviso en vivo "Sofía sumó X al plan" o "cambió la hora de X" (`useCompanionActivity`, con el payload de Realtime que ahora pasa `onTableChange`).
   - **Probado** (gratis, con la base local y el navegador): Lucía invita, Sofía se suma, Sofía suma una actividad y a Lucía le aparece el aviso y "Lo sumó Sofía". Lucía no puede deshacer lo de Sofía, Sofía sí puede deshacer lo suyo. Mateo, que no está en el viaje, no ve nada. El agente de Lucía recibe la línea del grupo y el "(sumó Sofía)". El link de invitación y "Salir del viaje" funcionan.
-  - **Falta:** probarlo con dos teléfonos y dos llamadas a la vez. Si `/join/<código>` se abre sin sesión, va al login y se pierde el código.
+  - **Dos llamadas a la vez, probado** (~US$0,02; dos pestañas, una en `localhost` y otra en `127.0.0.1` con `allowedDevOrigins` puesto solo para la prueba). Sofía se sumó con el código desde su pantalla y le dijo a su agente "sumá el Museo Picasso a las 17:30". A los 32 s, la llamada de Lucía recibió el `session.update` con "Museo Picasso (sumó Sofía)", y a "¿Sofía sumó algo al plan?" respondió "Sí, Sofía sumó el Museo Picasso". También le atribuyó a Sofía la clase de cocina de Lucía: ahora las instrucciones aclaran que lo que no dice "(sumó …)" lo sumó el viajero, pero ese ajuste no se volvió a probar con voz.
+  - **Arreglo que salió de la prueba:** Realtime no exige el esquema estricto y el modelo llamó a `edit_itinerary` sin `item_ref` ni `title`, así que el tool respondía "Argumentos inválidos". `fillMissingNulls` completa con null los campos que aceptan null antes de validar.
+  - **Falta:** probarlo con dos teléfonos reales. Si `/join/<código>` se abre sin sesión, va al login y se pierde el código. El agente suma actividades aunque la hora ya haya pasado (Picasso a las 17:30 cuando eran las 21).
 - Una sola sesión de audio con varios participantes no se intenta.
 
 ---

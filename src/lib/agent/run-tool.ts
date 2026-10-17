@@ -26,7 +26,7 @@ import { getOpeningInfo } from "@/lib/places/details"
 import { findPlaceByName } from "@/lib/places/lookup"
 import { searchPlaces } from "@/lib/places/search"
 import { formatTodayPlan, itemRef } from "@/lib/realtime/instructions"
-import { isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
+import { fillMissingNulls, isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
@@ -444,6 +444,7 @@ export async function runTool(
     return fail("Argumentos inválidos.")
   }
   const invalid = fail("Argumentos inválidos.")
+  json = fillMissingNulls(name, json)
 
   switch (name) {
     case "recommend_nearby": {
