@@ -19,7 +19,6 @@ import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle }
 import { needsOnboarding } from "@/lib/data/onboarding"
 import { getTravelerContext } from "@/lib/data/session"
 import { listLocalTips } from "@/lib/data/tips"
-import { createClient } from "@/lib/supabase/server"
 import { tripDay } from "@/lib/format"
 import { createClient } from "@/lib/supabase/server"
 import { zonedDateKey } from "@/lib/time/zoned"
