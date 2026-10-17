@@ -35,7 +35,7 @@ async function HomeContent() {
   if (user && (await needsOnboarding(supabase, user.id))) redirect("/onboarding")
 
   const ctx = await getTravelerContext()
-  const tips = await listLocalTips(await createClient(), ctx.trip?.id ?? null, ctx.location)
+  const tips = await listLocalTips(supabase, ctx.trip?.id ?? null, ctx.location)
   const today = zonedDateKey(new Date(), ctx.timeZone)
   const todayItems = ctx.itinerary.filter((i) => zonedDateKey(new Date(i.starts_at), ctx.timeZone) === today)
   const day = ctx.trip ? tripDay(ctx.trip.start_date, ctx.trip.end_date) : null
