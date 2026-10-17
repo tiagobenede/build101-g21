@@ -166,7 +166,7 @@ Hay que cuidar el presupuesto de tokens: lo que entra en las instrucciones se le
 
 Hoy `getTravelerContext()` usa **el centro del destino como ubicación fija**, y "Centre Pompidou" está escrito a mano en `locationLabel`. Se cambia a:
 - `location` = último registro de `pings` del usuario, con el centro del viaje como respaldo.
-- `locationLabel` = nombre del lugar más cercano del seed ("cerca de Place des Vosges").
+- `locationLabel` = nombre del lugar de `places` más cercano a menos de ~300 m ("Place des Vosges"), **sin "cerca de"**: `/talk` y la home ya le ponen el texto alrededor. Si no hay ninguno, el nombre del destino.
 
 ---
 
@@ -305,7 +305,7 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 
 ### Dev C — Datos y backend
 
-- [ ] **C-1** Migración, pings y ubicación (H1–3). Escribir y mergear la migración de la sección 4 **primero**, porque A y B dependen de ella. Server action para guardar pings. Cambiar `getTravelerContext()` para que use el último ping y calcule `locationLabel` con el lugar más cercano.
+- [ ] **C-1** Migración, pings y ubicación (H1–3). Escribir y mergear la migración de la sección 4 **primero**, porque A y B dependen de ella. La tabla `pings` es de C; la server action `savePing` ya la escribió B (`src/app/location/actions.ts`). Cambiar `getTravelerContext()` para que use el último ping y calcule `locationLabel` con el lugar más cercano.
 - [ ] **C-2** Server actions de itinerario y perfil (H3–4). Agregar, editar, mover, borrar, cambiar estado y deshacer (con `itinerary_snapshots`). Guardar `profile_facts` y regenerar `compiled_summary`: con una plantilla alcanza, sin llamar a un modelo. Las usan la UI (B-3) y los tools (A-3).
 - [ ] **C-3** Visión con lugares candidatos (H4–6). Ruta que recibe la foto y la ubicación, busca los lugares a menos de 250 m y se los pasa al modelo de visión como opciones: "Estás acá. Cerca hay: A, B, C. ¿Cuál se ve en la foto?". Devuelve lugar, confianza y una descripción corta.
   - *Terminado:* con el GPS en Place des Vosges, una foto de la plaza la identifica en menos de 5 s.
