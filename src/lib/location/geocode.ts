@@ -1,5 +1,5 @@
 /**
- * Respuestas de Google (Geocoding y Places Text Search) → lo que usa Rumbo. Puro y validado:
+ * Respuestas de Google (Geocoding y Places Text Search) → lo que usa Polo. Puro y validado:
  * son datos externos.
  */
 import { z } from "zod"

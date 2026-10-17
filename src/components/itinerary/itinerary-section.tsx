@@ -30,7 +30,7 @@ interface ItinerarySectionProps {
 const NO_COMPANIONS: Record<string, string> = {}
 
 const SOURCE_LABEL: Partial<Record<ItineraryItem["source"], { text: string; icon: typeof SparklesIcon }>> = {
-  agent: { text: "Lo sumó Rumbo", icon: SparklesIcon },
+  agent: { text: "Lo sumó Polo", icon: SparklesIcon },
   local_tip: { text: "Recomendación local", icon: UsersIcon },
   event: { text: "Evento", icon: TicketIcon },
 }

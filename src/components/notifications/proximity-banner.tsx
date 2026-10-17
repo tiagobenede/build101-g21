@@ -27,7 +27,7 @@ export function ProximityBanner({ notification, onOpen, onDismiss }: ProximityBa
               <span className="text-muted-foreground shrink-0 text-[13px]">ahora</span>
             </div>
             <p className="text-[15px] leading-snug">{notification.reason}</p>
-            <p className="text-muted-foreground mt-0.5 text-[13px]">Tocá para preguntarle a Rumbo</p>
+            <p className="text-muted-foreground mt-0.5 text-[13px]">Tocá para preguntarle a Polo</p>
           </div>
         </button>
         <button

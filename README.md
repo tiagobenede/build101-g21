@@ -1,4 +1,4 @@
-# Rumbo — guía de viaje por voz
+# Polo — guía de viaje por voz
 
 Asistente de viaje con voz que conoce tus gustos, tu ubicación, los lugares cercanos y tu itinerario.
 MVP de hackathon: **Next.js 16 + shadcn/ui + Supabase (Postgres local)**. UI clara, estilo Apple.
@@ -66,7 +66,7 @@ contexto del viajero), `src/lib/realtime/*`, `src/hooks/use-realtime-call.ts`, `
 
 ### UI generativa (OpenUI)
 
-Mientras Rumbo habla, la pantalla de `/talk` la arma un modelo de texto chico con
+Mientras Polo habla, la pantalla de `/talk` la arma un modelo de texto chico con
 [OpenUI](https://www.openui.com/) y nuestros componentes (tarjeta destacada, lista, ruta en el mapa,
 comparación, plan con horarios, clima).
 
@@ -100,9 +100,9 @@ al Supabase local (WebSockets de Realtime incluidos; ver `browserSupabaseUrl()`)
 3. Push: claves VAPID en `.env.local` (`npx web-push generate-vapid-keys`, ver `.env.example`).
    En la home, "Avisos cerca tuyo" → Activar.
    - **iPhone (iOS 16.4+):** solo funciona instalada: Safari → Compartir → "Agregar a inicio",
-     y abrir Rumbo desde ese ícono (hay que volver a entrar con la cuenta).
+     y abrir Polo desde ese ícono (hay que volver a entrar con la cuenta).
    - **Android:** directo desde Chrome.
-4. La notificación del sistema aparece si Rumbo no está a la vista; si está a la vista, se
+4. La notificación del sistema aparece si Polo no está a la vista; si está a la vista, se
    muestra el aviso adentro de la app.
 
 Mientras el túnel está abierto, cualquiera con la URL llega al login: cerralo al terminar.

@@ -81,7 +81,7 @@ export function TranslatorPanel({ location, onTurn, onExit, children }: Translat
         <ScrollFade className="min-h-0 flex-1">
           <div className="flex flex-col gap-2 py-2">
             {t.utterances.length === 0 && (
-              <p className="text-muted-foreground py-6 text-center text-[15px]">Lo que te recomienden aparece abajo y Rumbo se acuerda.</p>
+              <p className="text-muted-foreground py-6 text-center text-[15px]">Lo que te recomienden aparece abajo y Polo se acuerda.</p>
             )}
             {t.utterances.map((u) => (
               <div

@@ -348,7 +348,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
               <div className="flex items-center gap-3">
                 <Button onClick={() => void call.start()} size="lg" className="h-14 flex-1 rounded-full text-base">
                   <MicIcon className="size-5" />
-                  Hablar con Rumbo
+                  Hablar con Polo
                 </Button>
                 <ToolButton label="Sacar foto" icon={<CameraIcon />} busy={photo.busy} onClick={() => setCameraOpen(true)} />
                 <ToolButton label="Traducir" icon={<LanguagesIcon />} onClick={openTranslator} />

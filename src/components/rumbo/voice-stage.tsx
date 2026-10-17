@@ -76,7 +76,7 @@ export function VoiceStage({ state, inputVolumeRef, outputVolumeRef, glow, statu
           type="button"
           onClick={onStart}
           disabled={!tappable}
-          aria-label="Empezar a hablar con Rumbo"
+          aria-label="Empezar a hablar con Polo"
           className={cn(
             "block rounded-full transition-transform duration-200 focus-visible:ring-4 focus-visible:ring-[#0071E3]/30 focus-visible:outline-none",
             tappable && "pointer-events-auto cursor-pointer hover:scale-[1.03] active:scale-95"

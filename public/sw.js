@@ -1,10 +1,10 @@
 /**
- * Service worker de Rumbo: notificaciones push (Web Push).
+ * Service worker de Polo: notificaciones push (Web Push).
  *
- * El server (src/lib/push/send.ts) manda { title, body, url, tag }. Si Rumbo está abierto
+ * El server (src/lib/push/send.ts) manda { title, body, url, tag }. Si Polo está abierto
  * y a la vista, no se muestra nada: la página ya muestra el aviso (NotificationsProvider)
  * y no queremos dos. Tocar la notificación abre `url` (por defecto /talk) en una pestaña
- * de Rumbo que ya esté abierta, o en una nueva.
+ * de Polo que ya esté abierta, o en una nueva.
  *
  * Es un archivo estático (Next no arma service workers): no usa imports ni TypeScript.
  */
@@ -23,7 +23,7 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
       if (windows.some((w) => w.visibilityState === "visible")) return
-      return self.registration.showNotification(data.title || "Rumbo", {
+      return self.registration.showNotification(data.title || "Polo", {
         body: data.body || "",
         tag: data.tag, // el mismo lugar reemplaza al aviso anterior en vez de apilarse
         icon: "/icons/icon-192.png",

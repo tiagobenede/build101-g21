@@ -17,7 +17,7 @@ interface TabBarProps {
 }
 
 /**
- * Barra de abajo: inicio, mapa, el blob de Rumbo en el medio, viaje compartido y perfil.
+ * Barra de abajo: inicio, mapa, el blob de Polo en el medio, viaje compartido y perfil.
  * El fondo difuso va en una capa aparte: un `backdrop-filter` en la barra haría que el
  * vuelo del blob (fixed) quede atrapado adentro.
  */

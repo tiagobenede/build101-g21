@@ -35,7 +35,7 @@ export function AgentLauncher() {
       <button
         ref={buttonRef}
         type="button"
-        aria-label="Hablar con Rumbo"
+        aria-label="Hablar con Polo"
         onClick={() => setFrom(buttonRef.current?.getBoundingClientRect() ?? null)}
         className={cn(
           "relative -mt-6 flex size-16 items-center justify-center rounded-full transition-transform active:scale-90",

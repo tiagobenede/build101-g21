@@ -8,7 +8,7 @@ export default function LoginPage() {
     <main className="flex min-h-dvh flex-col items-center justify-center px-4 py-12">
       <div className="animate-in fade-in slide-in-from-bottom-2 flex w-full max-w-sm flex-col items-center duration-500">
         <AppIcon />
-        <h1 className="mt-5 text-3xl font-semibold tracking-tight">Rumbo</h1>
+        <h1 className="mt-5 text-3xl font-semibold tracking-tight">Polo</h1>
         <p className="text-muted-foreground mt-1.5 text-center text-[15px]">
           Tu guía de viaje por voz. Sabe dónde estás, qué te gusta y cuánto tiempo tenés.
         </p>
