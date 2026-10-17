@@ -13,8 +13,13 @@ describe("zonedTimeToIso", () => {
     expect(zonedTimeToIso("2026-12-10", "13:00", TZ)).toBe("2026-12-10T12:00:00.000Z")
   })
 
+  it("acepta la hora con un dígito y cruza el cambio de horario (UTC+1 desde el 25 de octubre)", () => {
+    expect(zonedTimeToIso("2026-10-26", "9:30", TZ)).toBe("2026-10-26T08:30:00.000Z")
+  })
+
   it("rechaza horas inválidas", () => {
     expect(() => zonedTimeToIso("2026-07-10", "25:00", TZ)).toThrow()
+    expect(() => zonedTimeToIso("mañana", "16:00", TZ)).toThrow()
   })
 })
 

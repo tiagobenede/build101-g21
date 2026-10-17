@@ -3,7 +3,6 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { INTEREST_TAGS, rankPlaces, resolveAvailableMinutes } from "@/lib/agent/rank"
-import { tripTimeToIso } from "@/lib/agent/trip-time"
 import {
   addItineraryItem,
   removeItineraryItem,
@@ -28,6 +27,7 @@ import { searchPlaces } from "@/lib/places/search"
 import { formatTodayPlan, itemRef } from "@/lib/realtime/instructions"
 import { isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
 import { createClient } from "@/lib/supabase/server"
+import { zonedDateKey, zonedTimeToIso } from "@/lib/time/zoned"
 import { readMenu } from "@/lib/web-page"
 import { pickReadableUrl, webSearch } from "@/lib/web-search"
 
@@ -241,7 +241,16 @@ async function editItinerary(args: ToolArgs<"edit_itinerary">, location: LatLng 
   const db = await createClient()
   const now = new Date()
 
-  const time = (hhmm: string | null) => (hhmm ? tripTimeToIso(hhmm, args.date, now, TRIP_TIME_ZONE) : null)
+  // El agente habla en hora local del viaje ("16:00", "mañana" → date); sin fecha es hoy allá.
+  const day = args.date ?? zonedDateKey(now, TRIP_TIME_ZONE)
+  const time = (hhmm: string | null) => {
+    if (!hhmm || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null
+    try {
+      return zonedTimeToIso(day, hhmm, TRIP_TIME_ZONE)
+    } catch {
+      return null
+    }
+  }
   const startsAt = time(args.start_time)
   const endsAt = time(args.end_time)
   if ((args.start_time && !startsAt) || (args.end_time && !endsAt)) return fail("Hora inválida: usá HH:MM.")

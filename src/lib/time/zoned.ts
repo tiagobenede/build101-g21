@@ -37,9 +37,9 @@ export function zonedTimeValue(iso: string, timeZone: string): string {
   return `${p.hour}:${p.minute}`
 }
 
-/** Fecha "YYYY-MM-DD" + hora "HH:MM" en la zona → instante ISO (UTC). */
+/** Fecha "YYYY-MM-DD" + hora "HH:MM" (o "H:MM", como la dice el agente) en la zona → instante ISO (UTC). */
 export function zonedTimeToIso(dateKey: string, time: string, timeZone: string): string {
-  const match = /^(\d{2}):(\d{2})$/.exec(time)
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim())
   const [y, m, d] = dateKey.split("-").map(Number)
   if (!match || Number(match[1]) > 23 || Number(match[2]) > 59 || !y || !m || !d) {
     throw new Error(`Hora inválida: ${time}`)

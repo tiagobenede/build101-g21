@@ -1,5 +1,7 @@
 import type { ItineraryItem, TravelerContext } from "@/lib/data/session"
 
+import { zonedDateKey } from "@/lib/time/zoned"
+
 import { MAX_ITINERARY_IN_CONTEXT, MAX_PLACES_IN_CONTEXT } from "./config"
 
 interface InstructionsInput {
@@ -17,7 +19,6 @@ interface InstructionsInput {
 const formatTime = (date: Date, timeZone: string) =>
   new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit", timeZone }).format(date)
 
-const dayKey = (date: Date, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone }).format(date)
 
 /** Referencia corta de una actividad para `edit_itinerary` (los primeros 8 caracteres del id). */
 export const itemRef = (id: string) => id.slice(0, 8)
@@ -34,9 +35,9 @@ const STATUS_NOTE: Record<ItineraryItem["status"], string> = {
  * las instrucciones y la respuesta de `edit_itinerary` (así el agente ve el plan nuevo).
  */
 export function formatTodayPlan(itinerary: ItineraryItem[], now: Date, timeZone: string): string {
-  const today = dayKey(now, timeZone)
+  const today = zonedDateKey(now, timeZone)
   const items = itinerary
-    .filter((i) => dayKey(new Date(i.starts_at), timeZone) === today)
+    .filter((i) => zonedDateKey(new Date(i.starts_at), timeZone) === today)
     .slice(0, MAX_ITINERARY_IN_CONTEXT)
   if (items.length === 0) return "Plan de hoy: nada agendado."
   const lines = items.map((i) => {

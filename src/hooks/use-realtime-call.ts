@@ -19,7 +19,7 @@ import { estimateUsageCost, type RealtimeUsage } from "@/lib/realtime/cost"
 import { findNewPlaces } from "@/lib/realtime/match-places"
 import { ResponseQueue } from "@/lib/realtime/response-queue"
 import type { ToolResult } from "@/lib/realtime/tools"
-import { onTableChange } from "@/lib/supabase/browser"
+import { onTableChange } from "@/lib/supabase/client"
 
 import type { CallState, MentionedPlace, PlaceCard, VoiceCall } from "./voice-session-types"
 

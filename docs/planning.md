@@ -367,7 +367,7 @@ Con la cuenta de **Lucía**.
 - **Next.js 16:** leer la documentación local antes de usar cualquier API de Next.
 - **Costo:** el traductor se cobra por minuto abierto y el video es caro. Mirar el medidor de costo al probar.
 - **zod 4 + tools:** `.optional()` hace que el tool falle en silencio; usar `.nullable()`.
-- **Supabase Realtime con RLS:** pasar el token del usuario (`realtime.setAuth`) antes de suscribirse; si no, los eventos se filtran sin avisar (`onTableChange` en `src/lib/supabase/browser.ts`).
+- **Supabase Realtime con RLS:** pasar el token del usuario (`realtime.setAuth`) antes de suscribirse; si no, los eventos se filtran sin avisar (`onTableChange` en `src/lib/supabase/client.ts`).
 - **Nunca mandar `response.create` directo** con la llamada abierta: el VAD crea sus propias respuestas y OpenAI rechaza una segunda. Todo pasa por `ResponseQueue`.
 - **Server actions en serie:** Next las despacha de a una por cliente. Para trabajo en paralelo o lento, route handler.
 - **Nombres propios deformados** por la traducción: anclar los lugares con búsqueda tolerante a errores y probar los nombres de la demo antes.
