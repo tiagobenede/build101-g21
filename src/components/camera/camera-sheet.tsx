@@ -3,6 +3,7 @@
 import { ImageUpIcon, XIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
+import { useHoldNotifications } from "@/components/notifications/hold"
 import { Button } from "@/components/ui/button"
 import { fileToJpeg, toJpeg } from "@/lib/camera/resize"
 
@@ -22,6 +23,8 @@ export function CameraSheet({ open, onOpenChange, onPhoto }: CameraSheetProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [camera, setCamera] = useState<"starting" | "on" | "unavailable">("starting")
+  // Que un aviso por cercanía no tape la cámara: espera a que se cierre.
+  useHoldNotifications(open)
 
   useEffect(() => {
     if (!open) return

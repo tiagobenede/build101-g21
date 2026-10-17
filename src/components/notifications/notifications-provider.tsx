@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react"
 
 import { markSeen } from "@/app/notifications/actions"
 import { syncPushSubscription } from "@/lib/push/browser"
@@ -9,6 +9,7 @@ import { playChime } from "@/lib/push/chime"
 import { BANNER_MS, enqueue, RECENT_UNSEEN_MS, type ShownNotification } from "@/lib/push/queue"
 import { createClient, onTableChange } from "@/lib/supabase/client"
 
+import { notificationsHeld, subscribeHolds } from "./hold"
 import { ProximityBanner } from "./proximity-banner"
 
 type NotificationRow = { id: string; place_id: string; reason_text: string; created_at: string }
@@ -39,7 +40,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
   const [queue, setQueue] = useState<ShownNotification[]>([])
   const chimedRef = useRef(new Set<string>())
-  const current = queue[0] ?? null
+  // Con la cámara abierta, el aviso espera (ver hold.ts).
+  const held = useSyncExternalStore(subscribeHolds, notificationsHeld, () => false)
+  const current = held ? null : (queue[0] ?? null)
 
   useEffect(() => {
     const supabase = createClient()
