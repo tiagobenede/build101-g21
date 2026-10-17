@@ -5,6 +5,7 @@ import type { TravelerContext } from "@/lib/data/session"
 
 import { buildJevOptions, pickCandidates, readJevChoice } from "./choose"
 import { namePhotoPlace } from "./describe"
+import { fitForJev } from "./fit"
 import { askJev, type Photo } from "./jev"
 
 /**
@@ -31,7 +32,8 @@ export async function identifyPhoto(photo: Photo, ctx: TravelerContext): Promise
   const candidates = pickCandidates(ctx.nearby)
   if (candidates.length > 0) {
     const { criteria, places } = buildJevOptions(candidates)
-    const answer = await askJev(photo, ctx.locationLabel, criteria).catch((err: unknown) => {
+    const forJev = await fitForJev(photo).catch(() => photo)
+    const answer = await askJev(forJev, ctx.locationLabel, criteria).catch((err: unknown) => {
       console.error("[vision] jev", err instanceof Error ? err.message : err)
       return null
     })

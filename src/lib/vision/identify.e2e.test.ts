@@ -36,21 +36,21 @@ const photo = () => ({
   mime: photoPath.toLowerCase().endsWith(".png") ? ("image/png" as const) : ("image/jpeg" as const),
 })
 
-/** Lugares de Google alrededor de `here`, como los arma getTravelerContext. */
-async function loadNearby(): Promise<NearbyPlace[]> {
+/** Lugares de Google alrededor de `at`, como los arma getTravelerContext. */
+async function loadNearby(at = here, cityName = city): Promise<NearbyPlace[]> {
   const { ensureNearbyPlaces } = await import("@/lib/places/nearby")
   const { createAdminClient } = await import("@/lib/supabase/admin")
   const { distanceMeters, walkMinutes } = await import("@/lib/geo")
 
-  await ensureNearbyPlaces(here, city)
+  await ensureNearbyPlaces(at, cityName)
   const { data, error } = await createAdminClient()
     .from("places")
     .select("id, name, category, tags, description, lat, lng, rating, typical_visit_minutes")
-    .eq("city", city)
+    .eq("city", cityName)
     .eq("listed", true)
   if (error) throw new Error(error.message)
   return data
-    .map((p) => ({ ...p, distanceMeters: distanceMeters(here, p), walkMinutes: walkMinutes(here, p) }))
+    .map((p) => ({ ...p, distanceMeters: distanceMeters(at, p), walkMinutes: walkMinutes(at, p) }))
     .sort((a, b) => a.distanceMeters - b.distanceMeters)
 }
 
@@ -141,4 +141,67 @@ describe.skipIf(!enabled)("identifyPhoto (e2e, APIs reales)", () => {
     expect(a?.place.id).toBe(real[0]?.id)
     expect(b).toBeNull()
   }, 30_000)
+
+  /**
+   * VISION_BATTERY=1: 10 casos con fotos reales, variantes difíciles (noche, recorte, baja
+   * resolución, blanco y negro, espejo) y casos adversariales (la foto en otra ciudad, una
+   * imagen que no es un lugar). Cada uno pasa por identifyPhoto como en la app.
+   */
+  it.runIf(process.env.VISION_BATTERY === "1")("batería de 10 casos", async () => {
+    const { default: sharp } = await import("sharp")
+    const { nearestPlaceLabel } = await import("@/lib/geo")
+    const { identifyPhoto } = await import("./identify")
+
+    const VOSGES = { at: { lat: 48.8556, lng: 2.3655 }, city: "París" }
+    const CAPITOL = { at: { lat: 38.8899, lng: -77.0091 }, city: "Washington" }
+    const file = (name: string) => readFileSync(`src/lib/vision/fixtures/${name}`)
+    const vosges = file("place-des-vosges.jpg") // 1280×853
+    const capitol = file("capitolio-eeuu.jpg") // 1280×663
+    const jpeg = (img: ReturnType<typeof sharp>) => img.jpeg({ quality: 85 }).toBuffer()
+
+    type Expected = { via: "jev" | "llm"; name: RegExp | null }
+    const cases: { title: string; where: typeof VOSGES; png?: boolean; photo: () => Promise<Buffer>; expected: Expected }[] = [
+      { title: "Place des Vosges, original", where: VOSGES, photo: async () => vosges, expected: { via: "jev", name: /vosg/i } },
+      { title: "Place des Vosges, de noche", where: VOSGES, photo: () => jpeg(sharp(vosges).modulate({ brightness: 0.3, saturation: 0.6 })), expected: { via: "jev", name: /vosg/i } },
+      { title: "Place des Vosges, recorte del centro", where: VOSGES, photo: () => jpeg(sharp(vosges).extract({ left: 352, top: 234, width: 576, height: 384 })), expected: { via: "jev", name: /vosg/i } },
+      { title: "Place des Vosges, PNG de 400 px", where: VOSGES, png: true, photo: () => sharp(vosges).resize(400).png().toBuffer(), expected: { via: "jev", name: /vosg/i } },
+      { title: "Place des Vosges, blanco y negro y borrosa", where: VOSGES, photo: () => jpeg(sharp(vosges).grayscale().blur(3)), expected: { via: "jev", name: /vosg/i } },
+      { title: "Place des Vosges, espejada", where: VOSGES, photo: () => jpeg(sharp(vosges).flop()), expected: { via: "jev", name: /vosg/i } },
+      { title: "Capitolio, original", where: CAPITOL, photo: async () => capitol, expected: { via: "jev", name: /capitol/i } },
+      { title: "Capitolio, recorte de la cúpula", where: CAPITOL, photo: () => jpeg(sharp(capitol).extract({ left: 440, top: 0, width: 400, height: 330 })), expected: { via: "jev", name: /capitol/i } },
+      { title: "Capitolio, pero el GPS dice París", where: VOSGES, photo: async () => capitol, expected: { via: "llm", name: /capitol/i } },
+      { title: "No es un lugar, en Place des Vosges", where: VOSGES, photo: async () => file("no-es-un-lugar.jpg"), expected: { via: "llm", name: null } },
+    ]
+
+    const nearbyByCity = new Map<string, NearbyPlace[]>()
+    const rows: string[] = []
+    let failures = 0
+
+    for (const [i, c] of cases.entries()) {
+      let nearby = nearbyByCity.get(c.where.city)
+      if (!nearby) nearbyByCity.set(c.where.city, (nearby = await loadNearby(c.where.at, c.where.city)))
+      const ctx = {
+        nearby,
+        location: c.where.at,
+        locationLabel: nearestPlaceLabel(c.where.at, nearby, c.where.city),
+        trip: { destination: c.where.city },
+      } as unknown as Parameters<typeof identifyPhoto>[1]
+
+      const bytes = new Uint8Array(await c.photo())
+      const started = Date.now()
+      const r = await identifyPhoto({ bytes, mime: c.png ? "image/png" : "image/jpeg" }, ctx)
+      const ms = Date.now() - started
+
+      const nameOk = c.expected.name === null ? r.name === null : r.name !== null && c.expected.name.test(r.name)
+      const ok = r.via === c.expected.via && nameOk && ms < 5_000
+      if (!ok) failures++
+      const conf = r.confidence === null ? "" : ` ${r.confidence.toFixed(2)}`
+      rows.push(
+        `${ok ? "✓" : "✗"} ${String(i + 1).padStart(2)}. ${c.title.padEnd(42)} ${`${r.via}${conf}`.padEnd(9)} ${String(ms).padStart(5)} ms  → ${r.name ?? "null"}`
+      )
+    }
+
+    console.log(`\n${rows.join("\n")}\n\n${cases.length - failures}/${cases.length} correctos`)
+    expect(failures).toBe(0)
+  }, 120_000)
 })
