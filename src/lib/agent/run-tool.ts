@@ -2,6 +2,7 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { placeFacts } from "@/lib/agent/facts"
 import { interestQuery, tagWithInterest } from "@/lib/agent/interest-fallback"
 import { INTEREST_TAGS, NEAR_ONLY_TAGS, rankPlaces, resolveAvailableMinutes, type RankablePlace } from "@/lib/agent/rank"
 import {
@@ -248,6 +249,19 @@ async function searchEventsTool(args: ToolArgs<"search_events">, location: LatLn
 }
 
 const DESCRIPTION_MAX_CHARS = 160
+
+async function placeFactsTool(args: ToolArgs<"place_facts">, location: LatLng | null): Promise<ToolResult> {
+  const ctx = await getTravelerContext({ location })
+  const facts = await placeFacts(args.subject, args.question, ctx.city ?? null).catch((err: unknown) => {
+    console.error("[tools] place_facts failed", err instanceof Error ? err.message : err)
+    return null
+  })
+  if (!facts) return fail("No pude buscar los datos ahora.")
+  if (!facts.known || facts.facts.length === 0) {
+    return { output: JSON.stringify({ known: false, note: "No hay datos seguros: decíselo, no inventes." }), cards: [] }
+  }
+  return { output: JSON.stringify({ facts: facts.facts, anecdote: facts.anecdote }), cards: [] }
+}
 
 async function getPlaceTool(args: ToolArgs<"get_place">, location: LatLng | null): Promise<ToolResult> {
   const ctx = await getTravelerContext({ location })
@@ -503,6 +517,10 @@ export async function runTool(
     case "web_search": {
       const args = toolSchemas.web_search.safeParse(json)
       return args.success ? webSearchTool(args.data, location) : invalid
+    }
+    case "place_facts": {
+      const args = toolSchemas.place_facts.safeParse(json)
+      return args.success ? placeFactsTool(args.data, location) : invalid
     }
     case "get_place": {
       const args = toolSchemas.get_place.safeParse(json)
