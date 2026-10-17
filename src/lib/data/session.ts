@@ -50,8 +50,8 @@ export type TravelerConstraints = {
   schedule: "madrugador" | "noctámbulo" | null
 }
 
-/** De dónde sale `location`: el GPS (simulado o real), el centro del viaje o un valor fijo. */
-export type LocationSource = "ping" | "trip" | "fallback"
+/** De dónde sale `location`: la que manda el cliente, el último ping guardado, el centro del viaje o un valor fijo. */
+export type LocationSource = "live" | "ping" | "trip" | "fallback"
 
 export type NearbyPlace = Place & { distanceMeters: number; walkMinutes: number }
 
@@ -76,8 +76,13 @@ export type TravelerContext = {
 
 const FALLBACK_LOCATION: LatLng = { lat: 48.8606, lng: 2.3522 }
 
+export interface TravelerContextOptions {
+  /** Ubicación en vivo del cliente (GPS simulado o real). Sin esto, se usa el último ping guardado. */
+  location?: LatLng | null
+}
+
 /** Carga todo el contexto del viajero logueado. Redirige a /login si no hay sesión. */
-export async function getTravelerContext(): Promise<TravelerContext> {
+export async function getTravelerContext(options: TravelerContextOptions = {}): Promise<TravelerContext> {
   // Depende de la hora actual (viaje activo, itinerario): siempre por request.
   await connection()
   const supabase = await createClient()
@@ -120,11 +125,14 @@ export async function getTravelerContext(): Promise<TravelerContext> {
 
   const trip = tripRes.data as Trip | null
   const ping = pingRes.data as LatLng | null
-  const [location, locationSource]: [LatLng, LocationSource] = ping
-    ? [{ lat: ping.lat, lng: ping.lng }, "ping"]
-    : trip
-      ? [{ lat: trip.lat, lng: trip.lng }, "trip"]
-      : [FALLBACK_LOCATION, "fallback"]
+  // En vivo (la manda el cliente durante la llamada) > último ping guardado > centro del viaje.
+  const [location, locationSource]: [LatLng, LocationSource] = options.location
+    ? [options.location, "live"]
+    : ping
+      ? [{ lat: ping.lat, lng: ping.lng }, "ping"]
+      : trip
+        ? [{ lat: trip.lat, lng: trip.lng }, "trip"]
+        : [FALLBACK_LOCATION, "fallback"]
   const city = trip?.destination ?? "París"
 
   // Los lugares vienen de Google Places y quedan guardados en `places`.

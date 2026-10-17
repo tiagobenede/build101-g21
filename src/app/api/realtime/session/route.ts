@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { z } from "zod"
 
 import { getTravelerContext, nextCommitment, TRIP_TIME_ZONE } from "@/lib/data/session"
 import {
@@ -8,6 +9,7 @@ import {
   REALTIME_VOICE,
   TURN_DETECTION,
 } from "@/lib/realtime/config"
+import { latLngSchema } from "@/lib/location/schema"
 import { buildInstructions } from "@/lib/realtime/instructions"
 import { allowSessionMint } from "@/lib/realtime/rate-limit"
 import { TOOL_DEFINITIONS } from "@/lib/realtime/tools"
@@ -26,11 +28,14 @@ const fail = (status: number, error: string) => NextResponse.json<SessionRespons
  * Acuña una key efímera de OpenAI Realtime con el contexto del viajero.
  * La API key real nunca llega al navegador.
  */
-export async function POST() {
+const bodySchema = z.object({ location: latLngSchema.nullable().default(null) })
+
+export async function POST(req: Request) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) return fail(500, "Falta OPENAI_API_KEY en .env.local.")
 
-  const ctx = await getTravelerContext()
+  const request = bodySchema.safeParse(await req.json().catch(() => ({})))
+  const ctx = await getTravelerContext({ location: request.success ? request.data.location : null })
   if (!allowSessionMint(ctx.userId)) return fail(429, "Demasiadas sesiones seguidas. Esperá un minuto.")
 
   const now = new Date()

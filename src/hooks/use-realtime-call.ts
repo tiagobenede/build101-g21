@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { saveTurn } from "@/app/talk/actions"
+import type { LatLng } from "@/lib/geo"
+import { locationUpdateText, shouldAnnounce } from "@/lib/location/announce"
 import { SESSION_BUDGET_USD, SESSION_IDLE_MS, TOOL_TIMEOUT_MS } from "@/lib/realtime/config"
 import { connectRealtime, type RealtimeConnection, type RealtimeEvent } from "@/lib/realtime/connection"
 import { estimateUsageCost, type RealtimeUsage } from "@/lib/realtime/cost"
@@ -30,7 +32,7 @@ type ResponseDone = {
  * Ahorro: modelo mini, respuestas cortas, solo se factura la voz detectada,
  * se corta sola tras 1 min sin actividad, al salir o al pasar el presupuesto.
  */
-export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
+export function useRealtimeCall(knownPlaces: PlaceCard[], location: LatLng | null = null): VoiceCall {
   const [state, setState] = useState<CallState>("off")
   const [places, setPlaces] = useState<MentionedPlace[]>([])
   const [micMuted, setMicMutedState] = useState(false)
@@ -46,6 +48,9 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
   const inputVolumeRef = useRef(0)
   const outputVolumeRef = useRef(0)
   const queueRef = useRef<ResponseQueue | null>(null)
+  /** Ubicación en vivo (joystick o GPS) y la última que se le avisó a la llamada. */
+  const locationRef = useRef(location)
+  const announcedRef = useRef<LatLng | null>(null)
   /** Lugares que devolvieron los tools: se muestran si el agente los nombra. */
   const toolPlacesRef = useRef<PlaceCard[]>([])
 
@@ -92,7 +97,12 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
       const result: ToolResult = await fetch("/api/realtime/tools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: ev.name, arguments: ev.arguments, conversationId: conn.conversationId }),
+        body: JSON.stringify({
+          name: ev.name,
+          arguments: ev.arguments,
+          conversationId: conn.conversationId,
+          location: locationRef.current,
+        }),
         signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
       })
         .then((res) => (res.ok ? (res.json() as Promise<ToolResult>) : Promise.reject(new Error(String(res.status)))))
@@ -184,8 +194,13 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
     setState("connecting")
     queueRef.current = new ResponseQueue((event) => connRef.current?.send(event))
     try {
-      const conn = await connectRealtime({ onEvent: handleEvent, onDisconnect: () => end() })
+      const conn = await connectRealtime({
+        onEvent: handleEvent,
+        onDisconnect: () => end(),
+        location: locationRef.current,
+      })
       connRef.current = conn
+      announcedRef.current = locationRef.current
       conn.setMicOpen(!micMuted)
       conn.setMuted(speakerMuted)
       conn.send({ type: "response.create", response: { instructions: GREETING } })
@@ -196,6 +211,20 @@ export function useRealtimeCall(knownPlaces: PlaceCard[]): VoiceCall {
       setState("off")
     }
   }, [end, handleEvent, micMuted, speakerMuted])
+
+  // Si te movés con la llamada abierta, se lo contamos al agente con un mensaje de sistema.
+  // No pide respuesta (no cuesta audio): el próximo recommend_nearby ya usa la ubicación nueva.
+  useEffect(() => {
+    locationRef.current = location
+    const conn = connRef.current
+    const announced = announcedRef.current
+    if (!conn || !location || !announced || !shouldAnnounce(announced, location)) return
+    announcedRef.current = location
+    conn.send({
+      type: "conversation.item.create",
+      item: { type: "message", role: "system", content: [{ type: "input_text", text: locationUpdateText(announced, location) }] },
+    })
+  }, [location])
 
   // Volúmenes para el blob, por frame.
   useEffect(() => {

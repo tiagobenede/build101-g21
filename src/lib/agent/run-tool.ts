@@ -2,14 +2,19 @@ import "server-only"
 
 import { rankPlaces, resolveAvailableMinutes } from "@/lib/agent/rank"
 import { getTravelerContext, nextCommitment } from "@/lib/data/session"
+import type { LatLng } from "@/lib/geo"
 import { searchPlaces } from "@/lib/places/search"
 import { isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
 import { createClient } from "@/lib/supabase/server"
 
 const fail = (error: string): ToolResult => ({ output: JSON.stringify({ error }), cards: [] })
 
-async function recommendNearby(args: ToolArgs<"recommend_nearby">, conversationId: string): Promise<ToolResult> {
-  const ctx = await getTravelerContext()
+async function recommendNearby(
+  args: ToolArgs<"recommend_nearby">,
+  conversationId: string,
+  location: LatLng | null
+): Promise<ToolResult> {
+  const ctx = await getTravelerContext({ location })
   const supabase = await createClient()
 
   const { data: previous, error } = await supabase
@@ -70,8 +75,8 @@ async function recommendNearby(args: ToolArgs<"recommend_nearby">, conversationI
 
 const SUMMARY_MAX_CHARS = 90
 
-async function searchPlacesTool(args: ToolArgs<"search_places">): Promise<ToolResult> {
-  const ctx = await getTravelerContext()
+async function searchPlacesTool(args: ToolArgs<"search_places">, location: LatLng | null): Promise<ToolResult> {
+  const ctx = await getTravelerContext({ location })
   const found = await searchPlaces(args.query, args.open_now, ctx.location, ctx.trip?.destination ?? "París").catch(
     (err: unknown) => {
       console.error("[tools] search_places failed", err instanceof Error ? err.message : err)
@@ -103,7 +108,12 @@ async function searchPlacesTool(args: ToolArgs<"search_places">): Promise<ToolRe
 }
 
 /** Ejecuta un tool del agente con los permisos del usuario logueado. */
-export async function runTool(name: string, rawArgs: string, conversationId: string): Promise<ToolResult> {
+export async function runTool(
+  name: string,
+  rawArgs: string,
+  conversationId: string,
+  location: LatLng | null = null
+): Promise<ToolResult> {
   if (!isToolName(name)) return fail(`Tool desconocido: ${name}.`)
 
   let json: unknown
@@ -117,11 +127,11 @@ export async function runTool(name: string, rawArgs: string, conversationId: str
   switch (name) {
     case "recommend_nearby": {
       const args = toolSchemas.recommend_nearby.safeParse(json)
-      return args.success ? recommendNearby(args.data, conversationId) : invalid
+      return args.success ? recommendNearby(args.data, conversationId, location) : invalid
     }
     case "search_places": {
       const args = toolSchemas.search_places.safeParse(json)
-      return args.success ? searchPlacesTool(args.data) : invalid
+      return args.success ? searchPlacesTool(args.data, location) : invalid
     }
   }
 }
