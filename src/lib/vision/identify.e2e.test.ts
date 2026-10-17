@@ -9,11 +9,17 @@
  * Ejemplo con el Capitolio de EE. UU.:
  *
  *   VISION_PHOTO=src/lib/vision/fixtures/capitolio-eeuu.jpg VISION_LAT=38.8899 VISION_LNG=-77.0091 VISION_CITY=Washington npm run test:vision
+ *
+ * VISION_DECOYS=1 suma una prueba de confiabilidad de Jev con señuelos (lugares famosos que
+ * no están en la foto, algunos muy parecidos): A) el lugar real mezclado con señuelos tiene
+ * que ganar; B) solo señuelos, tiene que decir "ninguno". Muestra la probabilidad de cada opción.
  */
 import { readFileSync } from "node:fs"
 import { homedir } from "node:os"
 
 import { describe, expect, it, vi } from "vitest"
+
+import type { NearbyPlace } from "@/lib/data/session"
 
 vi.mock("server-only", () => ({}))
 // supabase-js pide WebSocket al crear el cliente; Node 20 no lo trae y acá no usamos Realtime.
@@ -22,30 +28,65 @@ vi.mock("server-only", () => ({}))
 const enabled = process.env.VISION_E2E === "1"
 if (enabled) process.loadEnvFile(".env.local")
 
+const city = process.env.VISION_CITY ?? "París"
+const here = { lat: Number(process.env.VISION_LAT ?? 48.8556), lng: Number(process.env.VISION_LNG ?? 2.3655) }
+const photoPath = (process.env.VISION_PHOTO ?? "src/lib/vision/fixtures/no-es-un-lugar.jpg").replace(/^~/, homedir())
+const photo = () => ({
+  bytes: new Uint8Array(readFileSync(photoPath)),
+  mime: photoPath.toLowerCase().endsWith(".png") ? ("image/png" as const) : ("image/jpeg" as const),
+})
+
+/** Lugares de Google alrededor de `here`, como los arma getTravelerContext. */
+async function loadNearby(): Promise<NearbyPlace[]> {
+  const { ensureNearbyPlaces } = await import("@/lib/places/nearby")
+  const { createAdminClient } = await import("@/lib/supabase/admin")
+  const { distanceMeters, walkMinutes } = await import("@/lib/geo")
+
+  await ensureNearbyPlaces(here, city)
+  const { data, error } = await createAdminClient()
+    .from("places")
+    .select("id, name, category, tags, description, lat, lng, rating, typical_visit_minutes")
+    .eq("city", city)
+    .eq("listed", true)
+  if (error) throw new Error(error.message)
+  return data
+    .map((p) => ({ ...p, distanceMeters: distanceMeters(here, p), walkMinutes: walkMinutes(here, p) }))
+    .sort((a, b) => a.distanceMeters - b.distanceMeters)
+}
+
+/** Lugares famosos que no son los de la foto. Los primeros cuatro se parecen a un capitolio. */
+const DECOYS: [name: string, category: string, description: string][] = [
+  ["Capitolio del Estado de Texas", "Monumento", "Capitolio estatal en Austin, con cúpula y fachada de granito rosado."],
+  ["Capitolio de La Habana", "Monumento", "Edificio con gran cúpula blanca y escalinata, inspirado en el Capitolio de Washington."],
+  ["Panteón de París", "Monumento", "Mausoleo neoclásico con cúpula y pórtico de columnas en el Barrio Latino."],
+  ["Casa Blanca", "Monumento", "Residencia del presidente de EE. UU.: edificio neoclásico blanco con pórtico de columnas."],
+  ["Empire State Building", "Rascacielos", "Rascacielos art déco de 102 pisos en Manhattan, Nueva York."],
+  ["Monumento a Lincoln", "Monumento", "Templo neoclásico con columnas dóricas y la estatua de Lincoln sentado."],
+]
+
+const decoyPlaces = (): NearbyPlace[] =>
+  DECOYS.map(([name, category, description], i) => ({
+    id: `decoy:${i}`,
+    name,
+    category,
+    tags: [],
+    description,
+    lat: here.lat,
+    lng: here.lng,
+    rating: null,
+    typical_visit_minutes: 30,
+    // Más "cerca" que los reales, para que vayan primero en la lista de opciones.
+    distanceMeters: i,
+    walkMinutes: 1,
+  }))
+
 describe.skipIf(!enabled)("identifyPhoto (e2e, APIs reales)", () => {
   it("identifica la foto", async () => {
-    const { ensureNearbyPlaces } = await import("@/lib/places/nearby")
-    const { createAdminClient } = await import("@/lib/supabase/admin")
-    const { distanceMeters, nearestPlaceLabel, walkMinutes } = await import("@/lib/geo")
+    const { nearestPlaceLabel } = await import("@/lib/geo")
     const { identifyPhoto } = await import("./identify")
     const { pickCandidates } = await import("./choose")
 
-    const city = process.env.VISION_CITY ?? "París"
-    const here = { lat: Number(process.env.VISION_LAT ?? 48.8556), lng: Number(process.env.VISION_LNG ?? 2.3655) }
-    const photoPath = (process.env.VISION_PHOTO ?? "src/lib/vision/fixtures/no-es-un-lugar.jpg").replace(/^~/, homedir())
-    const mime = photoPath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg"
-
-    await ensureNearbyPlaces(here, city)
-    const { data, error } = await createAdminClient()
-      .from("places")
-      .select("id, name, category, tags, description, lat, lng, rating, typical_visit_minutes")
-      .eq("city", city)
-      .eq("listed", true)
-    if (error) throw new Error(error.message)
-
-    const nearby = data
-      .map((p) => ({ ...p, distanceMeters: distanceMeters(here, p), walkMinutes: walkMinutes(here, p) }))
-      .sort((a, b) => a.distanceMeters - b.distanceMeters)
+    const nearby = await loadNearby()
     // Lo mínimo de TravelerContext que usa identifyPhoto.
     const ctx = {
       nearby,
@@ -59,10 +100,45 @@ describe.skipIf(!enabled)("identifyPhoto (e2e, APIs reales)", () => {
     console.log(`Candidatos para Jev (≤ 250 m): ${pickCandidates(nearby).map((p) => `${p.name} (${Math.round(p.distanceMeters)} m)`).join(", ") || "ninguno"}`)
 
     const started = Date.now()
-    const result = await identifyPhoto({ bytes: new Uint8Array(readFileSync(photoPath)), mime }, ctx)
+    const result = await identifyPhoto(photo(), ctx)
     console.log(`\nRespondió: ${result.via === "jev" ? "Jev" : "LLM de respaldo"} en ${Date.now() - started} ms`)
     console.log(JSON.stringify(result, null, 2))
 
     expect(["jev", "llm"]).toContain(result.via)
+  }, 30_000)
+
+  it.runIf(process.env.VISION_DECOYS === "1")("Jev con señuelos", async () => {
+    const { nearestPlaceLabel } = await import("@/lib/geo")
+    const { askJev } = await import("./jev")
+    const { buildJevOptions, MAX_CANDIDATES, NONE_KEY, pickCandidates, readJevChoice } = await import("./choose")
+
+    const real = pickCandidates(await loadNearby())
+    const label = nearestPlaceLabel(here, real, city)
+
+    const run = async (title: string, candidates: NearbyPlace[]) => {
+      const { criteria, places } = buildJevOptions(candidates)
+      const started = Date.now()
+      const answer = await askJev(photo(), label, criteria)
+      const ms = Date.now() - started
+      const nameOf = (key: string) => (key === NONE_KEY ? "(ninguno)" : places.get(key)!.name)
+      const rows = Object.entries(answer.probabilities ?? {})
+        .sort(([, a], [, b]) => b - a)
+        .map(([key, prob]) => `  ${(prob * 100).toFixed(1).padStart(5)}%  ${nameOf(key)}${key === answer.choice ? "  ← elegida" : ""}`)
+      const picked = readJevChoice(answer, places)
+      console.log(`\n${title} (${candidates.length} lugares + "ninguno", ${ms} ms, confianza ${answer.confidence.toFixed(2)})`)
+      console.log(rows.join("\n"))
+      console.log(`  → identifyPhoto usaría: ${picked ? picked.place.name : "el LLM de respaldo"}`)
+      return picked
+    }
+
+    console.log(`\nFoto: ${photoPath} | ubicación: ${label}`)
+    // A: los reales (hasta 2) mezclados con señuelos, sin pasar el máximo que usa la app.
+    const mixed = [...decoyPlaces().slice(0, MAX_CANDIDATES - Math.min(real.length, 2)), ...real.slice(0, 2)]
+    const a = await run("A) Lugar real + señuelos", mixed)
+    // B: solo señuelos.
+    const b = await run("B) Solo señuelos (el lugar real no está)", decoyPlaces())
+
+    expect(a?.place.id).toBe(real[0]?.id)
+    expect(b).toBeNull()
   }, 30_000)
 })

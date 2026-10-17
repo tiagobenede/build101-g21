@@ -20,7 +20,11 @@ const PHOTO_REF = "foto-del-viajero"
 
 const responseSchema = z.object({
   answers: z.object({
-    [QUESTION]: z.object({ choice: z.string(), confidence: z.number().min(0).max(1) }),
+    [QUESTION]: z.object({
+      choice: z.string(),
+      confidence: z.number().min(0).max(1),
+      probabilities: z.record(z.string(), z.number()),
+    }),
   }),
 })
 

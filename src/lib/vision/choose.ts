@@ -34,7 +34,7 @@ export function buildJevOptions(candidates: readonly NearbyPlace[]): JevOptions 
   return { criteria, places }
 }
 
-export type JevChoice = { choice: string; confidence: number }
+export type JevChoice = { choice: string; confidence: number; probabilities?: Record<string, number> }
 
 /** El lugar que eligió Jev, o null si dijo "ninguno" o no está seguro. */
 export function readJevChoice(
