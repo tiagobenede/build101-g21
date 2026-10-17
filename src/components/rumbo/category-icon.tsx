@@ -4,12 +4,14 @@ import {
   ChurchIcon,
   CoffeeIcon,
   CroissantIcon,
+  IceCreamConeIcon,
   LandmarkIcon,
   MapPinIcon,
   ShoppingBagIcon,
   ShoppingBasketIcon,
   TreesIcon,
   UtensilsIcon,
+  WineIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -26,6 +28,8 @@ const CATEGORIES: Record<string, { icon: LucideIcon; color: string }> = {
   Restaurante: { icon: UtensilsIcon, color: "#FF3B30" },
   Panadería: { icon: CroissantIcon, color: "#A2845E" },
   Café: { icon: CoffeeIcon, color: "#A2845E" },
+  Heladería: { icon: IceCreamConeIcon, color: "#FF9500" },
+  Bar: { icon: WineIcon, color: "#AF52DE" },
   Librería: { icon: BookOpenIcon, color: "#32ADE6" },
   Pasaje: { icon: ShoppingBagIcon, color: "#FF2D55" },
 }

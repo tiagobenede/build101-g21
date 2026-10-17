@@ -61,6 +61,20 @@ describe("rankPlaces", () => {
     expect(ranked.map((r) => r.place.id)).not.toContain("a")
   })
 
+  it("entre lugares del mismo gusto, sube el más conocido aunque esté un poco más lejos", () => {
+    const tienda = { ...place("tienda", ["compras"], 1, 20, 4.8), rating_count: 20 }
+    const shopping = { ...place("shopping", ["compras"], 17, 30, 4.4), rating_count: 53_000 }
+    const ranked = rankPlaces({ ...base, places: [tienda, shopping], requestedTag: "compras" })
+    expect(ranked[0].place.id).toBe("shopping")
+  })
+
+  it("si pide algo puntual, sus gustos no tapan al lugar obvio", () => {
+    const tiendaDeDiseno = { ...place("tienda", ["compras", "diseño"], 5, 20, 4.9), rating_count: 214 }
+    const shopping = { ...place("shopping", ["compras"], 17, 30, 4.4), rating_count: 53_000 }
+    const ranked = rankPlaces({ ...base, interests: ["diseño", "autos", "arquitectura", "café"], places: [tiendaDeDiseno, shopping], requestedTag: "compras" })
+    expect(ranked[0].place.id).toBe("shopping")
+  })
+
   it("con dieta vegetariana descarta parrillas y sube los vegetarianos", () => {
     const parrilla = { ...place("parrilla", ["comida"], 2, 30, 4.9), googleTypes: ["steak_house", "restaurant"] }
     const veggie = { ...place("veggie", ["comida"], 9, 30, 4.0), googleTypes: ["vegetarian_restaurant", "restaurant"] }

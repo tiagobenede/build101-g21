@@ -2,12 +2,11 @@
 
 import { z } from "zod"
 
-import { parseGeocodeResults, type GeocodeResult } from "@/lib/location/geocode"
+import { parseTextSearchResults, type GeocodeResult } from "@/lib/location/geocode"
 import { createClient } from "@/lib/supabase/server"
 
-const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
-// Nominatim pide identificarse y no más de 1 búsqueda por segundo.
-const USER_AGENT = "Rumbo/0.1 (hackathon demo)"
+const TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
+/** Cada búsqueda se paga: no más de una por segundo por usuario. */
 const MIN_INTERVAL_MS = 1_000
 const TIMEOUT_MS = 5_000
 const MAX_RESULTS = 5
@@ -34,23 +33,28 @@ export async function searchLocation(query: string): Promise<SearchResult> {
   }
   lastSearchByUser.set(user.id, now)
 
-  const url = new URL(NOMINATIM_URL)
-  url.search = new URLSearchParams({
-    q: parsed.data,
-    format: "jsonv2",
-    limit: String(MAX_RESULTS),
-    "accept-language": "es",
-  }).toString()
+  const apiKey = process.env.GOOGLE_API_KEY
+  if (!apiKey) return { success: false, error: "Falta GOOGLE_API_KEY." }
 
   try {
-    const res = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(TIMEOUT_MS) })
+    // Places Text Search entiende direcciones, esquinas y lugares por nombre ("Montevideo Shopping").
+    const res = await fetch(TEXT_SEARCH_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.location",
+      },
+      body: JSON.stringify({ textQuery: parsed.data, languageCode: "es", maxResultCount: MAX_RESULTS }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
     if (!res.ok) {
-      console.error("[location] Nominatim respondió", res.status)
+      console.error("[location] Google respondió", res.status)
       return { success: false, error: "El buscador de lugares no respondió." }
     }
-    return { success: true, data: parseGeocodeResults(await res.json()) }
+    return { success: true, data: parseTextSearchResults(await res.json()) }
   } catch (err) {
-    console.error("[location] Nominatim falló", err instanceof Error ? err.message : err)
+    console.error("[location] Google falló", err instanceof Error ? err.message : err)
     return { success: false, error: "No se pudo buscar el lugar." }
   }
 }

@@ -27,7 +27,7 @@ const base = {
     interests: ["autos", "diseño"],
     travelStyle: null,
     locationLabel: "Centre Pompidou, París",
-    nearby: Array.from({ length: 12 }, (_, i) => place(i + 1)),
+    nearby: Array.from({ length: 30 }, (_, i) => place(i + 1)),
     constraints: { dietary: [], mobility: null, dailyBudget: null, pace: null, schedule: null },
     profileSummary: null,
     itinerary: [
@@ -153,6 +153,7 @@ describe("viaje compartido", () => {
 
   it("dice con quién viaja y lo que no negocia cada uno", () => {
     expect(companionsLine([sofia, mateo])).toMatch(/^Viaje compartido con Sofía \(vegetariano\), Mateo:/)
+    expect(companionsLine([sofia], "Lucía")).toContain("lo que no lo dice lo sumó Lucía")
     expect(companionsLine([])).toBeNull()
   })
 

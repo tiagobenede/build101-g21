@@ -11,8 +11,11 @@ export const MAX_OUTPUT_TOKENS = 500
 /** La key efímera solo sirve para abrir la conexión en este plazo. */
 export const EPHEMERAL_KEY_TTL_SECONDS = 60
 
-/** Cantidad de lugares cercanos que van en las instrucciones (más = más tokens por turno). */
-export const MAX_PLACES_IN_CONTEXT = 8
+/**
+ * Cantidad de lugares cercanos que van en las instrucciones, variados por rubro. Más = más
+ * tokens, pero las instrucciones se cachean entre turnos (se pagan al 10%).
+ */
+export const MAX_PLACES_IN_CONTEXT = 20
 
 /** Actividades de hoy que van en las instrucciones. */
 export const MAX_ITINERARY_IN_CONTEXT = 8

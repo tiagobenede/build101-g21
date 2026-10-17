@@ -1,12 +1,24 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { Suspense } from "react"
 
 import { Button } from "@/components/ui/button"
 import { joinTrip } from "@/lib/data/trips"
 import { createClient } from "@/lib/supabase/server"
 
+type JoinTripProps = { params: Promise<{ code: string }> }
+
 /** Link de invitación a un viaje compartido: suma al viaje y lleva a la home. */
-export default async function JoinTripPage({ params }: { params: Promise<{ code: string }> }) {
+export default function JoinTripPage({ params }: JoinTripProps) {
+  // Lee la sesión y la URL al momento del pedido: va dentro de Suspense (cacheComponents).
+  return (
+    <Suspense fallback={<main className="min-h-dvh" />}>
+      <JoinTrip params={params} />
+    </Suspense>
+  )
+}
+
+async function JoinTrip({ params }: JoinTripProps) {
   const { code } = await params
   const supabase = await createClient()
   const {

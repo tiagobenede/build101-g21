@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { parseReverseGeocode, timeZoneAt } from "./locale"
+vi.mock("server-only", () => ({}))
+
+const { timeZoneAt } = await import("./locale")
 
 describe("timeZoneAt", () => {
   it.each([
@@ -14,24 +16,5 @@ describe("timeZoneAt", () => {
 
   it("devuelve UTC con coordenadas inválidas", () => {
     expect(timeZoneAt({ lat: 999, lng: 0 })).toBe("UTC")
-  })
-})
-
-describe("parseReverseGeocode", () => {
-  it("toma ciudad y país", () => {
-    expect(parseReverseGeocode({ address: { city: "Montevideo", state: "Montevideo", country: "Uruguay" } })).toEqual({
-      city: "Montevideo",
-      country: "Uruguay",
-    })
-  })
-
-  it("usa pueblo, municipio o provincia si no hay ciudad", () => {
-    expect(parseReverseGeocode({ address: { town: "Punta del Este", country: "Uruguay" } })?.city).toBe("Punta del Este")
-    expect(parseReverseGeocode({ address: { state: "Maldonado", country: "Uruguay" } })?.city).toBe("Maldonado")
-  })
-
-  it("devuelve null con respuestas sin dirección", () => {
-    expect(parseReverseGeocode({ error: "Unable to geocode" })).toBeNull()
-    expect(parseReverseGeocode(null)).toBeNull()
   })
 })

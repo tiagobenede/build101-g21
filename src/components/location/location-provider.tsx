@@ -1,6 +1,6 @@
 "use client"
 
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 
@@ -68,7 +68,6 @@ function writeStored(value: Stored) {
  */
 export function LocationProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
-  const pathname = usePathname()
   const [position, setPosition] = useState<LatLng>(DEFAULT_POSITION)
   const [heading, setHeading] = useState<number | null>(null)
   const [source, setSourceState] = useState<LocationSource>("mock")
@@ -161,7 +160,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   // Pings al server (cada 5 s o 25 m) y refresh de las pantallas al moverse 100 m.
   const sendingRef = useRef(false)
   useEffect(() => {
-    if (!restored || NO_PINGS_PATHS.some((p) => pathname.startsWith(p))) return
+    // La ruta se lee acá y no con usePathname: el provider está en el layout raíz y
+    // usePathname rompe el prerender de las rutas dinámicas (/join/[code]).
+    if (!restored || NO_PINGS_PATHS.some((p) => window.location.pathname.startsWith(p))) return
     const now = Date.now()
     if (sendingRef.current || !shouldSendPing(lastPingRef.current, position, now)) return
 
@@ -179,7 +180,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         sendingRef.current = false
       })
-  }, [position, heading, source, speed, pathname, router, restored])
+  }, [position, heading, source, speed, router, restored])
 
   const value = useMemo<LocationContextValue>(
     () => ({ position, heading, source, setSource, speed, setSpeed, setVector, teleport }),

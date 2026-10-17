@@ -56,7 +56,8 @@ export type TravelerConstraints = {
 /** De dónde sale `location`: la que manda el cliente, el último ping guardado, el centro del viaje o un valor fijo. */
 export type LocationSource = "live" | "ping" | "trip" | "fallback"
 
-export type NearbyPlace = Place & { distanceMeters: number; walkMinutes: number }
+/** `rating_count`: reseñas en Google (qué tan conocido es); null en los lugares del seed. */
+export type NearbyPlace = Place & { distanceMeters: number; walkMinutes: number; rating_count?: number | null }
 
 export type TravelerContext = {
   userId: string
@@ -155,7 +156,7 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
       : Promise.resolve({ data: [], error: null }),
     supabase
       .from("places")
-      .select("id, name, category, tags, description, lat, lng, rating, typical_visit_minutes")
+      .select("id, name, category, tags, description, lat, lng, rating, typical_visit_minutes, rating_count")
       // Por cercanía, no por ciudad: así funciona en cualquier lugar del mundo.
       .gte("lat", box.minLat)
       .lte("lat", box.maxLat)
@@ -168,7 +169,7 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
   if (itineraryRes.error) throw new Error(`No se pudo cargar el itinerario: ${itineraryRes.error.message}`)
   if (placesRes.error) throw new Error(`No se pudieron cargar los lugares: ${placesRes.error.message}`)
 
-  const nearby = (placesRes.data as Place[])
+  const nearby = (placesRes.data as (Place & { rating_count: number | null })[])
     .map((p) => ({ ...p, distanceMeters: distanceMeters(location, p), walkMinutes: walkMinutes(location, p) }))
     .filter((p) => p.distanceMeters <= NEARBY_RADIUS_METERS)
     .sort((a, b) => a.distanceMeters - b.distanceMeters)

@@ -26,7 +26,7 @@ import { getOpeningInfo } from "@/lib/places/details"
 import { findPlaceByName } from "@/lib/places/lookup"
 import { searchPlaces } from "@/lib/places/search"
 import { formatTodayPlan, itemRef } from "@/lib/realtime/instructions"
-import { isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
+import { fillMissingNulls, isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
@@ -34,6 +34,9 @@ import { readMenu } from "@/lib/web-page"
 import { pickReadableUrl, webSearch } from "@/lib/web-search"
 
 const fail = (error: string): ToolResult => ({ output: JSON.stringify({ error }), cards: [] })
+
+/** Lugares cercanos que entran al ranking de recommend_nearby. */
+const MAX_RANK_CANDIDATES = 150
 
 async function recommendNearby(
   args: ToolArgs<"recommend_nearby">,
@@ -56,8 +59,10 @@ async function recommendNearby(
     commitment ? new Date(commitment.starts_at) : null,
     now
   )
+  // Los más cercanos (vienen ordenados): con la zona llena de lugares, la lista de ids no entra en la URL.
+  const candidates = ctx.nearby.slice(0, MAX_RANK_CANDIDATES)
   // Los tipos de Google (en `places.data`) sirven para respetar la dieta.
-  const { data: typed } = await supabase.from("places").select("id, data").in("id", ctx.nearby.map((p) => p.id))
+  const { data: typed } = await supabase.from("places").select("id, data").in("id", candidates.map((p) => p.id))
   const typesById = new Map((typed ?? []).map((p) => [p.id as string, (p.data as { types?: string[] } | null)?.types ?? []]))
 
   const rank = (places: RankablePlace[]) =>
@@ -70,7 +75,7 @@ async function recommendNearby(
       // En un viaje compartido se respeta la dieta de todos.
       dietary: [...new Set([...ctx.constraints.dietary, ...ctx.companions.flatMap((c) => c.dietary)])],
     })
-  let ranked = rank(ctx.nearby.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
+  let ranked = rank(candidates.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
   // Nada guardado para lo que pidió (p. ej. "compras" sin shoppings en caché): se busca en Google.
   if (ranked.length === 0 && args.interest) {
     const found = await searchPlaces(interestQuery(args.interest), null, ctx.location, ctx.city ?? "").catch(
@@ -439,6 +444,7 @@ export async function runTool(
     return fail("Argumentos inválidos.")
   }
   const invalid = fail("Argumentos inválidos.")
+  json = fillMissingNulls(name, json)
 
   switch (name) {
     case "recommend_nearby": {

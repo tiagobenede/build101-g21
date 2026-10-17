@@ -1,58 +1,77 @@
+/**
+ * Respuestas de Google (Geocoding y Places Text Search) → lo que usa Rumbo. Puro y validado:
+ * son datos externos.
+ */
 import { z } from "zod"
 
 export type GeocodeResult = { name: string; detail: string; lat: number; lng: number }
 
-const nominatimItem = z.object({
-  lat: z.coerce.number().refine(Number.isFinite),
-  lon: z.coerce.number().refine(Number.isFinite),
-  name: z.string().optional(),
-  display_name: z.string(),
+/** Dónde está un punto "en palabras", de lo más chico a lo más grande. */
+export type AddressParts = { street: string | null; barrio: string | null; city: string | null; country: string | null }
+
+const textSearchItem = z.object({
+  displayName: z.object({ text: z.string().min(1) }),
+  formattedAddress: z.string().default(""),
+  location: z.object({ latitude: z.number().finite(), longitude: z.number().finite() }),
 })
 
-/** Normaliza la respuesta de Nominatim (datos externos: se valida todo). */
-export function parseGeocodeResults(raw: unknown): GeocodeResult[] {
-  if (!Array.isArray(raw)) return []
-  return raw.flatMap((item) => {
-    const parsed = nominatimItem.safeParse(item)
+/** Resultados del buscador de ubicación (Places Text Search). */
+export function parseTextSearchResults(raw: unknown): GeocodeResult[] {
+  const places = z.object({ places: z.array(z.unknown()).default([]) }).safeParse(raw)
+  if (!places.success) return []
+  return places.data.places.flatMap((item) => {
+    const parsed = textSearchItem.safeParse(item)
     if (!parsed.success) return []
-    const parts = parsed.data.display_name.split(",").map((p) => p.trim())
-    const name = parsed.data.name || parts[0]
-    const detail = parts.filter((p) => p !== name).join(", ")
-    return [{ name, detail, lat: parsed.data.lat, lng: parsed.data.lon }]
+    const { displayName, formattedAddress, location } = parsed.data
+    const name = displayName.text
+    const detail = formattedAddress
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p) => p && p !== name)
+      .join(", ")
+    return [{ name, detail, lat: location.latitude, lng: location.longitude }]
   })
 }
 
-const reverseAddress = z.object({
-  road: z.string().optional(),
-  pedestrian: z.string().optional(),
-  square: z.string().optional(),
-  neighbourhood: z.string().optional(),
-  quarter: z.string().optional(),
-  city_block: z.string().optional(),
-  suburb: z.string().optional(),
-  city: z.string().optional(),
-  town: z.string().optional(),
-  village: z.string().optional(),
+const component = z.object({ long_name: z.string(), types: z.array(z.string()) })
+const reverseResponse = z.object({
+  status: z.string(),
+  results: z.array(z.object({ address_components: z.array(component) })).default([]),
 })
 
-const reverseItem = z.object({ address: reverseAddress })
+/** En orden de preferencia: el primer tipo que aparezca define la parte. */
+const PART_TYPES: Record<keyof AddressParts, string[]> = {
+  street: ["route"],
+  barrio: ["neighborhood", "sublocality_level_1", "sublocality"],
+  city: ["locality", "postal_town", "administrative_area_level_2", "administrative_area_level_1"],
+  country: ["country"],
+}
+
+/** Calle, barrio, ciudad y país de un reverse de Google Geocoding (null si no hay resultados). */
+export function parseGoogleReverse(raw: unknown): AddressParts | null {
+  const parsed = reverseResponse.safeParse(raw)
+  if (!parsed.success || parsed.data.status !== "OK" || parsed.data.results.length === 0) return null
+  const components = parsed.data.results.flatMap((r) => r.address_components)
+  const find = (types: string[]) => {
+    for (const type of types) {
+      const hit = components.find((c) => c.types.includes(type))
+      if (hit) return hit.long_name
+    }
+    return null
+  }
+  return {
+    street: find(PART_TYPES.street),
+    barrio: find(PART_TYPES.barrio),
+    city: find(PART_TYPES.city),
+    country: find(PART_TYPES.country),
+  }
+}
 
 /**
- * Dirección corta para el agente desde un reverse de Nominatim:
- * "Place des Vosges, Quartier de l'Arsenal, Paris 4e Arrondissement, París".
- * Sin número de puerta (el GPS no da para tanto) ni el nombre del punto, que suele ser
- * un negocio cualquiera: los lugares cercanos ya van aparte. Null sin calle ni barrio.
+ * Dirección corta para el agente: "Av. Ramón Anador, La Blanqueada, Montevideo". Sin número
+ * de puerta (el GPS no da para tanto). Null sin calle ni barrio.
  */
-export function parseReverseGeocode(raw: unknown): string | null {
-  const parsed = reverseItem.safeParse(raw)
-  if (!parsed.success) return null
-  const a = parsed.data.address
-  const street = a.road ?? a.pedestrian ?? a.square
-  const barrio = a.neighbourhood ?? a.quarter ?? a.city_block
-  const city = a.city ?? a.town ?? a.village
-  const parts = [street, barrio, a.suburb, city].filter(
-    (p, i, all): p is string => Boolean(p) && all.indexOf(p) === i
-  )
-  if (!street && !barrio) return null
-  return parts.join(", ")
+export function streetLine(parts: AddressParts | null): string | null {
+  if (!parts || (!parts.street && !parts.barrio)) return null
+  return [parts.street, parts.barrio, parts.city].filter((p, i, all): p is string => Boolean(p) && all.indexOf(p) === i).join(", ")
 }

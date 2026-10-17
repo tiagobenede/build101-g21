@@ -3,32 +3,32 @@ import "server-only"
 import type { LatLng } from "@/lib/geo"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-import { FOOD_TYPES, GOOGLE_FIELD_MASK, SHOP_TYPES, SIGHT_TYPES, toPlaceRow, type GooglePlace } from "./google-types"
+import { GOOGLE_FIELD_MASK, toPlaceRow, type GooglePlace } from "./google-types"
+import { nearbyQueries, type NearbyQuery } from "./nearby-plan"
 
 const NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby"
-const SEARCH_RADIUS_METERS = 1_500
-/** Un lugar traído hace menos de esto no se vuelve a pedir. */
-const REFRESH_MS = 24 * 60 * 60 * 1000
-/** Con esta cantidad de lugares frescos cerca no hace falta llamar a Google. */
-const ENOUGH_CACHED = 15
-/** Celda de ~1 km: moverse dentro de la misma celda no dispara otra búsqueda. */
-const cellOf = ({ lat, lng }: LatLng) => `${lat.toFixed(2)},${lng.toFixed(2)}`
+/** Una zona pedida hace menos de esto no se vuelve a pedir (los lugares no cambian tan seguido). */
+const REFRESH_MS = 7 * 24 * 60 * 60 * 1000
+const MAX_RESULTS = 20
 
+/** Zonas ya pedidas en este proceso (evita ir a la base en cada pedido). */
 const freshCells = new Map<string, number>()
 const inFlight = new Map<string, Promise<void>>()
 
-/** Nearby Search de Google con esos tipos (exportada para las pruebas de relevancia). */
-export async function searchNearby(apiKey: string, location: LatLng, includedTypes: string[]): Promise<GooglePlace[]> {
+type SearchOptions = Pick<NearbyQuery, "includedTypes" | "radius" | "rankPreference">
+
+/** Nearby Search de Google alrededor de `location` (exportada para las pruebas de relevancia). */
+export async function searchNearby(apiKey: string, location: LatLng, options: SearchOptions): Promise<GooglePlace[]> {
   const res = await fetch(NEARBY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey, "X-Goog-FieldMask": GOOGLE_FIELD_MASK },
     body: JSON.stringify({
-      includedTypes,
-      maxResultCount: 20,
-      rankPreference: "POPULARITY",
+      includedTypes: options.includedTypes,
+      maxResultCount: MAX_RESULTS,
+      rankPreference: options.rankPreference,
       languageCode: "es",
       locationRestriction: {
-        circle: { center: { latitude: location.lat, longitude: location.lng }, radius: SEARCH_RADIUS_METERS },
+        circle: { center: { latitude: location.lat, longitude: location.lng }, radius: options.radius },
       },
     }),
   })
@@ -37,55 +37,63 @@ export async function searchNearby(apiKey: string, location: LatLng, includedTyp
   return body.places ?? []
 }
 
-async function refresh(location: LatLng, city: string): Promise<void> {
+const isFresh = (cell: string) => Date.now() - (freshCells.get(cell) ?? 0) < REFRESH_MS
+
+async function refresh(location: LatLng, city: string, queries: NearbyQuery[]): Promise<void> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return
 
   const admin = createAdminClient()
+  const cells = [...new Set(queries.map((q) => q.cell))]
   const since = new Date(Date.now() - REFRESH_MS).toISOString()
-  // ~1,5 km alrededor: si ya hay suficientes lugares frescos (de otra request o de antes de reiniciar), listo.
-  const { count } = await admin
-    .from("places")
-    .select("id", { count: "exact", head: true })
-    .gte("fetched_at", since)
-    .gte("lat", location.lat - 0.0135)
-    .lte("lat", location.lat + 0.0135)
-    .gte("lng", location.lng - 0.02)
-    .lte("lng", location.lng + 0.02)
-  if ((count ?? 0) >= ENOUGH_CACHED) return
+  const { data: known, error: cellsError } = await admin.from("place_cells").select("cell, fetched_at").in("cell", cells).gte("fetched_at", since)
+  if (cellsError) throw new Error(`No se pudieron leer las zonas: ${cellsError.message}`)
+  for (const k of known ?? []) freshCells.set(k.cell as string, new Date(k.fetched_at as string).getTime())
 
-  const results = await Promise.all([FOOD_TYPES, SIGHT_TYPES, SHOP_TYPES].map((types) => searchNearby(apiKey, location, types)))
+  const pending = queries.filter((q) => !isFresh(q.cell))
+  if (pending.length === 0) return
+
+  const results = await Promise.allSettled(pending.map((q) => searchNearby(apiKey, location, q)))
+  const fetchedAt = new Date().toISOString()
   const rows = new Map(
     results
-      .flat()
+      .flatMap((r) => (r.status === "fulfilled" ? r.value : []))
       .map((g) => toPlaceRow(g, city))
       .filter((r) => r !== null)
-      .map((r) => [r.id, { ...r, fetched_at: new Date().toISOString() }])
+      .map((r) => [r.id, { ...r, fetched_at: fetchedAt }])
   )
-  if (rows.size === 0) return
+  if (rows.size > 0) {
+    const { error } = await admin.from("places").upsert([...rows.values()])
+    if (error) throw new Error(`No se pudieron guardar los lugares: ${error.message}`)
+  }
 
-  const { error } = await admin.from("places").upsert([...rows.values()])
-  if (error) throw new Error(`No se pudieron guardar los lugares: ${error.message}`)
+  // Una zona queda pedida solo si todas sus búsquedas salieron bien; si no, se reintenta.
+  const failed = new Set(pending.filter((_, i) => results[i].status === "rejected").map((q) => q.cell))
+  for (const r of results) if (r.status === "rejected") console.error("[places]", r.reason instanceof Error ? r.reason.message : r.reason)
+  const done = [...new Set(pending.map((q) => q.cell))].filter((c) => !failed.has(c))
+  if (done.length === 0) return
+  const { error } = await admin.from("place_cells").upsert(done.map((cell) => ({ cell, fetched_at: fetchedAt })))
+  if (error) console.error("[places] no se pudieron marcar las zonas", error.message)
+  const now = Date.now()
+  for (const c of done) freshCells.set(c, now)
 }
 
 /**
- * Se asegura de que `places` tenga los lugares de Google alrededor de la ubicación.
- * Como mucho tres llamadas a Google por celda de ~1 km cada 24 h; si Google falla,
- * se sigue con lo que ya haya guardado.
+ * Se asegura de que `places` tenga los lugares de Google alrededor de la ubicación:
+ * lo popular de la zona (~1 km) y lo más cercano de la cuadra (~400 m). Cada zona se pide
+ * una vez por semana; si Google falla, se sigue con lo que ya haya guardado.
  */
 export async function ensureNearbyPlaces(location: LatLng, city: string): Promise<void> {
-  const cell = cellOf(location)
-  if (Date.now() - (freshCells.get(cell) ?? 0) < REFRESH_MS) return
+  const queries = nearbyQueries(location)
+  if (queries.every((q) => isFresh(q.cell))) return
 
-  let pending = inFlight.get(cell)
+  const key = [...new Set(queries.map((q) => q.cell))].join("|")
+  let pending = inFlight.get(key)
   if (!pending) {
-    pending = refresh(location, city)
-      .then(() => {
-        freshCells.set(cell, Date.now())
-      })
+    pending = refresh(location, city, queries)
       .catch((err: unknown) => console.error("[places]", err instanceof Error ? err.message : err))
-      .finally(() => inFlight.delete(cell))
-    inFlight.set(cell, pending)
+      .finally(() => inFlight.delete(key))
+    inFlight.set(key, pending)
   }
   await pending
 }

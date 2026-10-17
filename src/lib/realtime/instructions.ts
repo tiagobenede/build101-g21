@@ -3,6 +3,7 @@ import type { ItineraryItem, TravelerContext } from "@/lib/data/session"
 import { zonedDateKey } from "@/lib/time/zoned"
 
 import { MAX_ITINERARY_IN_CONTEXT, MAX_PLACES_IN_CONTEXT } from "./config"
+import { pickContextPlaces } from "./context-places"
 
 interface InstructionsInput {
   ctx: Pick<
@@ -78,13 +79,13 @@ export function formatTodayPlan(
 }
 
 /** Quienes viajan juntos y lo que no negocian, o null si viaja solo. */
-export function companionsLine(companions: TravelerContext["companions"]): string | null {
+export function companionsLine(companions: TravelerContext["companions"], firstName = "el viajero"): string | null {
   if (companions.length === 0) return null
   const people = companions.map((c) => {
     const limits = [...c.dietary, c.mobility ? `movilidad: ${c.mobility}` : null].filter(Boolean)
     return limits.length > 0 ? `${c.firstName} (${limits.join(", ")})` : c.firstName
   })
-  return `Viaje compartido con ${people.join(", ")}: cada uno habla con vos desde su teléfono y el plan es uno solo. Lo no negociable de cualquiera del grupo se respeta en lo que recomiendes. Si alguien sumó o cambió algo del plan, podés mencionarlo ("Sofía sumó…").`
+  return `Viaje compartido con ${people.join(", ")}: cada uno habla con vos desde su teléfono y el plan es uno solo. Lo no negociable de cualquiera del grupo se respeta en lo que recomiendes. En el plan, "(sumó Sofía)" marca lo que sumó otra persona; lo que no lo dice lo sumó ${firstName}. Si alguien sumó o cambió algo, podés mencionarlo ("Sofía sumó…").`
 }
 
 /** Restricciones no negociables, o null si no cargó ninguna. */
@@ -126,9 +127,8 @@ export const greetingPrompt = (firstName: string) =>
  */
 export function buildInstructions({ ctx, nextCommitment, weather, address = null, localTips = [], now, timeZone }: InstructionsInput): string {
   const companions = ctx.companions ?? []
-  const places = ctx.nearby
-    .slice(0, MAX_PLACES_IN_CONTEXT)
-    .map((p) => `- ${p.name} (${p.category}; ${p.tags.join(", ")}; ${p.walkMinutes} min a pie; visita ~${p.typical_visit_minutes} min)`)
+  const places = pickContextPlaces(ctx.nearby, MAX_PLACES_IN_CONTEXT)
+    .map((p) => `- ${p.name} (${p.category}; ${p.tags.join(", ")}; ${p.walkMinutes} min a pie${p.rating ? `; ★${p.rating}` : ""}; visita ~${p.typical_visit_minutes} min)`)
     .join("\n")
 
   const commitment = nextCommitment
@@ -144,7 +144,7 @@ ${[
   constraintsLine(ctx.constraints),
   ctx.profileSummary ? `Lo que aprendiste de ${ctx.firstName}: ${ctx.profileSummary}` : null,
   localTipsLine(localTips),
-  companionsLine(companions),
+  companionsLine(companions, ctx.firstName),
 ]
   .filter(Boolean)
   .join("\n")}

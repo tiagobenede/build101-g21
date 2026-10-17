@@ -17,6 +17,8 @@ const KINDS: [type: string, kind: Kind][] = [
   ["bakery", { category: "Panadería", tags: ["comida", "café"], minutes: 15 }],
   ["cafe", { category: "Café", tags: ["café"], minutes: 25 }],
   ["coffee_shop", { category: "Café", tags: ["café"], minutes: 20 }],
+  ["ice_cream_shop", { category: "Heladería", tags: ["comida"], minutes: 15 }],
+  ["bar", { category: "Bar", tags: ["comida"], minutes: 45 }],
   ["restaurant", { category: "Restaurante", tags: ["comida"], minutes: 45 }],
   ["book_store", { category: "Librería", tags: ["libros"], minutes: 20 }],
   ["park", { category: "Parque", tags: ["parques"], minutes: 30 }],
@@ -36,8 +38,8 @@ const OTHER: Kind = { category: "Lugar", tags: [], minutes: 30 }
 const MAX_TAGGED_TYPES = 3
 
 /** Tipos que se piden a Nearby Search, en búsquedas separadas para que no gane siempre la comida. */
-export const FOOD_TYPES = ["restaurant", "cafe", "coffee_shop", "bakery", "market"]
-export const SHOP_TYPES = ["shopping_mall", "department_store"]
+export const FOOD_TYPES = ["restaurant", "cafe", "coffee_shop", "bakery", "market", "bar", "ice_cream_shop"]
+export const SHOP_TYPES = ["shopping_mall", "department_store", "clothing_store"]
 export const SIGHT_TYPES = ["museum", "art_gallery", "park", "tourist_attraction", "historical_landmark", "book_store", "church"]
 
 /** Lo que pedimos con el field mask (lo mínimo: el precio de Google depende de los campos). */
@@ -48,6 +50,7 @@ export type GooglePlace = {
   types?: string[]
   location?: { latitude?: number; longitude?: number }
   rating?: number
+  userRatingCount?: number
   editorialSummary?: { text?: string }
   currentOpeningHours?: { openNow?: boolean }
   websiteUri?: string
@@ -60,11 +63,12 @@ export const GOOGLE_FIELD_MASK = [
   "places.types",
   "places.location",
   "places.rating",
+  "places.userRatingCount",
   "places.editorialSummary",
   "places.websiteUri",
 ].join(",")
 
-export type PlaceRow = Place & { city: string; data: Record<string, unknown> }
+export type PlaceRow = Place & { city: string; rating_count: number | null; data: Record<string, unknown> }
 
 /**
  * Fila de `places` para un lugar de Google, o null si no tiene datos o no es de un
@@ -95,6 +99,7 @@ export function toPlaceRow(g: GooglePlace, city: string, { keepUnknown = false }
     lng,
     rating: g.rating !== undefined ? Math.round(g.rating * 10) / 10 : null,
     typical_visit_minutes: main.minutes,
+    rating_count: g.userRatingCount ?? null,
     city,
     data: { google_place_id: g.id, types, ...(g.websiteUri ? { website: g.websiteUri } : {}) },
   }
