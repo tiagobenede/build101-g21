@@ -45,6 +45,12 @@ the active direction's track.
 - `session.input_transcript.delta` didn't arrive on WebRTC (only the output transcript did).
 - Not tested yet: the real mic (Browser pane limitation).
 
+## Cost safety
+- `gpt-realtime-translate` bills **every minute a session is open, silence included** ($0.034/min). On 2026-10-17 the first version (two sessions always open, no `session.close`) billed ~35 min ($1.20) in an afternoon.
+- The translator now opens one session only while a button is active, closes it ~2.5 s after the last translated words with `session.close` → `session.closed`, and auto-stops after 60 s without output.
+- The OpenAI agent and the ElevenLabs agent hang up after 60 s of silence (ElevenLabs also bills per open minute).
+- Everything closes on tab close/reload, and the bar at the top shows the estimated spend live (red while something bills per minute).
+
 ## Gotchas
 - Chrome doesn't forward a remote audio track straight into another `RTCPeerConnection` (it sends silence). Pass it through Web Audio (`createMediaStreamSource` → `createMediaStreamDestination`).
 - On a phone, camera and mic need HTTPS (deploy or use ngrok).

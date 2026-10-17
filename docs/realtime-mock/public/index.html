@@ -23,12 +23,15 @@
     .status.ok { color:var(--ok); } .status.err { color:var(--err); }
     .log { height:200px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:8px; font-size:13px; background:var(--bg); white-space:pre-wrap; }
     .log .you { color:var(--accent); } .log .sys { color:var(--muted); font-size:12px; } .log .err { color:var(--err); }
+    .cost { font-size:13px; color:var(--muted); padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--card); }
+    .cost.live { color:var(--err); border-color:var(--err); }
     details summary { cursor:pointer; color:var(--muted); font-size:13px; margin-top:8px; }
   </style>
 </head>
 <body>
 <main>
   <h1>Travel voice agent: infra test</h1>
+  <div id="cost" class="cost"></div>
 
   <section>
     <h2>1. Realtime agent</h2>
@@ -60,11 +63,11 @@
 
   <section>
     <h2>2. Face-to-face translator</h2>
-    <p class="hint">Two interpreter sessions, one per direction. Hold the button for whoever is speaking (or tap to toggle).</p>
+    <p class="hint">Billed per minute a session is open, silence included. A session opens only while a button is active: hold it while someone speaks (or tap to start/stop), and it closes a few seconds after the translation finishes. Auto-stops after a minute without speech.</p>
     <div class="row">
       <label>Me <select id="myLang"></select></label>
       <label>Them <select id="theirLang"></select></label>
-      <button id="trStart" class="primary">Start translator</button>
+      <button id="trStart" class="primary">Enable mic</button>
       <button id="trStop" disabled>Stop</button>
     </div>
     <div class="row">
