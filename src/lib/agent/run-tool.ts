@@ -34,7 +34,7 @@ import { whereLine } from "@/lib/location/corner"
 import { getWhere } from "@/lib/location/where"
 import { walkingRoute } from "@/lib/maps/walking-route"
 import { getOpeningInfo } from "@/lib/places/details"
-import { findPlaceByName } from "@/lib/places/lookup"
+import { findPlaceByName, type StoredPlace } from "@/lib/places/lookup"
 import { openLongEnough } from "@/lib/places/opening"
 import { searchPlaces } from "@/lib/places/search"
 import { formatTodayPlan, itemRef } from "@/lib/realtime/instructions"
@@ -317,15 +317,34 @@ async function placeFactsTool(args: ToolArgs<"place_facts">, location: LatLng | 
   })
   if (!facts) return fail("No pude buscar los datos ahora.")
   if (!facts.known || facts.facts.length === 0) {
-    return { output: JSON.stringify({ known: false, note: "No hay datos seguros: decíselo, no inventes." }), cards: [] }
+    return {
+      output: JSON.stringify({ known: false, note: "No hay datos de guía: buscalo ya con web_search (el nombre y la ciudad), no digas que no sabés." }),
+      cards: [],
+    }
   }
   return { output: JSON.stringify({ facts: facts.facts, anecdote: facts.anecdote }), cards: [] }
 }
 
+const PLACE_NOT_FOUND = "No lo encontré ni guardado ni en Google: preguntale cómo se llama exacto o en qué zona queda."
+
+/**
+ * Un lugar por nombre: primero los guardados y, si no está, en Google (queda guardado). Así
+ * "¿a qué hora cierra X?" o "llevame a X" funcionan aunque X no haya salido antes en la charla.
+ */
+async function placeByName(name: string, ctx: TravelerContext): Promise<StoredPlace | null> {
+  const saved = await findPlaceByName(await createClient(), name, ctx.location)
+  if (saved) return saved
+  const found = await searchPlaces(name, null, ctx.location, ctx.city ?? "").catch((err: unknown) => {
+    console.error("[tools] place lookup in Google failed", err instanceof Error ? err.message : err)
+    return null
+  })
+  return (found?.[0] as StoredPlace | undefined) ?? null
+}
+
 async function getPlaceTool(args: ToolArgs<"get_place">, location: LatLng | null): Promise<ToolResult> {
   const ctx = await getTravelerContext({ location })
-  const place = await findPlaceByName(await createClient(), args.place_name, ctx.location)
-  if (!place) return fail("No conozco ese lugar. Probá con search_places.")
+  const place = await placeByName(args.place_name, ctx)
+  if (!place) return fail(PLACE_NOT_FOUND)
 
   const googleId = place.data?.google_place_id
   const opening = googleId ? await getOpeningInfo(googleId, new Date(), ctx.timeZone) : null
@@ -357,8 +376,8 @@ async function getPlaceTool(args: ToolArgs<"get_place">, location: LatLng | null
 
 async function showRouteTool(args: ToolArgs<"show_route">, location: LatLng | null): Promise<ToolResult> {
   const ctx = await getTravelerContext({ location })
-  const place = await findPlaceByName(await createClient(), args.place_name, ctx.location)
-  if (!place) return fail("No conozco ese lugar. Probá con search_places.")
+  const place = await placeByName(args.place_name, ctx)
+  if (!place) return fail(PLACE_NOT_FOUND)
 
   // La misma ruta (cacheada) que después dibuja el mapa de la pantalla.
   const route = await walkingRoute(ctx.location, place)
@@ -427,7 +446,9 @@ async function webSearchTool(args: ToolArgs<"web_search">, location: LatLng | nu
     website ? readMenu(website, args.question) : Promise.resolve(null),
   ])
   if (!found && !sitePage) return fail("No pude buscar en la web ahora.")
-  if (found && !found.answer && found.results.length === 0 && !sitePage) return fail("No encontré nada sobre eso.")
+  if (found && !found.answer && found.results.length === 0 && !sitePage) {
+    return fail("No encontré nada sobre eso. Probá una vez con otras palabras (el nombre y la ciudad) antes de decir que no hay.")
+  }
 
   const fallbackUrl = wantsPage && !sitePage && found ? pickReadableUrl(found.results, args.place_name) : null
   const page = sitePage ?? (fallbackUrl ? await readMenu(fallbackUrl, args.question) : null)
