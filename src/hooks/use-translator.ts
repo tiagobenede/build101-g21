@@ -30,6 +30,8 @@ type Direction = {
 }
 
 const TICK_MS = 250
+/** Turnos que se pasan con cada uno nuevo, para entender a qué responde. */
+const RECENT_TURNS = 4
 
 type SessionResponse = { success: true; data: { key: string; conversationId: string } } | { success: false; error: string }
 
@@ -38,7 +40,18 @@ type SessionResponse = { success: true; data: { key: string; conversationId: str
  * "hablo yo" abre la dirección mía → su idioma; soltarla (o cambiar de quien habla)
  * deja terminar la traducción y cierra la sesión, porque se cobra cada minuto abierto.
  */
-export function useTranslator({ myLang, theirLang, location }: { myLang: Lang; theirLang: Lang; location: LatLng | null }) {
+export function useTranslator({
+  myLang,
+  theirLang,
+  location,
+  onTurn,
+}: {
+  myLang: Lang
+  theirLang: Lang
+  location: LatLng | null
+  /** Cada turno terminado, con los anteriores (el último es este) y la conversación. */
+  onTurn?: (turn: Utterance, recent: Utterance[], conversationId: string) => void
+}) {
   const [state, setState] = useState<TranslatorState>("off")
   const [speaker, setSpeaker] = useState<Speaker | null>(null)
   const [utterances, setUtterances] = useState<Utterance[]>([])
@@ -50,9 +63,12 @@ export function useTranslator({ myLang, theirLang, location }: { myLang: Lang; t
   const conversationRef = useRef<string | null>(null)
   const billedMsRef = useRef(0)
   const langsRef = useRef({ myLang, theirLang, location })
+  const onTurnRef = useRef(onTurn)
+  const turnsRef = useRef<Utterance[]>([])
   useEffect(() => {
     langsRef.current = { myLang, theirLang, location }
-  }, [myLang, theirLang, location])
+    onTurnRef.current = onTurn
+  }, [myLang, theirLang, location, onTurn])
 
   const upsert = useCallback((u: Utterance) => {
     setUtterances((list) => {
@@ -69,6 +85,8 @@ export function useTranslator({ myLang, theirLang, location }: { myLang: Lang; t
       upsert(u)
       const conversationId = conversationRef.current
       if (!conversationId) return
+      turnsRef.current = [...turnsRef.current, u].slice(-RECENT_TURNS)
+      onTurnRef.current?.(u, turnsRef.current, conversationId)
       const { myLang: mine, theirLang: theirs } = langsRef.current
       void fetch("/api/translate/messages", {
         method: "POST",
@@ -203,27 +221,41 @@ export function useTranslator({ myLang, theirLang, location }: { myLang: Lang; t
     [closeDirection, open, release]
   )
 
+  // Cada `stop` cambia la generación: un pedido de mic que llega después se descarta.
+  const generationRef = useRef(0)
+  const startingRef = useRef(false)
+
   const start = useCallback(async () => {
-    if (micRef.current) return
+    if (micRef.current || startingRef.current) return
+    startingRef.current = true
+    const generation = generationRef.current
     try {
-      micRef.current = await navigator.mediaDevices.getUserMedia({
+      const mic = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       })
+      if (generation !== generationRef.current) return mic.getTracks().forEach((t) => t.stop())
+      micRef.current = mic
       setState("ready")
     } catch {
       toast.error("Necesito permiso de micrófono para traducir.")
+    } finally {
+      if (generation === generationRef.current) startingRef.current = false
     }
   }, [])
 
   const stop = useCallback(async () => {
+    generationRef.current++
+    startingRef.current = false
     activeRef.current = null
     setSpeaker(null)
-    await Promise.all([...openRef.current].map((d) => closeDirection(d)))
-    micRef.current?.getTracks().forEach((t) => t.stop())
+    const mic = micRef.current
     micRef.current = null
+    await Promise.all([...openRef.current].map((d) => closeDirection(d)))
+    mic?.getTracks().forEach((t) => t.stop())
     setState("off")
     const conversationId = conversationRef.current
     conversationRef.current = null
+    turnsRef.current = []
     if (conversationId) {
       void fetch("/api/translate/end", {
         method: "POST",

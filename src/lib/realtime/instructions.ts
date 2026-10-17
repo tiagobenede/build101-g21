@@ -12,8 +12,24 @@ interface InstructionsInput {
   nextCommitment: ItineraryItem | null
   /** Una línea de Open-Meteo, o null si no se pudo traer. */
   weather: string | null
+  /** Calle y barrio (reverse geocoding), o null si no se pudo traer. */
+  address?: string | null
+  /** Lo que le recomendaron personas locales en el traductor (lo más nuevo primero). */
+  localTips?: LocalTipLine[]
   now: Date
   timeZone: string
+}
+
+export type LocalTipLine = { placeName: string; what: string; why: string | null; recommender: string | null }
+
+/** "Te recomendaron (gente del lugar, con el traductor): …" o null si no hay. */
+export function localTipsLine(tips: LocalTipLine[]): string | null {
+  if (tips.length === 0) return null
+  const items = tips.map((t) => {
+    const who = t.recommender ? `, según ${t.recommender}` : ""
+    return `${t.placeName}: ${t.what.replace(/\.$/, "")}${t.why ? ` (${t.why.replace(/\.$/, "")})` : ""}${who}`
+  })
+  return `Te recomendaron gente del lugar, con el traductor: ${items.join("; ")}. Si viene al caso, retomalo ("lo que te dijo…").`
 }
 
 const formatTime = (date: Date, timeZone: string) =>
@@ -65,6 +81,18 @@ function constraintsLine({ dietary, mobility, dailyBudget, pace, schedule }: Tra
 }
 
 /**
+ * "Place des Vosges (calle: Place des Vosges, Quartier de l'Arsenal, …)." El lugar
+ * cercano solo dice "París" si no hay nada a 300 m; la calle y el barrio le dan al
+ * agente dónde está parado de verdad.
+ */
+export function locationLine(label: string, address: string | null): string {
+  if (!address) return `${label}.`
+  // "París" (sin lugar cerca) o "Place des Vosges" ya están dentro de la dirección.
+  if (address.includes(label)) return `${address}.`
+  return `cerca de ${label} (está en ${address}).`
+}
+
+/**
  * Pedido de saludo al abrir la llamada, con el nombre escrito: el modelo mini no lo
  * toma de las instrucciones y preguntaba "¿cómo te llamás?".
  */
@@ -75,7 +103,7 @@ export const greetingPrompt = (firstName: string) =>
  * Instrucciones compactas: todo el contexto va acá (no por tools) para que se
  * cachee entre turnos y cada respuesta lea pocos tokens nuevos.
  */
-export function buildInstructions({ ctx, nextCommitment, weather, now, timeZone }: InstructionsInput): string {
+export function buildInstructions({ ctx, nextCommitment, weather, address = null, localTips = [], now, timeZone }: InstructionsInput): string {
   const places = ctx.nearby
     .slice(0, MAX_PLACES_IN_CONTEXT)
     .map((p) => `- ${p.name} (${p.category}; ${p.tags.join(", ")}; ${p.walkMinutes} min a pie; visita ~${p.typical_visit_minutes} min)`)
@@ -88,9 +116,13 @@ export function buildInstructions({ ctx, nextCommitment, weather, now, timeZone 
   return `Sos Rumbo, guía de viaje por voz. Hablás con ${ctx.firstName} en español rioplatense, cálido y directo: usá vos, nunca tú (decí "con vos", no "contigo").
 Respondé en 1 o 2 oraciones (máx. 40 palabras). Nada de listas ni disclaimers. Charlá natural, como alguien que la acompaña: no hagas preguntas de formulario. Si falta un dato clave, hacé una sola pregunta corta.
 
-Hora local: ${formatTime(now, timeZone)}. Ubicación: ${ctx.locationLabel}.${weather ? ` Clima: ${weather}` : ""}
+Hora local: ${formatTime(now, timeZone)}. Ubicación: ${locationLine(ctx.locationLabel, address)}${weather ? ` Clima: ${weather}` : ""}
 Gustos (en orden de importancia): ${ctx.interests.join(", ")}.${ctx.travelStyle ? ` Estilo: ${ctx.travelStyle}.` : ""}
-${[constraintsLine(ctx.constraints), ctx.profileSummary ? `Lo que aprendiste de ${ctx.firstName}: ${ctx.profileSummary}` : null]
+${[
+  constraintsLine(ctx.constraints),
+  ctx.profileSummary ? `Lo que aprendiste de ${ctx.firstName}: ${ctx.profileSummary}` : null,
+  localTipsLine(localTips),
+]
   .filter(Boolean)
   .join("\n")}
 ${commitment}

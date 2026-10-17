@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { NearbyPlace } from "@/lib/data/session"
 
 import { MAX_PLACES_IN_CONTEXT } from "./config"
-import { buildInstructions } from "./instructions"
+import { buildInstructions, localTipsLine, locationLine } from "./instructions"
 
 const PLANNED = { place_id: null, status: "planned", source: "user", locked: false } as const
 
@@ -98,5 +98,51 @@ describe("buildInstructions", () => {
     const text = buildInstructions({ ...base, nextCommitment: null })
     expect(text).toContain("aparece en la pantalla del viajero")
     expect(text).toContain("nunca digas que no encontraste nada si el tool devolvió lugares")
+  })
+})
+
+describe("localTipsLine", () => {
+  it("junta lugar, qué, por qué y quién", () => {
+    expect(
+      localTipsLine([
+        { placeName: "Marché couvert des Enfants Rouges", what: "Comer cuscús.", why: "Dice que es excelente.", recommender: "Camille" },
+        { placeName: "Pain de Sucre", what: "Ir por el postre", why: null, recommender: null },
+      ])
+    ).toBe(
+      'Te recomendaron gente del lugar, con el traductor: Marché couvert des Enfants Rouges: Comer cuscús (Dice que es excelente), según Camille; Pain de Sucre: Ir por el postre. Si viene al caso, retomalo ("lo que te dijo…").'
+    )
+  })
+
+  it("sin recomendaciones no hay línea", () => {
+    expect(localTipsLine([])).toBeNull()
+  })
+})
+
+describe("locationLine", () => {
+  it("sin dirección deja solo el lugar cercano", () => {
+    expect(locationLine("París", null)).toBe("París.")
+  })
+
+  it("suma la calle y el barrio al lugar cercano", () => {
+    expect(locationLine("Centre Pompidou", "Rue Rambuteau, Saint-Merri, París")).toBe(
+      "cerca de Centre Pompidou (está en Rue Rambuteau, Saint-Merri, París)."
+    )
+  })
+
+  it("sin lugar cerca, la ciudad no se repite", () => {
+    expect(locationLine("París", "Rue Meissonier, Paris 17e Arrondissement, París")).toBe(
+      "Rue Meissonier, Paris 17e Arrondissement, París."
+    )
+  })
+
+  it("no repite el lugar si la dirección ya lo incluye", () => {
+    expect(locationLine("Place des Vosges", "Place des Vosges, Quartier de l'Arsenal, París")).toBe(
+      "Place des Vosges, Quartier de l'Arsenal, París."
+    )
+  })
+
+  it("llega a las instrucciones", () => {
+    const text = buildInstructions({ ...base, nextCommitment: null, address: "Rue Rambuteau, Saint-Merri, París" })
+    expect(text).toContain("está en Rue Rambuteau, Saint-Merri, París")
   })
 })
