@@ -2,7 +2,8 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { INTEREST_TAGS, rankPlaces, resolveAvailableMinutes } from "@/lib/agent/rank"
+import { interestQuery, tagWithInterest } from "@/lib/agent/interest-fallback"
+import { INTEREST_TAGS, rankPlaces, resolveAvailableMinutes, type RankablePlace } from "@/lib/agent/rank"
 import {
   addItineraryItem,
   removeItineraryItem,
@@ -59,14 +60,28 @@ async function recommendNearby(
   const { data: typed } = await supabase.from("places").select("id, data").in("id", ctx.nearby.map((p) => p.id))
   const typesById = new Map((typed ?? []).map((p) => [p.id as string, (p.data as { types?: string[] } | null)?.types ?? []]))
 
-  const ranked = rankPlaces({
-    places: ctx.nearby.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })),
-    interests: ctx.interests,
-    requestedTag: args.interest,
-    availableMinutes,
-    alreadyRecommended: previous.map((r) => r.place_id as string),
-    dietary: ctx.constraints.dietary,
-  })
+  const rank = (places: RankablePlace[]) =>
+    rankPlaces({
+      places,
+      interests: ctx.interests,
+      requestedTag: args.interest,
+      availableMinutes,
+      alreadyRecommended: previous.map((r) => r.place_id as string),
+      dietary: ctx.constraints.dietary,
+    })
+  let ranked = rank(ctx.nearby.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
+  // Nada guardado para lo que pidió (p. ej. "compras" sin shoppings en caché): se busca en Google.
+  if (ranked.length === 0 && args.interest) {
+    const found = await searchPlaces(interestQuery(args.interest), null, ctx.location, ctx.city ?? "").catch(
+      (err: unknown) => {
+        console.error("[tools] recommend_nearby fallback failed", err instanceof Error ? err.message : err)
+        return []
+      }
+    )
+    ranked = rank(
+      tagWithInterest(found, args.interest).map((p) => ({ ...p, googleTypes: (p.data as { types?: string[] }).types }))
+    )
+  }
 
   if (ranked.length > 0) {
     const { error: insertError } = await supabase.from("recommendations").insert(
