@@ -40,7 +40,7 @@ export async function searchPlaces(
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask": `${GOOGLE_FIELD_MASK},places.currentOpeningHours.openNow`,
+      "X-Goog-FieldMask": `${GOOGLE_FIELD_MASK},places.currentOpeningHours.openNow,places.internationalPhoneNumber`,
     },
     body: JSON.stringify({
       textQuery: query,

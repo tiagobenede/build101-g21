@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Place } from "@/lib/agent/types"
 import { distanceMeters, type LatLng } from "@/lib/geo"
 
-export type StoredPlace = Place & { data: { google_place_id?: string; types?: string[]; website?: string } | null }
+export type StoredPlace = Place & { data: { google_place_id?: string; types?: string[]; website?: string; phone?: string } | null }
 
 const normalize = (s: string) =>
   s

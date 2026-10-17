@@ -33,9 +33,22 @@ describe("toPlaceRow", () => {
   })
 })
 
+describe("toPlaceRow con hoteles", () => {
+  it("un hotel es Hotel y guarda el teléfono para llamar", () => {
+    expect(toPlaceRow(g({ primaryType: "hotel", types: ["hotel", "lodging"], internationalPhoneNumber: "+33 1 42 72 00 00" }), "París")).toMatchObject({
+      category: "Hotel",
+      data: { phone: "+33 1 42 72 00 00" },
+    })
+  })
+
+  it("un restaurante que además es hotel sigue siendo restaurante", () => {
+    expect(toPlaceRow(g({ primaryType: "restaurant", types: ["restaurant", "lodging"] }), "París")?.category).toBe("Restaurante")
+  })
+})
+
 describe("toPlaceRow con keepUnknown", () => {
   it("guarda lo buscado por nombre aunque no sea de un tipo que usamos", () => {
-    expect(toPlaceRow(g({ primaryType: "hotel", types: ["hotel"] }), "París", { keepUnknown: true })).toMatchObject({
+    expect(toPlaceRow(g({ primaryType: "laundry", types: ["laundry"] }), "París", { keepUnknown: true })).toMatchObject({
       category: "Lugar",
       tags: [],
     })

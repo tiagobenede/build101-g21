@@ -93,6 +93,12 @@ export class ResponseQueue {
     this.flush()
   }
 
+  /** Pide una respuesta del agente (ej. llegó a un lugar) apenas se pueda, sin pisar otra. */
+  request(): void {
+    this.needsResponse = true
+    this.flush()
+  }
+
   private settleResponse(response: ResponseDone | undefined): void {
     if (!response?.id) return
     const completed = response.status !== "cancelled" && response.status !== "failed"

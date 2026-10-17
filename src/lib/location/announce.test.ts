@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { bearingDegrees, cardinalEs, locationUpdateText, shouldAnnounce } from "./announce"
+import { arrivalText, bearingDegrees, cardinalEs, locationUpdateText, shouldAnnounce } from "./announce"
 import { stepPosition } from "./simulate"
 
 const POMPIDOU = { lat: 48.8606, lng: 2.3522 }
@@ -50,5 +50,14 @@ describe("locationUpdateText", () => {
 
   it("usa km para distancias largas", () => {
     expect(locationUpdateText(POMPIDOU, { lat: 35.66, lng: 139.7 })).toMatch(/\d+(\.\d)? km/)
+  })
+})
+
+describe("arrivalText", () => {
+  it("avisa que llegó y deja que el agente decida si ofrecer el traductor", () => {
+    const text = arrivalText({ name: "Hôtel du Petit Moulin" })
+    expect(text).toContain("llegó a Hôtel du Petit Moulin")
+    expect(text).toContain("open_translator")
+    expect(text).toContain("Si no, no lo menciones")
   })
 })

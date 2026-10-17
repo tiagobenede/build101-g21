@@ -213,6 +213,7 @@ async function searchPlacesTool(args: ToolArgs<"search_places">, location: LatLn
         open_now: p.openNow,
         rating: p.rating,
         summary: p.description?.slice(0, SUMMARY_MAX_CHARS) ?? null,
+        phone: (p.data.phone as string | undefined) ?? null,
       })),
       ...(found.length === 0 && maxWalkMinutes !== null
         ? { note: `Nada a menos de ${maxWalkMinutes} min a pie. Decíselo y preguntá si quiere caminar más.` }
@@ -338,6 +339,7 @@ async function getPlaceTool(args: ToolArgs<"get_place">, location: LatLng | null
       description: place.description?.slice(0, DESCRIPTION_MAX_CHARS) ?? null,
       open_now: opening?.openNow ?? null,
       hours_today: opening?.hoursToday ?? null,
+      phone: place.data?.phone ?? null,
     }),
     cards: [
       {
@@ -367,6 +369,7 @@ async function showRouteTool(args: ToolArgs<"show_route">, location: LatLng | nu
       walk_meters: route?.meters ?? null,
       shown: "El mapa con la caminata ya está en la pantalla.",
     }),
+    destination: { name: place.name, lat: place.lat, lng: place.lng },
     cards: [
       {
         id: place.id,
@@ -622,5 +625,8 @@ export async function runTool(
     }
     case "translation_transcript":
       return translationTranscriptTool()
+    case "open_translator":
+      // Lo abre el cliente (use-realtime-call); acá no llega, pero el switch tiene que cubrirlo.
+      return { output: JSON.stringify({ opened: true }), cards: [] }
   }
 }

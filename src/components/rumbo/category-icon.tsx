@@ -1,4 +1,5 @@
 import {
+  BedDoubleIcon,
   BookOpenIcon,
   CarIcon,
   ChurchIcon,
@@ -32,6 +33,7 @@ const CATEGORIES: Record<string, { icon: LucideIcon; color: string }> = {
   Bar: { icon: WineIcon, color: "#AF52DE" },
   Librería: { icon: BookOpenIcon, color: "#32ADE6" },
   Pasaje: { icon: ShoppingBagIcon, color: "#FF2D55" },
+  Hotel: { icon: BedDoubleIcon, color: "#5AC8FA" },
 }
 
 const FALLBACK = { icon: MapPinIcon, color: "#8E8E93" }

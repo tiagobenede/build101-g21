@@ -91,7 +91,10 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
     (screen: { request: string; placeIds: string[] } | null) => (screen ? void showScreen(screen) : clearScreen()),
     [showScreen, clearScreen]
   )
-  const call = useRealtimeCall(places, position, onScreen)
+  // El agente abre el traductor (open_translator): lo hace el mismo botón de "Traducir".
+  const openTranslatorRef = useRef<() => void>(() => undefined)
+  const onOpenTranslator = useCallback(() => openTranslatorRef.current(), [])
+  const call = useRealtimeCall(places, position, onScreen, onOpenTranslator)
   const { note } = call
 
   // Lo que el viajero toca en la pantalla también se lo contamos al agente: es uno solo.
@@ -138,6 +141,9 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
     if (!micMuted) setMicMuted(true)
     setTranslating(true)
   }, [micMuted, setMicMuted])
+  useEffect(() => {
+    openTranslatorRef.current = openTranslator
+  }, [openTranslator])
   const closeTranslator = useCallback(() => {
     setTranslating(false)
     // Las recomendaciones se ven solo durante la charla: al salir del traductor se van de
