@@ -43,6 +43,14 @@ export const toolSchemas = {
     question: z.string().min(3).max(200).describe("Qué querés averiguar, corto: 'menú', 'tienen medialunas', 'horario de brunch'."),
     place_name: z.string().max(120).nullable().describe("El lugar del que se habla, si es sobre uno. null si es una pregunta general."),
   }),
+  place_facts: z.object({
+    subject: z
+      .string()
+      .min(2)
+      .max(160)
+      .describe("De qué: el lugar, la obra, el barrio o lo de la foto, con su nombre propio ('Centre Pompidou', 'La Gioconda, Louvre', 'el Marais')."),
+    question: z.string().max(200).nullable().describe("Lo que preguntó, si fue algo puntual ('¿por qué tiene tubos?'). null para que le cuentes en general."),
+  }),
   get_place: z.object({
     place_name: z.string().min(2).max(120).describe("Nombre del lugar, como aparece en la lista o en un resultado."),
   }),
@@ -88,6 +96,8 @@ const descriptions: Record<ToolName, string> = {
     "Busca eventos cerca en la agenda de la ciudad (conciertos, teatro, exposiciones, ferias, charlas): qué hay ahora, esta noche, hoy o mañana. Decí algo corto como 'me fijo qué hay' antes de llamarlo.",
   web_search:
     "Busca en Google lo que no sabés de un lugar o del momento: el menú, si tienen algo puntual, precios, eventos, noticias. Es rápido; decí algo corto como 'me fijo' antes de llamarlo. Lo que encuentres puede estar desactualizado. No leas nombres de sitios web en voz alta.",
+  place_facts:
+    "Datos de guía seguros (quién, cuándo, para qué, una anécdota) de un lugar, una obra, un barrio o lo de la foto. Usalo siempre que pregunte qué es algo, pida que le cuentes más, la historia o un dato curioso. No muestra nada en pantalla.",
   get_place:
     "Datos prácticos de un lugar: si está abierto ahora, el horario de hoy, minutos a pie y de visita. Usalo cuando pregunte eso de un lugar puntual; para contar su historia no hace falta.",
   show_route:
