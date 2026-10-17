@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "mock": "node --env-file-if-exists=.env --watch docs/realtime-mock/server.mjs",
-    "test:vision": "VISION_E2E=1 vitest run src/lib/vision/identify.e2e.test.ts"
+    "test:vision": "VISION_E2E=1 vitest run src/lib/vision/identify.e2e.test.ts",
+    "test:tips": "TIPS_E2E=1 vitest run src/lib/tips/process.e2e.test.ts"
   },
   "dependencies": {
     "@openuidev/react-lang": "^1.0.1",
