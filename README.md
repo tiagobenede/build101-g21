@@ -52,7 +52,7 @@ Modo ahorro:
 | Modelo `gpt-realtime-2.1-mini` | ~3× más barato que `gpt-realtime-2.1` |
 | VAD del servidor | Solo se factura la voz detectada, no el silencio |
 | Sin transcripción del usuario | Cuesta aparte y la UI no la usa |
-| Respuestas de 1–2 oraciones + `max_output_tokens: 500` | El audio de salida es lo más caro |
+| Respuestas de 1–2 oraciones (hasta 4 si pide la historia de algo) + `max_output_tokens: 700` | El audio de salida es lo más caro |
 | Contexto en las instrucciones (gustos, 8 lugares, itinerario) | Se cachea entre turnos; sin tools extra |
 | Corte a 1 min sin actividad, al salir de la pantalla y a los US$0.30 | Nada queda abierto facturando |
 | Pide el mic antes de abrir la sesión | Sin permiso, no se abre nada en OpenAI |

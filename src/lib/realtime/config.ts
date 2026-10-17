@@ -5,8 +5,11 @@
 export const REALTIME_MODEL = process.env.REALTIME_MODEL ?? "gpt-realtime-2.1-mini"
 export const REALTIME_VOICE = process.env.VOICE ?? "marin"
 
-/** Tope de tokens de salida por respuesta (~1.200 tokens de audio = 1 min de voz). */
-export const MAX_OUTPUT_TOKENS = 500
+/**
+ * Tope de tokens de salida por respuesta (~1.200 tokens de audio = 1 min de voz).
+ * 700 deja terminar una explicación de 70 palabras (~30 s) sin cortarla.
+ */
+export const MAX_OUTPUT_TOKENS = 700
 
 /** La key efímera solo sirve para abrir la conexión en este plazo. */
 export const EPHEMERAL_KEY_TTL_SECONDS = 60
