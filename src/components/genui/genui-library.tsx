@@ -106,7 +106,7 @@ function PlaceMeta({ place, walk = true }: { place: GenUiPlace; walk?: boolean }
           {place.walkMinutes} min
         </span>
       )}
-      <span>~{place.visitMinutes} min de visita</span>
+      {place.category !== "Hotel" && <span>~{place.visitMinutes} min de visita</span>}
       {place.rating && (
         <span className="inline-flex items-center gap-0.5">
           <StarIcon className="size-3 fill-[#FF9500] text-[#FF9500]" />

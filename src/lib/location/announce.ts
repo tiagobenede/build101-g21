@@ -38,3 +38,17 @@ export function locationUpdateText(from: LatLng, to: LatLng): string {
     "Los lugares cercanos cambiaron: para recomendar, llamá de nuevo a recommend_nearby (ya usa la ubicación nueva). No lo menciones salvo que sea útil."
   )
 }
+
+/** A esta distancia del destino de show_route, se le avisa al agente que llegó. */
+export const ARRIVAL_METERS = 35
+
+/**
+ * Mensaje de sistema al llegar al lugar de show_route. Pide respuesta: el agente le
+ * avisa que llegó y decide si ofrecerle el traductor.
+ */
+export function arrivalText({ name }: { name: string }): string {
+  return (
+    `El viajero llegó a ${name}. Decíselo en una frase corta, sin minutos ni distancias. ` +
+    "Si por lo que vino o lo que hablaron va a tener que hablar con alguien ahí (reservar, preguntar un precio, pedir, comprar una entrada), ofrecele ayudarlo con el idioma usando el traductor; si dice que sí, llamá a open_translator. Si no, no lo menciones."
+  )
+}

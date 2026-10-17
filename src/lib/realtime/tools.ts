@@ -92,6 +92,7 @@ export const toolSchemas = {
       .describe("El gusto de la lista que corresponde ('me encantan los autos clásicos' → autos). null si no encaja en ninguno."),
   }),
   translation_transcript: z.object({}),
+  open_translator: z.object({}),
 } as const
 
 export type ToolResult = {
@@ -99,6 +100,8 @@ export type ToolResult = {
   output: string
   /** Lugares para mostrar como tarjetas en la llamada. */
   cards: PlaceCard[]
+  /** show_route: adonde va, para avisarle al agente cuando llega. */
+  destination?: { name: string; lat: number; lng: number }
 }
 
 export type ToolName = keyof typeof toolSchemas
@@ -118,13 +121,15 @@ const descriptions: Record<ToolName, string> = {
   show_phrase:
     "Muestra en la pantalla una frase en el idioma local para que la diga (o la toque y suene), con la traducción y cómo se lee. Usalo cuando pregunte cómo se dice algo o qué decirle a alguien (pedir, preguntar, agradecer). Decí la frase vos también.",
   get_place:
-    "Datos prácticos de un lugar: si está abierto ahora, el horario de hoy, minutos a pie y de visita. Usalo cuando pregunte eso de un lugar puntual; para contar su historia no hace falta.",
+    "Datos prácticos de un lugar: si está abierto ahora, el horario de hoy, el teléfono, minutos a pie y de visita. Usalo cuando pregunte eso de un lugar puntual; para contar su historia no hace falta.",
   show_route:
     "Muestra en la pantalla el mapa con la caminata hasta un lugar y devuelve los minutos y metros reales a pie. Usalo cuando quiera ir a un lugar: 'llevame', 'dale, vamos', '¿cómo llego?', 'mostrame cómo ir'.",
   edit_itinerary:
     "Cambia el plan del viaje: add (agrega un lugar o actividad), move (cambia el horario), remove, done, skip, undo (deshace el último cambio). Devuelve el plan de hoy actualizado. Las reservas no se pueden cambiar.",
   remember:
     "Guarda algo que contó de sí y sirve para después: qué come, qué evita, qué le gusta, cómo se mueve. Con interest, el gusto entra en su perfil y en las próximas recomendaciones (con avoid, se saca). Las restricciones de comida se respetan siempre.",
+  open_translator:
+    "Abre el traductor en la pantalla para que el viajero hable con una persona local (en un hotel, una boletería, un negocio). Usalo solo si aceptó la ayuda o lo pidió. Antes decí una sola frase corta ('dale, te abro el traductor'): mientras está abierto no escuchás ni hablás.",
   translation_transcript:
     "La charla entera que el viajero tuvo hace un rato con una persona local usando el traductor (lo que dijo cada uno, en el original y traducido). Usalo cuando necesites lo que se dijo exactamente y el resumen no alcanza.",
 }

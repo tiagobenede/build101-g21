@@ -16,6 +16,13 @@ beforeEach(() => {
 })
 
 describe("ResponseQueue", () => {
+  it("request pide una respuesta cuando termina la activa, no antes", () => {
+    queue.request()
+    expect(sent).toEqual([])
+    done("r0")
+    expect(types()).toEqual(["response.create"])
+  })
+
   it("manda el resultado y pide respuesta cuando termina la que llamó al tool", () => {
     queue.begin("c1", "r1")
     queue.resolve("c1", '{"ok":true}')
