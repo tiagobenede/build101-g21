@@ -8,7 +8,9 @@ import type { Photo } from "./jev"
 
 /**
  * Respaldo cuando Jev no reconoce ninguno de los lugares cercanos: un LLM con visión
- * mira la foto con el contexto de dónde está el viajero, sin opciones.
+ * mira la foto con el contexto de dónde está el viajero, sin opciones, y devuelve solo
+ * el nombre. Explicar el lugar o sumarlo al plan lo hace el agente de voz con sus tools
+ * (búsqueda web, `search_places`, `edit_itinerary`).
  */
 
 const RESPONSES_URL = "https://api.openai.com/v1/responses"
@@ -16,33 +18,29 @@ const RESPONSES_URL = "https://api.openai.com/v1/responses"
 const VISION_MODEL = process.env.VISION_MODEL ?? "gpt-5.6-luna"
 const TIMEOUT_MS = 12_000
 
-const descriptionSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  searchable: z.boolean(),
-})
-
-export type PhotoDescription = z.infer<typeof descriptionSchema>
+const answerSchema = z.object({ name: z.string().nullable() })
 
 const JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["name", "description", "searchable"],
+  required: ["name"],
   properties: {
-    name: { type: "string", description: "Nombre de lo que se ve (el lugar, edificio u objeto). Vacío si no se puede saber." },
-    description: { type: "string", description: "Una o dos frases en español, para decir en voz alta." },
-    searchable: { type: "boolean", description: "true si es un lugar concreto que se puede buscar en un mapa por su nombre." },
+    name: {
+      type: ["string", "null"],
+      description: "Nombre del lugar, edificio o monumento de la foto, como se busca en un mapa. null si no es un lugar identificable.",
+    },
   },
 }
 
-export async function describePhoto(photo: Photo, where: { label: string; city: string | null; location: LatLng }): Promise<PhotoDescription> {
+/** Nombre del lugar de la foto, o null si no se puede saber. */
+export async function namePhotoPlace(photo: Photo, where: { label: string; city: string | null; location: LatLng }): Promise<string | null> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error("Falta OPENAI_API_KEY.")
 
   const context =
     `El viajero sacó esta foto cerca de ${where.label}` +
     `${where.city ? `, en ${where.city}` : ""} (${where.location.lat.toFixed(5)}, ${where.location.lng.toFixed(5)}). ` +
-    "¿Qué se ve? Si es un lugar conocido, nombralo. No inventes: si no estás seguro, decilo en la descripción."
+    "¿Qué lugar es? Respondé solo el nombre. Si no estás seguro o no es un lugar, null."
 
   const res = await fetch(RESPONSES_URL, {
     method: "POST",
@@ -50,7 +48,7 @@ export async function describePhoto(photo: Photo, where: { label: string; city: 
     body: JSON.stringify({
       model: VISION_MODEL,
       reasoning: { effort: "none" },
-      max_output_tokens: 300,
+      max_output_tokens: 60,
       input: [
         {
           role: "user",
@@ -64,7 +62,7 @@ export async function describePhoto(photo: Photo, where: { label: string; city: 
           ],
         },
       ],
-      text: { format: { type: "json_schema", name: "foto", strict: true, schema: JSON_SCHEMA } },
+      text: { format: { type: "json_schema", name: "lugar", strict: true, schema: JSON_SCHEMA } },
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   })
@@ -73,5 +71,5 @@ export async function describePhoto(photo: Photo, where: { label: string; city: 
   const body = (await res.json()) as { output?: { content?: { type: string; text?: string }[] }[] }
   const text = body.output?.flatMap((o) => o.content ?? []).find((c) => c.type === "output_text")?.text
   if (!text) throw new Error("OpenAI no devolvió texto.")
-  return descriptionSchema.parse(JSON.parse(text))
+  return answerSchema.parse(JSON.parse(text)).name?.trim() || null
 }
