@@ -3,17 +3,12 @@
 import { useCallback, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { sendMessage, startConversation, type AgentTurn } from "@/app/talk/actions"
+import { sendMessage, startConversation } from "@/app/talk/actions"
 
 import { useMicVolume } from "./use-mic-volume"
 import { useSpeechRecognition } from "./use-speech-recognition"
 import { useSpeechSynthesis } from "./use-speech-synthesis"
-
-export type VoiceState = "idle" | "listening" | "thinking" | "talking"
-
-export type Turn =
-  | { id: string; role: "user"; text: string }
-  | { id: string; role: "agent"; text: string; recommendations: AgentTurn["recommendations"] }
+import type { Turn, VoiceSession, VoiceState } from "./voice-session-types"
 
 const LANG = "es-ES"
 const MIN_THINKING_MS = 700
@@ -22,10 +17,9 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /**
  * Sesión de voz simulada: micrófono + dictado del navegador + respuesta del
- * backend + voz del navegador. Mismo shape que tendrá la sesión real con
- * ElevenLabs (state, volúmenes, transcript), para cambiarla sin tocar la UI.
+ * backend + voz del navegador. Costo cero; misma interfaz que la sesión real.
  */
-export function useVoiceSession() {
+export function useVoiceSession(): VoiceSession {
   const [state, setState] = useState<VoiceState>("idle")
   const [turns, setTurns] = useState<Turn[]>([])
   const [revealed, setRevealed] = useState(0)
@@ -133,6 +127,7 @@ export function useVoiceSession() {
     setMuted,
     inputVolumeRef: mic.volumeRef,
     outputVolumeRef: voice.outputVolumeRef,
+    costUsd: null,
     listen,
     stopListening,
     interrupt,

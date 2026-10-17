@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from "react"
 
-import type { VoiceState } from "@/hooks/use-voice-session"
+import type { VoiceState } from "@/hooks/voice-session-types"
 import { cn } from "@/lib/utils"
 
 const POINTS = 96

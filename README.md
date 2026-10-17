@@ -38,20 +38,30 @@ Otros comandos útiles:
 - **`/talk`** — pantalla de voz: blob (canvas 2D) que se deforma con el micrófono y con la voz del agente,
   transcripción que se va revelando, tarjetas de recomendación con minutos caminando y de visita.
 
-### La voz hoy (simulada) y mañana (real)
+### Voz
 
-`src/hooks/use-voice-session.ts` expone `state` (`idle | listening | thinking | talking`), volúmenes de entrada/salida
-y el transcript. Hoy lo implementa con APIs del navegador:
+La pantalla usa `VoiceSession` (`src/hooks/voice-session-types.ts`) con dos implementaciones, elegidas con `VOICE_PROVIDER`:
 
-- **Micrófono** → volumen real con Web Audio (`use-mic-volume.ts`).
-- **Dictado** → Web Speech API, `es-ES` (Chrome/Edge/Safari) (`use-speech-recognition.ts`).
-- **Cerebro** → server action `sendMessage` → `src/lib/agent/recommend.ts` (reglas: gustos × distancia × tiempo libre
-  × próximo compromiso del itinerario). Guarda mensajes y recomendaciones en la DB.
-- **Voz** → `speechSynthesis` del navegador (`use-speech-synthesis.ts`). Con el botón de silencio, solo texto.
+**`openai` — voz real con OpenAI Realtime (por defecto si hay `OPENAI_API_KEY`), en modo ahorro:**
 
-Para pasar a **ElevenLabs Agents + Claude**: reemplazar el hook por `useConversation` de `@elevenlabs/react`
-(`VoiceOrb` solo necesita refs de volumen de entrada/salida, que el SDK expone) y exponer `get_nearby_places` / `get_traveler_context`
-como tools que lean la misma DB.
+| Medida | Por qué ahorra |
+|---|---|
+| Modelo `gpt-realtime-2.1-mini` | ~3× más barato que `gpt-realtime-2.1` |
+| Push-to-talk (sin VAD) | Solo se factura el audio entre que tocás y soltás el mic, no el silencio |
+| Sin transcripción de OpenAI | Tu texto lo transcribe gratis el navegador (Web Speech) |
+| Respuestas de 1–2 oraciones + `max_output_tokens: 500` | El audio de salida es lo más caro |
+| Contexto en las instrucciones (gustos, 8 lugares, itinerario) | Se cachea entre turnos; sin tools extra |
+| Sesión lazy, cierre a los 45 s inactiva, al salir y a los US$0.30 | Nada queda abierto facturando |
+| Medidor de costo en el header | Estimado desde `response.usage` |
+
+Medido: **~US$0.002 por turno** de texto con respuesta hablada. Archivos: `src/app/api/realtime/session/route.ts`
+(acuña la key efímera con el contexto del viajero), `src/lib/realtime/*`, `src/hooks/use-realtime-session.ts`.
+
+**`browser` — simulada, gratis:** mic + dictado + `speechSynthesis` del navegador y el motor de reglas
+`src/lib/agent/recommend.ts`. Útil para desarrollar la UI sin gastar.
+
+> El micrófono no funciona dentro del browser integrado de Claude; probalo en Chrome.
+> El mock de comparación OpenAI vs ElevenLabs está en `docs/realtime-mock/` (`npm run mock`).
 
 ## Base de datos
 

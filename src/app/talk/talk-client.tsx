@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
-import { useVoiceSession, type Turn, type VoiceState } from "@/hooks/use-voice-session"
+import { useRealtimeSession, type KnownPlace } from "@/hooks/use-realtime-session"
+import { useVoiceSession } from "@/hooks/use-voice-session"
+import type { Turn, VoiceSession, VoiceState } from "@/hooks/voice-session-types"
 import { cn } from "@/lib/utils"
 
 const STATUS_LABEL: Record<VoiceState, string> = {
@@ -20,14 +22,33 @@ const STATUS_LABEL: Record<VoiceState, string> = {
   talking: "Hablando",
 }
 
+export type VoiceProvider = "openai" | "browser"
+
 interface TalkClientProps {
+  provider: VoiceProvider
   firstName: string
   locationLabel: string
   suggestions: string[]
+  places: KnownPlace[]
 }
 
-export function TalkClient({ firstName, locationLabel, suggestions }: TalkClientProps) {
-  const session = useVoiceSession()
+export function TalkClient({ provider, places, ...props }: TalkClientProps) {
+  return provider === "openai" ? <RealtimeTalk places={places} {...props} /> : <SimulatedTalk {...props} />
+}
+
+type TalkViewProps = Omit<TalkClientProps, "provider" | "places">
+
+function RealtimeTalk({ places, ...props }: TalkViewProps & { places: KnownPlace[] }) {
+  return <TalkView session={useRealtimeSession(places)} {...props} />
+}
+
+function SimulatedTalk(props: TalkViewProps) {
+  return <TalkView session={useVoiceSession()} {...props} />
+}
+
+const formatCost = (usd: number) => `US$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(3)}`
+
+function TalkView({ session, firstName, locationLabel, suggestions }: TalkViewProps & { session: VoiceSession }) {
   const [typing, setTyping] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const { state, turns } = session
@@ -53,7 +74,10 @@ export function TalkClient({ firstName, locationLabel, suggestions }: TalkClient
         </Button>
         <div className="text-center">
           <p className="text-[15px] font-semibold">Rumbo</p>
-          <p className="text-muted-foreground text-xs">{STATUS_LABEL[state]}</p>
+          <p className="text-muted-foreground text-xs">
+            {STATUS_LABEL[state]}
+            {session.costUsd !== null && <span className="tabular-nums"> · {formatCost(session.costUsd)}</span>}
+          </p>
         </div>
         <span />
       </header>

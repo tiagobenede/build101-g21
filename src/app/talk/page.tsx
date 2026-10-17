@@ -3,7 +3,14 @@ import { Suspense } from "react"
 import { PageSkeleton } from "@/components/rumbo/page-skeleton"
 import { getTravelerContext } from "@/lib/data/session"
 
-import { TalkClient } from "./talk-client"
+import { TalkClient, type VoiceProvider } from "./talk-client"
+
+/** `openai` (voz real, cuesta) o `browser` (simulada, gratis). Por defecto: openai si hay key. */
+function voiceProvider(): VoiceProvider {
+  const configured = process.env.VOICE_PROVIDER
+  if (configured === "openai" || configured === "browser") return configured
+  return process.env.OPENAI_API_KEY ? "openai" : "browser"
+}
 
 
 const SUGGESTIONS_BY_INTEREST: Record<string, string> = {
@@ -25,6 +32,14 @@ async function TalkContent() {
 
   return (
     <TalkClient
+      provider={voiceProvider()}
+      places={ctx.nearby.map((p) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        walkMinutes: p.walkMinutes,
+        stayMinutes: p.typical_visit_minutes,
+      }))}
       firstName={ctx.firstName}
       locationLabel={ctx.locationLabel}
       suggestions={suggestions}
