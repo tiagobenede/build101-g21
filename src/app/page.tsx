@@ -3,6 +3,7 @@ import Link from "next/link"
 import { Suspense } from "react"
 
 import { ItinerarySection } from "@/components/itinerary/itinerary-section"
+import { TripSharing } from "@/components/trip/trip-sharing"
 import { AppHeader } from "@/components/rumbo/app-header"
 import { CategoryIcon } from "@/components/rumbo/category-icon"
 import { PageSkeleton } from "@/components/rumbo/page-skeleton"
@@ -28,6 +29,15 @@ async function HomeContent() {
     .slice(0, MAX_NEARBY)
   const forYouCount = ctx.nearby.filter((p) => forYou(p.tags)).length
   const subtitle = [ctx.locationLabel, day && `Día ${day.day} de ${day.total}`].filter(Boolean).join(" · ")
+  // Viaje compartido: si nadie más es el dueño, el viaje es mío.
+  const isOwner = !ctx.companions.some((c) => c.role === "owner")
+  const companionNames = Object.fromEntries(ctx.companions.map((c) => [c.userId, c.firstName]))
+  const limits = (dietary: string[], mobility: string | null) =>
+    [...dietary, mobility ? `movilidad: ${mobility}` : null].filter(Boolean).join(", ") || null
+  const people = [
+    { userId: ctx.userId, name: ctx.fullName, note: limits(ctx.constraints.dietary, ctx.constraints.mobility), isOwner, isMe: true },
+    ...ctx.companions.map((c) => ({ userId: c.userId, name: c.fullName, note: limits(c.dietary, c.mobility), isOwner: c.role === "owner", isMe: false })),
+  ].sort((a, b) => Number(b.isOwner) - Number(a.isOwner))
 
   return (
     <main className="animate-in fade-in mx-auto flex w-full max-w-md flex-col gap-8 px-4 pt-5 pb-16 duration-300">
@@ -86,6 +96,7 @@ async function HomeContent() {
         items={todayItems}
         timeZone={ctx.timeZone}
         today={today}
+        companionNames={companionNames}
         places={ctx.nearby.map((p) => ({
           id: p.id,
           name: p.name,
@@ -94,6 +105,8 @@ async function HomeContent() {
           visitMinutes: p.typical_visit_minutes,
         }))}
       />
+
+      {ctx.trip && <TripSharing people={people} isOwner={isOwner} />}
 
       <Section title="Cerca tuyo">
         <GroupedList>

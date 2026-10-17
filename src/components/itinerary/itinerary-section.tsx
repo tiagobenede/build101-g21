@@ -8,6 +8,7 @@ import { setItemStatus, undo } from "@/app/itinerary/actions"
 import { GroupedList, Section } from "@/components/rumbo/section"
 import { Button } from "@/components/ui/button"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
+import { useCompanionActivity } from "@/hooks/use-companion-activity"
 import { useTableRefresh } from "@/hooks/use-table-refresh"
 import type { ItineraryItem } from "@/lib/data/session"
 import { zonedTimeValue } from "@/lib/time/zoned"
@@ -22,7 +23,11 @@ interface ItinerarySectionProps {
   timeZone: string
   /** "YYYY-MM-DD" de hoy en la zona del viaje. */
   today: string
+  /** Viaje compartido: nombre de cada compañero por id, para "Lo sumó Sofía". */
+  companionNames?: Record<string, string>
 }
+
+const NO_COMPANIONS: Record<string, string> = {}
 
 const SOURCE_LABEL: Partial<Record<ItineraryItem["source"], { text: string; icon: typeof SparklesIcon }>> = {
   agent: { text: "Lo sumó Rumbo", icon: SparklesIcon },
@@ -31,8 +36,9 @@ const SOURCE_LABEL: Partial<Record<ItineraryItem["source"], { text: string; icon
 }
 
 /** Itinerario de hoy en la home: marcar hecho, editar, agregar, deshacer. Se actualiza solo (Realtime). */
-export function ItinerarySection({ items, places, timeZone, today }: ItinerarySectionProps) {
+export function ItinerarySection({ items, places, timeZone, today, companionNames = NO_COMPANIONS }: ItinerarySectionProps) {
   useTableRefresh("itinerary_items")
+  useCompanionActivity(companionNames)
   const [editing, setEditing] = useState<ItineraryItem | null>(null)
   const [adding, setAdding] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -83,6 +89,7 @@ export function ItinerarySection({ items, places, timeZone, today }: ItinerarySe
             <ItineraryRow
               key={item.id}
               item={item}
+              addedBy={item.created_by ? (companionNames[item.created_by] ?? null) : null}
               timeZone={timeZone}
               disabled={pending}
               onToggleDone={() => run(() => setItemStatus(item.id, item.status === "done" ? "planned" : "done"))}
@@ -100,16 +107,18 @@ export function ItinerarySection({ items, places, timeZone, today }: ItinerarySe
 
 interface ItineraryRowProps {
   item: ItineraryItem
+  /** Quién la sumó, si fue otra persona del viaje. */
+  addedBy: string | null
   timeZone: string
   disabled: boolean
   onToggleDone: () => void
   onOpen: () => void
 }
 
-function ItineraryRow({ item, timeZone, disabled, onToggleDone, onOpen }: ItineraryRowProps) {
+function ItineraryRow({ item, addedBy, timeZone, disabled, onToggleDone, onOpen }: ItineraryRowProps) {
   const done = item.status === "done"
   const skipped = item.status === "skipped"
-  const source = SOURCE_LABEL[item.source]
+  const source = addedBy ? { text: `Lo sumó ${addedBy}`, icon: UsersIcon } : SOURCE_LABEL[item.source]
   const details = [skipped ? "Salteada" : null, item.notes].filter(Boolean).join(" · ")
 
   return (

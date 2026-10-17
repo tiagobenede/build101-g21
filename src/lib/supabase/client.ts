@@ -1,5 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr"
-import type { SupabaseClient } from "@supabase/supabase-js"
+import type { RealtimePostgresChangesPayload, SupabaseClient } from "@supabase/supabase-js"
 
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./env"
 
@@ -16,7 +16,10 @@ export function createClient(): SupabaseClient {
  * con el token del usuario: hay que pasárselo antes de suscribirse, si no el canal
  * entra como anónimo y no llega ningún cambio. Devuelve la función para dejar de escuchar.
  */
-export async function onTableChange(table: string, onChange: () => void): Promise<() => void> {
+/** Cambio de una fila: `new` en altas y cambios, `old` (solo la clave) en bajas. */
+export type TableChange = RealtimePostgresChangesPayload<Record<string, unknown>>
+
+export async function onTableChange(table: string, onChange: (change: TableChange) => void): Promise<() => void> {
   const supabase = createClient()
   const {
     data: { session },

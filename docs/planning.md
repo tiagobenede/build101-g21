@@ -222,7 +222,7 @@ Reglas:
 | 8 | Itinerario creado por el agente | Media | C (planner), A (tool) |
 | 8b | Google Calendar (leer y agendar) | Media | C (OAuth y API), B (botón), A (contexto y tool) |
 | 9 | Video en vivo | Media | A, B |
-| 10 | Viaje compartido | Baja | B, C |
+| 10 | Viaje compartido | Baja | **A (todo: base, agente y pantallas)** |
 
 Por qué este orden: el GPS va primero porque el contexto, la cámara y los avisos dependen de la ubicación. Los avisos van antes que el itinerario armado por el agente porque usan las recomendaciones de la traducción y cierran la historia de la demo. El video va último porque es lo más riesgoso y lo más caro, y la foto ya cubre el caso.
 
@@ -335,10 +335,33 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 - [ ] **C-8** Google Calendar. Portar `~/git/adven/backend/app/integrations/google_calendar/oauth_client.py`: `access_type=offline` + `prompt=consent`, `singleEvents=true`, marca en los eventos que crea la app. Ruta de callback, tokens en `google_accounts`, eventos de hoy y mañana mezclados en `getTravelerContext()` como `locked`, y una función para crear eventos que usa A-3c. Sin sync token: `timeMin`/`timeMax` al abrir la sesión.
 - [x] **C-9** Módulo de Google Places (New). Nearby Search con cache (`src/lib/places/nearby.ts`) y Text Search (`src/lib/places/search.ts`, hecho por A para `search_places`); C-5 lo usa para anclar las recomendaciones.
 
-### Prioridad baja — Viaje compartido (solo con todo en verde en el checkpoint 3)
+### Viaje compartido — hecho entero por Dev A
 
-- [ ] **L-1** Invitar a otra cuenta demo al mismo viaje. "Mismo agente" significa la misma memoria, **no** una sola sesión de audio: cada persona tiene su propia sesión y comparten itinerario, `local_tips` y preferencias, cada una atribuida a quien la dijo. Requiere ajustar los permisos por usuario de `trips` e `itinerary_items` para miembros del viaje.
-- No intentar una sesión de audio con varios participantes.
+Se adelantó aunque era de prioridad baja. **Lo hizo todo Dev A**, incluida la base (carril de C) y las pantallas (carril de B): nadie más tiene que hacer nada, solo aplicar la migración.
+
+- [x] **L-1** Varias personas, cada una con su cuenta y su teléfono, en el mismo viaje. "Mismo agente" quiere decir la misma memoria, **no** una sola sesión de audio: cada uno tiene su llamada, y comparten el itinerario, las recomendaciones de locales (`local_tips`) y las restricciones. Cada cambio queda firmado.
+  - **Base** (`supabase/migrations/20261017200000_shared_trips.sql`):
+    - `trip_members`: el dueño también es miembro (los viajes existentes se migran y un trigger suma al dueño de los nuevos).
+    - `trip_invites`: códigos de 6 caracteres que vencen a los 7 días.
+    - Funciones `join_trip(code)`, `leave_trip(trip_id)` y `active_trip_id()`. El viaje activo es el último al que te sumaste entre los que incluyen hoy, así que al sumarte a otro viaje pasa a ser ese, y al salir volvés al tuyo.
+    - Los permisos de `trips`, `itinerary_items`, `itinerary_snapshots` y `local_tips` pasan de "dueño" a "miembro" (`is_trip_member()`, security definer para evitar recursión en RLS).
+    - Entre compañeros de viaje se pueden leer `profiles` e `interests` (`shares_trip_with()`).
+    - `itinerary_items.created_by` y `updated_by` guardan quién hizo cada cosa.
+    - **Deshacer solo deshace lo propio:** si el último cambio es de otra persona, `restore_itinerary_snapshot` devuelve -1 y la app dice "Lo último lo cambió Sofía: deshacelo a mano". Así no se borra lo que sumó otro.
+  - **Datos:** `src/lib/data/trips.ts` (miembros, invitar, sumarse, salir). Las tres copias de "buscar el viaje activo" (en `session.ts`, `itinerary.ts` y el traductor) ahora usan `active_trip_id()`. `TravelerContext.companions` trae a los demás del viaje.
+  - **Agente:**
+    - Las instrucciones suman "Viaje compartido con Sofía (vegetariano)…".
+    - El plan marca "(sumó Sofía)".
+    - `recommend_nearby` respeta la dieta de todo el grupo.
+    - La llamada abierta también se refresca cuando cambia `trip_members`.
+  - **Pantallas:**
+    - En la home, la sección "Viajan juntos": quiénes viajan y qué no negocia cada uno, "Invitar a alguien" (código y link), "Unirme" con un código y salir del viaje.
+    - El link `/join/<código>` te suma y te lleva a la home.
+    - En el itinerario, "Lo sumó Sofía".
+    - Aviso en vivo "Sofía sumó X al plan" o "cambió la hora de X" (`useCompanionActivity`, con el payload de Realtime que ahora pasa `onTableChange`).
+  - **Probado** (gratis, con la base local y el navegador): Lucía invita, Sofía se suma, Sofía suma una actividad y a Lucía le aparece el aviso y "Lo sumó Sofía". Lucía no puede deshacer lo de Sofía, Sofía sí puede deshacer lo suyo. Mateo, que no está en el viaje, no ve nada. El agente de Lucía recibe la línea del grupo y el "(sumó Sofía)". El link de invitación y "Salir del viaje" funcionan.
+  - **Falta:** probarlo con dos teléfonos y dos llamadas a la vez. Si `/join/<código>` se abre sin sesión, va al login y se pierde el código.
+- Una sola sesión de audio con varios participantes no se intenta.
 
 ---
 
@@ -348,7 +371,7 @@ En cada checkpoint, los tres prueban la demo completa durante 15 minutos.
 |---|---|---|
 | **H4** | Me muevo con el joystick → "tengo una hora, ¿qué hago?" → recomienda algo cercano a la nueva ubicación | B y C ayudan a A con los tools |
 | **H8** | Las 5 features de prioridad alta de punta a punta. **Grabar video de respaldo #1** | La prioridad media se reduce a traducción y avisos |
-| **H11** | Traducción y avisos funcionando | No se empiezan video ni viaje compartido |
+| **H11** | Traducción y avisos funcionando | No se empieza video (el viaje compartido ya está hecho) |
 | **H13** | Congelado de features | Lo que no funciona se esconde de la UI, no se arregla |
 
 Quien termina su carril antes no empieza una feature nueva: pule la demo o ayuda al carril más atrasado.

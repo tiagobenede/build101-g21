@@ -5,6 +5,7 @@ import { z } from "zod"
 
 import { fail, ok, type Result } from "@/lib/data/result"
 import { ITINERARY_COLUMNS, type ItineraryItem, type ItinerarySource } from "@/lib/data/session"
+import { activeTripId } from "@/lib/data/trips"
 
 /**
  * Operaciones del itinerario. Un solo camino de código: las usan las server actions
@@ -51,21 +52,6 @@ type StoredItem = ItineraryItem & { trip_id: string }
 
 const endsAfterStart = (startsAt: string, endsAt: string | null) =>
   endsAt === null || new Date(endsAt) > new Date(startsAt)
-
-/** Viaje en curso del usuario logueado (el mismo criterio que `getTravelerContext`). */
-async function activeTripId(db: SupabaseClient): Promise<string | null> {
-  const today = new Date().toISOString().slice(0, 10)
-  const { data, error } = await db
-    .from("trips")
-    .select("id")
-    .lte("start_date", today)
-    .gte("end_date", today)
-    .order("start_date", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (error) throw new Error(`No se pudo cargar el viaje: ${error.message}`)
-  return (data?.id as string | undefined) ?? null
-}
 
 async function getItem(db: SupabaseClient, id: string): Promise<StoredItem | null> {
   if (!z.uuid().safeParse(id).success) return null
@@ -226,6 +212,13 @@ export function removeItineraryItem(db: SupabaseClient, id: string, actor: Actor
 }
 
 /** Vuelve el itinerario del viaje en curso a como estaba antes del último cambio. */
+async function lastChangedBy(db: SupabaseClient, tripId: string): Promise<string> {
+  const { data: userId } = await db.rpc("last_itinerary_change_by", { p_trip_id: tripId })
+  if (!userId) return "otra persona"
+  const { data } = await db.from("profiles").select("full_name").eq("id", userId).maybeSingle()
+  return (data?.full_name as string | undefined)?.split(" ")[0] ?? "otra persona"
+}
+
 export function undoItinerary(db: SupabaseClient): Promise<Result<{ items: number }>> {
   return guarded("undo", async () => {
     const tripId = await activeTripId(db)
@@ -234,6 +227,8 @@ export function undoItinerary(db: SupabaseClient): Promise<Result<{ items: numbe
     const { data, error } = await db.rpc("restore_itinerary_snapshot", { p_trip_id: tripId })
     if (error) throw new Error(error.message)
     if (data === null) return fail("No hay nada para deshacer.")
+    // Viaje compartido: lo último lo cambió otro, y deshacer le borraría su cambio.
+    if (data === -1) return fail(`Lo último lo cambió ${await lastChangedBy(db, tripId)}: deshacelo a mano.`)
     return ok({ items: data as number })
   })
 }

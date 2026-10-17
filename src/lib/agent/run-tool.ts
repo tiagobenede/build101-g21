@@ -67,7 +67,8 @@ async function recommendNearby(
       requestedTag: args.interest,
       availableMinutes,
       alreadyRecommended: previous.map((r) => r.place_id as string),
-      dietary: ctx.constraints.dietary,
+      // En un viaje compartido se respeta la dieta de todos.
+      dietary: [...new Set([...ctx.constraints.dietary, ...ctx.companions.flatMap((c) => c.dietary)])],
     })
   let ranked = rank(ctx.nearby.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
   // Nada guardado para lo que pidió (p. ej. "compras" sin shoppings en caché): se busca en Google.
@@ -326,7 +327,7 @@ async function freshPlan(db: SupabaseClient, ctx: TravelerContext, now: Date): P
   if (!ctx.trip) return "Plan de hoy: nada agendado."
   const { data, error } = await db.from("itinerary_items").select(ITINERARY_COLUMNS).eq("trip_id", ctx.trip.id).order("starts_at")
   if (error) throw new Error(`No se pudo leer el itinerario: ${error.message}`)
-  return formatTodayPlan(data as ItineraryItem[], now, ctx.timeZone)
+  return formatTodayPlan(data as ItineraryItem[], now, ctx.timeZone, new Map(ctx.companions.map((c) => [c.userId, c.firstName])))
 }
 
 async function editItinerary(args: ToolArgs<"edit_itinerary">, location: LatLng | null): Promise<ToolResult> {

@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest"
 import type { NearbyPlace } from "@/lib/data/session"
 
 import { MAX_PLACES_IN_CONTEXT } from "./config"
-import { buildInstructions, localTipsLine, locationLine } from "./instructions"
+import { buildInstructions, companionsLine, formatTodayPlan, localTipsLine, locationLine } from "./instructions"
 
-const PLANNED = { place_id: null, status: "planned", source: "user", locked: false } as const
+const PLANNED = { place_id: null, status: "planned", source: "user", locked: false, created_by: null } as const
 
 const place = (i: number): NearbyPlace => ({
   id: `p${i}`,
@@ -144,5 +144,33 @@ describe("locationLine", () => {
   it("llega a las instrucciones", () => {
     const text = buildInstructions({ ...base, nextCommitment: null, address: "Rue Rambuteau, Saint-Merri, París" })
     expect(text).toContain("está en Rue Rambuteau, Saint-Merri, París")
+  })
+})
+
+describe("viaje compartido", () => {
+  const sofia = { userId: "u-sofia", fullName: "Sofía Álvarez", firstName: "Sofía", role: "member" as const, dietary: ["vegetariano"], mobility: null }
+  const mateo = { userId: "u-mateo", fullName: "Mateo Rossi", firstName: "Mateo", role: "member" as const, dietary: [], mobility: null }
+
+  it("dice con quién viaja y lo que no negocia cada uno", () => {
+    expect(companionsLine([sofia, mateo])).toMatch(/^Viaje compartido con Sofía \(vegetariano\), Mateo:/)
+    expect(companionsLine([])).toBeNull()
+  })
+
+  it("el plan marca lo que sumó otra persona", () => {
+    const now = new Date("2026-10-17T10:00:00Z")
+    const item = (id: string, createdBy: string | null) => ({
+      ...PLANNED,
+      id,
+      title: `Actividad ${id}`,
+      notes: null,
+      starts_at: "2026-10-17T14:00:00Z",
+      ends_at: null,
+      lat: null,
+      lng: null,
+      created_by: createdBy,
+    })
+    const plan = formatTodayPlan([item("aaaaaaaa1", "u-sofia"), item("bbbbbbbb2", "u-yo")], now, "Europe/Paris", new Map([["u-sofia", "Sofía"]]))
+    expect(plan).toContain("Actividad aaaaaaaa1 (sumó Sofía)")
+    expect(plan).not.toContain("Actividad bbbbbbbb2 (sumó")
   })
 })

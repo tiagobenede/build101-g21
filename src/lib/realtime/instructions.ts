@@ -8,6 +8,8 @@ interface InstructionsInput {
   ctx: Pick<
     TravelerContext,
     "firstName" | "interests" | "travelStyle" | "locationLabel" | "nearby" | "itinerary" | "constraints" | "profileSummary"
+  > &
+  Partial<Pick<TravelerContext, "companions">
   >
   nextCommitment: ItineraryItem | null
   /** Una línea de Open-Meteo, o null si no se pudo traer. */
@@ -50,7 +52,15 @@ const STATUS_NOTE: Record<ItineraryItem["status"], string> = {
  * El plan de hoy, una línea por actividad con su ref, estado y si es reserva. Lo usan
  * las instrucciones y la respuesta de `edit_itinerary` (así el agente ve el plan nuevo).
  */
-export function formatTodayPlan(itinerary: ItineraryItem[], now: Date, timeZone: string): string {
+/** Nombres de quienes viajan con el viajero, por id (para "sumó Sofía"). */
+export type CompanionNames = ReadonlyMap<string, string>
+
+export function formatTodayPlan(
+  itinerary: ItineraryItem[],
+  now: Date,
+  timeZone: string,
+  companionNames: CompanionNames = new Map()
+): string {
   const today = zonedDateKey(now, timeZone)
   const items = itinerary
     .filter((i) => zonedDateKey(new Date(i.starts_at), timeZone) === today)
@@ -61,9 +71,20 @@ export function formatTodayPlan(itinerary: ItineraryItem[], now: Date, timeZone:
     const end = i.ends_at ? new Date(i.ends_at) : null
     const range = `${formatTime(start, timeZone)}${end ? `–${formatTime(end, timeZone)}` : ""}`
     const past = i.status === "planned" && (end ?? start) < now ? " (ya pasó)" : ""
-    return `- [${itemRef(i.id)}] ${range} ${i.title}${STATUS_NOTE[i.status]}${past}${i.locked ? " (reserva)" : ""}`
+    const by = i.created_by ? companionNames.get(i.created_by) : undefined
+    return `- [${itemRef(i.id)}] ${range} ${i.title}${STATUS_NOTE[i.status]}${past}${i.locked ? " (reserva)" : ""}${by ? ` (sumó ${by})` : ""}`
   })
   return `Plan de hoy:\n${lines.join("\n")}`
+}
+
+/** Quienes viajan juntos y lo que no negocian, o null si viaja solo. */
+export function companionsLine(companions: TravelerContext["companions"]): string | null {
+  if (companions.length === 0) return null
+  const people = companions.map((c) => {
+    const limits = [...c.dietary, c.mobility ? `movilidad: ${c.mobility}` : null].filter(Boolean)
+    return limits.length > 0 ? `${c.firstName} (${limits.join(", ")})` : c.firstName
+  })
+  return `Viaje compartido con ${people.join(", ")}: cada uno habla con vos desde su teléfono y el plan es uno solo. Lo no negociable de cualquiera del grupo se respeta en lo que recomiendes. Si alguien sumó o cambió algo del plan, podés mencionarlo ("Sofía sumó…").`
 }
 
 /** Restricciones no negociables, o null si no cargó ninguna. */
@@ -104,6 +125,7 @@ export const greetingPrompt = (firstName: string) =>
  * cachee entre turnos y cada respuesta lea pocos tokens nuevos.
  */
 export function buildInstructions({ ctx, nextCommitment, weather, address = null, localTips = [], now, timeZone }: InstructionsInput): string {
+  const companions = ctx.companions ?? []
   const places = ctx.nearby
     .slice(0, MAX_PLACES_IN_CONTEXT)
     .map((p) => `- ${p.name} (${p.category}; ${p.tags.join(", ")}; ${p.walkMinutes} min a pie; visita ~${p.typical_visit_minutes} min)`)
@@ -122,11 +144,12 @@ ${[
   constraintsLine(ctx.constraints),
   ctx.profileSummary ? `Lo que aprendiste de ${ctx.firstName}: ${ctx.profileSummary}` : null,
   localTipsLine(localTips),
+  companionsLine(companions),
 ]
   .filter(Boolean)
   .join("\n")}
 ${commitment}
-${formatTodayPlan(ctx.itinerary, now, timeZone)}
+${formatTodayPlan(ctx.itinerary, now, timeZone, new Map(companions.map((c) => [c.userId, c.firstName])))}
 
 Lugares cerca (para responder preguntas; nombralos con el nombre exacto):
 ${places}

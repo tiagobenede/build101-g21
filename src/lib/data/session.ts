@@ -8,6 +8,7 @@ import { findDemoAccount, type DemoAccount } from "@/lib/demo-accounts"
 import { boundingBox, distanceMeters, nearestPlaceLabel, walkMinutes, type LatLng } from "@/lib/geo"
 import { localeAt } from "@/lib/location/locale"
 import { ensureNearbyPlaces } from "@/lib/places/nearby"
+import { activeTripId, getTripMembers, type TripMember } from "@/lib/data/trips"
 import { createClient } from "@/lib/supabase/server"
 
 export const NEARBY_RADIUS_METERS = 4_000
@@ -37,9 +38,11 @@ export type ItineraryItem = {
   status: ItineraryStatus
   source: ItinerarySource
   locked: boolean
+  /** Quién la sumó (en un viaje compartido puede ser otra persona). */
+  created_by: string | null
 }
 
-export const ITINERARY_COLUMNS = "id, title, notes, starts_at, ends_at, lat, lng, place_id, status, source, locked"
+export const ITINERARY_COLUMNS = "id, title, notes, starts_at, ends_at, lat, lng, place_id, status, source, locked, created_by"
 
 /** Restricciones no negociables y ritmo del viajero (B-2 las edita, el agente las respeta). */
 export type TravelerConstraints = {
@@ -67,6 +70,8 @@ export type TravelerContext = {
   /** Párrafo con lo que el agente aprendió del viajero (profile_facts), listo para las instrucciones. */
   profileSummary: string | null
   trip: Trip | null
+  /** Quienes comparten el viaje, sin contarme (vacío si viajo solo). */
+  companions: TripMember[]
   itinerary: ItineraryItem[]
   location: LatLng
   locationSource: LocationSource
@@ -95,7 +100,8 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
   } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const today = new Date().toISOString().slice(0, 10)
+  // Viaje en curso: puede ser propio o uno compartido al que me sumé.
+  const tripId = await activeTripId(supabase)
 
   const [profileRes, interestsRes, tripRes, pingRes] = await Promise.all([
     supabase
@@ -104,14 +110,9 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
       .eq("id", user.id)
       .single(),
     supabase.from("interests").select("tag").eq("user_id", user.id).order("created_at"),
-    supabase
-      .from("trips")
-      .select("id, destination, country, lat, lng, start_date, end_date")
-      .lte("start_date", today)
-      .gte("end_date", today)
-      .order("start_date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    tripId
+      ? supabase.from("trips").select("id, destination, country, lat, lng, start_date, end_date").eq("id", tripId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
     // Último punto del GPS (B-1 lo manda cada 5 s o 25 m).
     supabase
       .from("pings")
@@ -144,7 +145,7 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
   await ensureNearbyPlaces(location, locale.city ?? "")
   const box = boundingBox(location, NEARBY_RADIUS_METERS)
 
-  const [itineraryRes, placesRes] = await Promise.all([
+  const [itineraryRes, placesRes, members] = await Promise.all([
     trip
       ? supabase
           .from("itinerary_items")
@@ -161,6 +162,7 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
       .gte("lng", box.minLng)
       .lte("lng", box.maxLng)
       .eq("listed", true),
+    trip ? getTripMembers(supabase, trip.id) : Promise.resolve([]),
   ])
 
   if (itineraryRes.error) throw new Error(`No se pudo cargar el itinerario: ${itineraryRes.error.message}`)
@@ -191,6 +193,7 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
     },
     profileSummary: profile.compiled_summary,
     trip,
+    companions: members.filter((m) => m.userId !== user.id),
     itinerary: (itineraryRes.data ?? []) as ItineraryItem[],
     location,
     locationSource,

@@ -27,7 +27,7 @@ import type { CallState, MentionedPlace, PlaceCard, VoiceCall } from "./voice-se
 const IDLE_CHECK_MS = 5_000
 const MAX_PENDING_NOTES = 3
 /** Tablas que cambian lo que sabe el agente: si se tocan con la llamada abierta, se rearman las instrucciones. */
-const CONTEXT_TABLES = ["itinerary_items", "profiles", "interests", "local_tips"] as const
+const CONTEXT_TABLES = ["itinerary_items", "profiles", "interests", "local_tips", "trip_members"] as const
 
 type ResponseDone = {
   usage?: RealtimeUsage
