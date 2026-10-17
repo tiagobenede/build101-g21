@@ -84,7 +84,7 @@ function AddForm({ places, timeZone, today, onDone }: Omit<AddItemDrawerProps, "
   }
 
   return (
-    <form onSubmit={save} className="flex flex-col gap-4 px-4 pb-6">
+    <form onSubmit={save} className="flex flex-col gap-4 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
       <DrawerHeader className="px-0 text-left">
         <DrawerTitle>Sumar a hoy</DrawerTitle>
       </DrawerHeader>
