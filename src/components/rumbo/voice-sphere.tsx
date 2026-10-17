@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, type RefObject } from "react"
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react"
 
 import type { CallState } from "@/hooks/voice-session-types"
 import { cn } from "@/lib/utils"
@@ -58,11 +58,15 @@ export function VoiceSphere({ state, inputVolumeRef, outputVolumeRef, className 
     stateRef.current = state
   }, [state])
 
-  useEffect(() => {
+  // Layout effect: el primer cuadro se dibuja antes de pintar (si no, se ve redondo un instante).
+  useLayoutEffect(() => {
     let frame = 0
     let level = 0
     let wobble = MOTION.off.wobble
     let tempo = MOTION.off.tempo
+    // Mientras no arrancó nada, el reloj sale de la hora: dos blobs quietos se ven iguales
+    // cuadro a cuadro, así el de la barra se reemplaza por el de /talk sin que se note.
+    let synced = true
     let clock = 0
     let last = performance.now()
 
@@ -74,7 +78,8 @@ export function VoiceSphere({ state, inputVolumeRef, outputVolumeRef, className 
       level += ((volume ?? 0) - level) * SMOOTHING
       wobble += (MOTION[s].wobble + level * VOLUME_WOBBLE - wobble) * EASE
       tempo += (MOTION[s].tempo - tempo) * EASE
-      clock += dt * tempo
+      synced &&= s === "off"
+      clock = synced ? (now / 1000) * MOTION.off.tempo : clock + dt * tempo
 
       const shape = shapeRef.current
       if (shape) {
@@ -90,7 +95,7 @@ export function VoiceSphere({ state, inputVolumeRef, outputVolumeRef, className 
       })
       frame = requestAnimationFrame(tick)
     }
-    frame = requestAnimationFrame(tick)
+    tick(performance.now())
     return () => cancelAnimationFrame(frame)
   }, [inputVolumeRef, outputVolumeRef])
 

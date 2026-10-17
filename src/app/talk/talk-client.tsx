@@ -237,7 +237,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   return (
     <main className="relative flex h-dvh flex-col overflow-hidden">
       {/* Solo volver y el mapa, flotando: se tienen que ver sobre el glow. */}
-      <header className="absolute inset-x-0 top-0 z-30 mx-auto flex w-full max-w-md items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <header className="animate-in fade-in absolute inset-x-0 top-0 z-30 mx-auto duration-500 flex w-full max-w-md items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <Button asChild variant="ghost" size="icon" className={GLASS_BUTTON} aria-label="Volver">
           <Link href="/">
             <ChevronLeftIcon className="size-5" />
@@ -318,7 +318,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
             </ScrollFade>
           )}
 
-          <footer className="relative z-10 mx-auto w-full max-w-md px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <footer className="animate-in fade-in slide-in-from-bottom-2 relative z-10 mx-auto duration-500 w-full max-w-md px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             {active ? (
               <div className="flex items-center justify-center gap-4">
                 <RoundToggle
