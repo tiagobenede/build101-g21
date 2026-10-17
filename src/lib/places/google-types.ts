@@ -65,7 +65,7 @@ export type GooglePlace = {
   rating?: number
   userRatingCount?: number
   editorialSummary?: { text?: string }
-  currentOpeningHours?: { openNow?: boolean }
+  currentOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] }
   websiteUri?: string
   /** Solo lo pide Text Search (`searchPlaces`). */
   internationalPhoneNumber?: string

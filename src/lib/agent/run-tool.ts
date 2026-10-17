@@ -44,6 +44,7 @@ import { createClient } from "@/lib/supabase/server"
 import { transcriptText } from "@/lib/translate/recent"
 import { recentTranslation } from "@/lib/translate/server"
 import { WALK } from "@/lib/tuning"
+import { serverNow } from "@/lib/time/server-clock"
 import { zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
 import { readMenu } from "@/lib/web-page"
 import { pickReadableUrl, webSearch } from "@/lib/web-search"
@@ -60,8 +61,7 @@ const OPENING_TIMEOUT_MS = 1_500
 type PlaceData = { types?: string[]; google_place_id?: string } | null
 
 /** Descarta los cerrados o que cierran antes de que termine la visita (horarios de Google, en paralelo). */
-async function keepOpen(ranked: Ranked[], googleIds: Map<string, string>, timeZone: string): Promise<Ranked[]> {
-  const now = new Date()
+async function keepOpen(ranked: Ranked[], googleIds: Map<string, string>, timeZone: string, now: Date): Promise<Ranked[]> {
   const localTime = zonedTimeValue(now.toISOString(), timeZone)
   const keep = await Promise.all(
     ranked.map(async (r) => {
@@ -91,13 +91,17 @@ async function recommendNearby(
     .eq("conversation_id", conversationId)
   if (error) return fail("No pude leer la conversación.")
 
-  const now = new Date()
+  const now = await serverNow()
   const commitment = nextCommitment(ctx.itinerary, now)
   const availableMinutes = resolveAvailableMinutes(
     args.available_minutes,
     commitment ? new Date(commitment.starts_at) : null,
     now
   )
+  const nextStop =
+    commitment && commitment.lat !== null && commitment.lng !== null
+      ? { lat: commitment.lat, lng: commitment.lng, walkMinutes: walkMinutes(ctx.location, { lat: commitment.lat, lng: commitment.lng }) }
+      : null
   // Caminando: para comer o un café, cerca; para lo demás, un poco más. El agente lo sube si
   // el viajero dice que no le importa caminar.
   const maxWalkMinutes =
@@ -126,15 +130,16 @@ async function recommendNearby(
       // En un viaje compartido se respeta la dieta de todos.
       dietary: [...new Set([...ctx.constraints.dietary, ...ctx.companions.flatMap((c) => c.dietary)])],
       limit: OPENING_CANDIDATES,
+      nextStop,
     })
-    const open = await keepOpen(all, googleIds, ctx.timeZone)
+    const open = await keepOpen(all, googleIds, ctx.timeZone, now)
     if (open.length === 0 && all.length > 0) closedDropped = true
     return open
   }
   let ranked = await rank(candidates.map((p) => ({ ...p, googleTypes: typesById.get(p.id) })))
   // Nada guardado para lo que pidió (p. ej. "compras" sin shoppings en caché): se busca en Google.
   if (ranked.length === 0 && args.interest) {
-    const found = await searchPlaces(interestQuery(args.interest), null, ctx.location, ctx.city ?? "", { maxWalkMinutes }).catch(
+    const found = await searchPlaces(interestQuery(args.interest), null, ctx.location, ctx.city ?? "", { maxWalkMinutes, now }).catch(
       (err: unknown) => {
         console.error("[tools] recommend_nearby fallback failed", err instanceof Error ? err.message : err)
         return []
@@ -166,6 +171,8 @@ async function recommendNearby(
       available_minutes: availableMinutes,
       max_walk_min: maxWalkMinutes,
       next_commitment: commitment?.title ?? null,
+      // Con lugar: lo recomendado queda de camino; then_walk_min es lo que camina después hasta ahí.
+      next_commitment_walk_min: nextStop?.walkMinutes ?? null,
       ...(ranked.length === 0
         ? {
             note: closedDropped
@@ -178,6 +185,7 @@ async function recommendNearby(
         category: r.place.category,
         walk_min: r.walkMinutes,
         stay_min: r.stayMinutes,
+        ...(r.walkToNextMinutes !== null ? { then_walk_min: r.walkToNextMinutes } : {}),
         matches: r.matchedTags,
       })),
     }),
@@ -197,7 +205,7 @@ const SUMMARY_MAX_CHARS = 90
 async function searchPlacesTool(args: ToolArgs<"search_places">, location: LatLng | null): Promise<ToolResult> {
   const ctx = await getTravelerContext({ location })
   const maxWalkMinutes = args.max_walk_minutes
-  const found = await searchPlaces(args.query, args.open_now, ctx.location, ctx.city ?? "", { maxWalkMinutes }).catch(
+  const found = await searchPlaces(args.query, args.open_now, ctx.location, ctx.city ?? "", { maxWalkMinutes, now: await serverNow() }).catch(
     (err: unknown) => {
       console.error("[tools] search_places failed", err instanceof Error ? err.message : err)
       return null
@@ -237,9 +245,11 @@ const EVENT_MAX_MINUTES = 240
 async function searchEventsTool(args: ToolArgs<"search_events">, location: LatLng | null): Promise<ToolResult> {
   const ctx = await getTravelerContext({ location })
   const city = ctx.city ?? ""
-  if (!/par[ií]s/i.test(city)) return fail("Solo tengo la agenda de París. Probá con web_search.")
+  if (!/par[ií]s/i.test(city)) {
+    return fail(`No hay agenda de eventos para ${city || "esta ciudad"}. Sin decírselo, buscá con web_search ("eventos hoy en ${city || "la ciudad"}").`)
+  }
 
-  const now = new Date()
+  const now = await serverNow()
   const events = await fetchParisEvents({
     near: ctx.location,
     when: args.when,
@@ -347,7 +357,7 @@ async function getPlaceTool(args: ToolArgs<"get_place">, location: LatLng | null
   if (!place) return fail(PLACE_NOT_FOUND)
 
   const googleId = place.data?.google_place_id
-  const opening = googleId ? await getOpeningInfo(googleId, new Date(), ctx.timeZone) : null
+  const opening = googleId ? await getOpeningInfo(googleId, await serverNow(), ctx.timeZone) : null
   const walk = walkMinutes(ctx.location, place)
   return {
     output: JSON.stringify({
@@ -430,7 +440,9 @@ async function webSearchTool(args: ToolArgs<"web_search">, location: LatLng | nu
   // La ciudad donde está ahora (no la del viaje): si no, "el menú de X" busca en otro país.
   const city = ctx.city ?? ""
   const query = [args.place_name, args.place_name ? city : null, args.question].filter(Boolean).join(" ")
-  const country = ctx.trip?.country ? (COUNTRY_CODES[ctx.trip.country.toLowerCase()] ?? null) : null
+  // El país de donde está ahora; el del viaje solo si no sabemos dónde está.
+  const country =
+    ctx.countryCode?.toLowerCase() ?? (ctx.trip?.country ? (COUNTRY_CODES[ctx.trip.country.toLowerCase()] ?? null) : null)
 
   // Los fragmentos casi nunca traen el menú: si la pregunta es sobre lo que tiene un lugar, leemos su web.
   // Con la web oficial de Google Places se lee en paralelo con la búsqueda; si no, después, con el mejor resultado.
@@ -475,7 +487,7 @@ async function freshPlan(db: SupabaseClient, ctx: TravelerContext, now: Date): P
 async function editItinerary(args: ToolArgs<"edit_itinerary">, location: LatLng | null): Promise<ToolResult> {
   const ctx = await getTravelerContext({ location })
   const db = await createClient()
-  const now = new Date()
+  const now = await serverNow()
 
   // El agente habla en hora local del viaje ("16:00", "mañana" → date); sin fecha es hoy allá.
   const day = args.date ?? zonedDateKey(now, ctx.timeZone)

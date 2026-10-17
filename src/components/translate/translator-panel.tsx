@@ -217,8 +217,8 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
                 key={u.id}
                 className={cn(
                   "max-w-[85%] rounded-2xl px-3 py-2",
-                  // Cada uno de su lado, como sus botones: yo a la izquierda, la otra persona a la derecha.
-                  u.speaker === "me" ? "bg-brand self-start text-white" : "bg-card self-end",
+                  // Cada uno de su lado, como sus botones: la otra persona a la izquierda, yo a la derecha.
+                  u.speaker === "me" ? "bg-brand self-end text-white" : "bg-card self-start",
                   !u.final && "opacity-70"
                 )}
               >
@@ -254,8 +254,9 @@ export function TranslatorPanel({ location, defaultTheirLang, onTurn, onExit, ch
           {t.spentUsd > 0 && <span className="tabular-nums"> · US${t.spentUsd.toFixed(3)}</span>}
         </p>
         <div className="flex items-center gap-3">
-          <SpeakButton who="me" label="Hablo yo" lang={LANGUAGES[myLang]} t={t} onPress={press} />
+          {/* Como las burbujas: la otra persona a la izquierda, yo a la derecha. */}
           <SpeakButton who="them" label="Habla la otra persona" lang={LANGUAGES[theirLang]} t={t} onPress={press} />
+          <SpeakButton who="me" label="Hablo yo" lang={LANGUAGES[myLang]} t={t} onPress={press} />
         </div>
       </footer>
     </>

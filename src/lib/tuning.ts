@@ -44,6 +44,10 @@ export const PROXIMITY = {
   interestRadiusMeters: num("TUNE_INTEREST_RADIUS_M", 100),
   /** Confianza mínima de Jev para avisar de un lugar por gustos. */
   minInterestConfidence: num("TUNE_INTEREST_MIN_CONFIDENCE", 0.6),
+  /** Lugares por gustos con menos reseñas en Google no se avisan (fichas duplicadas o vacías). */
+  minInterestReviews: num("TUNE_INTEREST_MIN_REVIEWS", 50),
+  /** Un lugar a esta distancia de otro mucho más conocido es parte de ese (una sala de un museo). */
+  samePointMeters: num("TUNE_INTEREST_SAME_POINT_M", 25),
   /** Cuántos lugares por gustos se le pasan a Jev como mucho (los más cercanos). */
   maxInterestOptions: num("TUNE_INTEREST_MAX_OPTIONS", 8),
   /** Pausa mínima entre dos avisos (1 min para la demo; en un viaje real, más). */

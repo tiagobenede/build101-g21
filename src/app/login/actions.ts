@@ -26,7 +26,16 @@ export async function loginAsDemo(_prev: LoginState, formData: FormData): Promis
     return { error: "No se pudo iniciar sesión. ¿Está corriendo Supabase local?" }
   }
 
-  if (findDemoAccount(parsed.data.email)?.firstLogin) {
+  const account = findDemoAccount(parsed.data.email)
+  if (account?.start) {
+    // Así el contexto del agente y los avisos ya la ubican ahí, antes del primer ping del cliente.
+    const { error: pingError } = await supabase
+      .from("pings")
+      .insert({ user_id: data.user.id, lat: account.start.lat, lng: account.start.lng, heading: null, source: "mock" })
+    if (pingError) console.error("[login] start ping failed", pingError.message)
+  }
+
+  if (account?.firstLogin) {
     try {
       await resetFirstLoginProfile(data.user.id)
     } catch (err) {

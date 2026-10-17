@@ -39,6 +39,7 @@ import { useGenUi } from "@/hooks/use-genui"
 import { usePhotoLookup, type PhotoMatch } from "@/hooks/use-photo-lookup"
 import { useRealtimeCall } from "@/hooks/use-realtime-call"
 import type { CallState, PlaceCard } from "@/hooks/voice-session-types"
+import { clientNow, useClock } from "@/hooks/use-clock"
 import type { FoundTip } from "@/app/api/translate/tips/route"
 import { distanceMeters } from "@/lib/geo"
 import type { GenUiPlace, GenUiRequest } from "@/lib/genui/types"
@@ -109,7 +110,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
   const addToPlan = useCallback(
     async (place: GenUiPlace) => {
       const slot = nextHalfHour(location.timeZone)
-      const startsAt = zonedTimeToIso(zonedDateKey(new Date(), location.timeZone), slot, location.timeZone)
+      const startsAt = zonedTimeToIso(zonedDateKey(clientNow(), location.timeZone), slot, location.timeZone)
       const res = await addItem({
         title: null,
         placeId: place.id,
@@ -523,7 +524,7 @@ const SLOT_MS = 30 * 60_000
 
 /** Próxima media hora en la zona del viaje ("16:30"). */
 function nextHalfHour(timeZone: string): string {
-  const rounded = Math.ceil(Date.now() / SLOT_MS) * SLOT_MS
+  const rounded = Math.ceil(clientNow().getTime() / SLOT_MS) * SLOT_MS
   return zonedTimeValue(new Date(rounded).toISOString(), timeZone)
 }
 
@@ -536,12 +537,13 @@ function untilLabel(now: Date, target: Date): string {
   return rest ? `en ${hours} h ${rest} min` : `en ${hours} h`
 }
 
-/** Hora actual, actualizada cada 30 s. */
+/** Hora actual (simulada si hay), actualizada cada 30 s. */
 function useNow(): Date {
-  const [now, setNow] = useState(() => new Date())
+  const { offsetMs } = useClock()
+  const [realMs, setRealMs] = useState(() => Date.now())
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 30_000)
+    const timer = setInterval(() => setRealMs(Date.now()), 30_000)
     return () => clearInterval(timer)
   }, [])
-  return now
+  return useMemo(() => new Date(realMs + offsetMs), [realMs, offsetMs])
 }

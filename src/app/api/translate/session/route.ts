@@ -42,6 +42,8 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return fail(400, "Pedido inválido.")
   const { targetLang, myLang, theirLang, location } = parsed.data
+  // Se traduce a mi idioma cuando habla la otra persona.
+  const theirTurn = targetLang === myLang && myLang !== theirLang
 
   const supabase = await createClient()
   const {
@@ -81,7 +83,11 @@ export async function POST(req: Request) {
         model: TRANSLATE_MODEL,
         audio: {
           // La transcripción del original es lo que se guarda como "lo que dijo".
-          input: { transcription: { model: INPUT_TRANSCRIPTION_MODEL }, noise_reduction: { type: "near_field" } },
+          // Yo hablo pegado al teléfono; la otra persona, desde más lejos (si no, su voz se filtra como ruido).
+          input: {
+            transcription: { model: INPUT_TRANSCRIPTION_MODEL },
+            noise_reduction: { type: theirTurn ? "far_field" : "near_field" },
+          },
           output: { language: targetLang },
         },
       },

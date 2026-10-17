@@ -115,7 +115,7 @@ export async function identifyPhoto(photo: Photo, ctx: TravelerContext): Promise
   const candidates = pickCandidates(ctx.nearby)
   const [picked, seen] = await Promise.all([
     pickWithJev(photo, ctx, candidates),
-    describePhoto(photo, { label: ctx.locationLabel, city: ctx.trip?.destination ?? null, location: ctx.location }).catch((err: unknown) => {
+    describePhoto(photo, { label: ctx.locationLabel, city: ctx.city ?? ctx.trip?.destination ?? null, location: ctx.location }).catch((err: unknown) => {
       console.error("[vision] llm", err instanceof Error ? err.message : err)
       return null
     }),

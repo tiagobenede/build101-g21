@@ -38,12 +38,17 @@ const COUNTRY_LANG: Record<string, Lang> = {
   CR: "es", PA: "es", GT: "es", HN: "es", SV: "es", NI: "es", DO: "es", CU: "es", PR: "es",
 }
 
+/** Idioma principal del país, si es uno de los que ofrece la pantalla. */
+export function countryLanguage(countryCode: string | null): Lang | null {
+  return (countryCode && COUNTRY_LANG[countryCode.toUpperCase()]) || null
+}
+
 /**
  * Idioma de la persona del lugar según el país donde está el viajero. Si es el mismo que el
  * suyo o no lo conocemos, inglés: lo más probable para entenderse.
  */
 export function localLanguage(countryCode: string | null, myLang: Lang): Lang {
-  const lang = countryCode ? COUNTRY_LANG[countryCode.toUpperCase()] : undefined
+  const lang = countryLanguage(countryCode)
   if (lang && lang !== myLang) return lang
   return myLang === "en" ? "es" : "en"
 }

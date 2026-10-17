@@ -72,8 +72,10 @@ insert into public.itinerary_items (trip_id, title, notes, starts_at, ends_at, l
    (date_trunc('day', now() at time zone 'Europe/Paris') + interval '13 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '14 hours 30 minutes') at time zone 'Europe/Paris', 48.8578, 2.3622),
   ('aaaaaaa1-0000-4000-8000-000000000001', 'Tour guiado Torre Eiffel', 'Llegar 15 min antes',
    (date_trunc('day', now() at time zone 'Europe/Paris') + interval '17 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '19 hours') at time zone 'Europe/Paris', 48.8584, 2.2945),
-  ('aaaaaaa1-0000-4000-8000-000000000002', 'Louvre (entrada reservada)', 'Ala Denon',
-   (date_trunc('day', now() at time zone 'Europe/Paris') + interval '15 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '18 hours') at time zone 'Europe/Paris', 48.8606, 2.3376),
+  -- Lucas, guion de la demo: después del Louvre tiene esto a ~22 min a pie; lo que Polo le
+  -- proponga en el medio tiene que quedarle de camino (docs/pitch/casos-jurado.md).
+  ('aaaaaaa1-0000-4000-8000-000000000002', 'Encuentro con amigos en el Jardin du Luxembourg', 'Fontaine Médicis',
+   (date_trunc('day', now() at time zone 'Europe/Paris') + interval '18 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '19 hours 30 minutes') at time zone 'Europe/Paris', 48.8484, 2.3404),
   ('aaaaaaa1-0000-4000-8000-000000000003', 'Clase de cocina francesa', 'Traer delantal',
    (date_trunc('day', now() at time zone 'Europe/Paris') + interval '18 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '20 hours') at time zone 'Europe/Paris', 48.8650, 2.3600);
 

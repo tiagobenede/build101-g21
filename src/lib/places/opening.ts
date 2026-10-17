@@ -43,3 +43,24 @@ export function openLongEnough(
   const closing = closingInfo(info.hoursToday, localTime)
   return !closing || walkMinutes + stayMinutes <= closing.closesInMinutes
 }
+
+/** Día de la semana en la zona, con lunes = 0 (el orden de `weekdayDescriptions` de Google). */
+export function mondayIndex(now: Date, timeZone: string): number {
+  const day = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(now)
+  return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(day)
+}
+
+/** "lunes: 10:00–18:00" → "10:00–18:00" (el horario de ese día sin el nombre). */
+export const hoursOfDay = (weekdayDescriptions: readonly string[] | undefined, index: number): string | null =>
+  weekdayDescriptions?.[index]?.replace(/^[^:]+:\s*/, "") ?? null
+
+/**
+ * Si está abierto a `localTime` según el horario del día ("Cerrado", "Abierto las 24 horas"
+ * o tramos). Para la hora simulada, donde el "abierto ahora" de Google no sirve. null si no se sabe.
+ */
+export function openAt(hoursToday: string | null, localTime: string): boolean | null {
+  if (!hoursToday) return null
+  if (/cerrado|closed/i.test(hoursToday)) return false
+  if (/24 horas|24 hours/i.test(hoursToday)) return true
+  return closingInfo(hoursToday, localTime) !== null
+}

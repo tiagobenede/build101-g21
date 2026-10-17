@@ -4,13 +4,14 @@ import { TalkSkeleton } from "@/components/rumbo/talk-skeleton"
 import { getTravelerContext, nextCommitment } from "@/lib/data/session"
 import { formatTime } from "@/lib/format"
 import { matchInterests } from "@/lib/profile/interests"
+import { serverNow } from "@/lib/time/server-clock"
 import { localLanguage } from "@/lib/translate/config"
 
 import { TalkClient } from "./talk-client"
 
 async function TalkContent() {
   const ctx = await getTravelerContext()
-  const commitment = nextCommitment(ctx.itinerary, new Date())
+  const commitment = nextCommitment(ctx.itinerary, await serverNow())
 
   return (
     <TalkClient

@@ -6,6 +6,7 @@ import { whereLine, type Where } from "@/lib/location/corner"
 import { getStreetAddress } from "@/lib/location/reverse"
 import { getWhere } from "@/lib/location/where"
 import { createClient } from "@/lib/supabase/server"
+import { serverNow } from "@/lib/time/server-clock"
 import { recentTranslationLine } from "@/lib/translate/recent"
 import { recentTranslation } from "@/lib/translate/server"
 import { getWeatherSummary } from "@/lib/weather"
@@ -55,13 +56,14 @@ async function recentLocalTips(tripId: string | null): Promise<LocalTipLine[]> {
  */
 export async function buildSessionInstructions(location: LatLng | null): Promise<{ ctx: TravelerContext; instructions: string }> {
   const ctx = await getTravelerContext({ location })
-  const now = new Date()
+  // La hora del viajero (simulada si eligió una). La charla del traductor se guarda con la real.
+  const now = await serverNow()
   const [weather, localTips, address, where, translation] = await Promise.all([
     getWeatherSummary(ctx.location),
     recentLocalTips(ctx.trip?.id ?? null),
     getStreetAddress(ctx.location),
     whereWithin(ctx.location, WHERE_BUDGET_MS),
-    createClient().then((supabase) => recentTranslation(supabase, now)),
+    createClient().then((supabase) => recentTranslation(supabase)),
   ])
   const instructions = buildInstructions({
     ctx,
@@ -71,7 +73,7 @@ export async function buildSessionInstructions(location: LatLng | null): Promise
     // Sin Google a tiempo, al menos las coordenadas (esas no dependen de nadie).
     where: whereLine(where ?? { location: ctx.location, street: null, barrio: null, city: null, corner: null }),
     localTips,
-    recentTranslation: translation ? recentTranslationLine(translation, now) : null,
+    recentTranslation: translation ? recentTranslationLine(translation, new Date()) : null,
     now,
     timeZone: ctx.timeZone,
   })

@@ -11,6 +11,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { clientNow } from "@/hooks/use-clock"
 import { addMinutesIso, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
 import { cn } from "@/lib/utils"
 
@@ -35,7 +36,7 @@ const SLOT_MINUTES = 30
 
 /** Próxima media hora en la zona del viaje ("16:30"). */
 function nextSlot(timeZone: string): string {
-  const now = Date.now()
+  const now = clientNow().getTime()
   const rounded = Math.ceil(now / (SLOT_MINUTES * 60_000)) * SLOT_MINUTES * 60_000
   return zonedTimeValue(new Date(rounded).toISOString(), timeZone)
 }

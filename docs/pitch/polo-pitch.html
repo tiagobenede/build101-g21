@@ -1,0 +1,941 @@
+<title>Polo · Pitch</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: diapositivas 16:9 a pantalla completa, una por vez, con pasos que se revelan.
+   Misma estética que la app: grises de Apple, tarjetas blancas como notificaciones de iOS,
+   un solo acento azul y la esfera de voz. Look claro a propósito, igual que la app.
+   En pantallas angostas las diapositivas se apilan y todo queda revelado. */
+:root {
+  color-scheme: light;
+  --bg: #f5f5f7;          /* fondo de la app */
+  --card: #ffffff;
+  --ink: #1d1d1f;
+  --muted: #86868b;
+  --line: #e5e5ea;
+  --fill: #ececf0;        /* secondary */
+  --brand: #0071e3;       /* el azul de la app */
+  --blue: #007aff;        /* punto de ubicación */
+  --red: #ff3b30;         /* pines y Mercado/Restaurante */
+  --green: #34c759;
+  --orange: #ff9500;
+  --indigo: #5856d6;
+  --map: #eeebe4;         /* mapa claro, como Google */
+  --water: #aad3f5;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+  --shadow: 0 1px 3px rgb(0 0 0 / .06), 0 8px 24px rgb(0 0 0 / .05);
+  --u: min(1vw, 1.7778vh);  /* 1/100 del ancho de la diapositiva */
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); overflow: hidden; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, p { margin: 0; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.05; letter-spacing: -.025em; font-weight: 700; }
+a { color: var(--brand); }
+button { font: inherit; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+
+/* ---------- Escenario ---------- */
+.deck { position: fixed; inset: 0; }
+.slide { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; visibility: hidden; transition: opacity .45s ease, visibility 0s linear .45s; }
+.slide.active { opacity: 1; visibility: visible; transition: opacity .45s ease; }
+.frame {
+  width: calc(var(--u) * 100); height: calc(var(--u) * 56.25); position: relative;
+  padding: calc(var(--u) * 5) calc(var(--u) * 6); display: flex; flex-direction: column; gap: calc(var(--u) * 2.2);
+  font-size: calc(var(--u) * 1.5); line-height: 1.4;
+}
+.eyebrow { font-size: calc(var(--u) * .95); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+.eyebrow.blue { color: var(--brand); }
+.big { font-size: calc(var(--u) * 5); font-weight: 700; letter-spacing: -.035em; }
+.h2 { font-size: calc(var(--u) * 3.4); }
+.muted { color: var(--muted); }
+.blue-t { color: var(--brand); }
+
+[data-at] { opacity: 0; transform: translateY(calc(var(--u) * 1)); transition: opacity .45s ease, transform .55s cubic-bezier(.2,.8,.2,1); }
+[data-at].on { opacity: 1; transform: none; }
+
+/* Tarjeta tipo notificación de iOS (NotificationCard de la app) */
+.note-card { background: rgb(255 255 255 / .92); backdrop-filter: blur(20px); border-radius: 22px; padding: 14px; box-shadow: 0 1px 3px rgb(0 0 0 / .06), 0 10px 30px rgb(0 0 0 / .08); display: flex; gap: 12px; align-items: flex-start; }
+.cat { flex: none; width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; color: #fff; }
+.cat svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.note-card .body { min-width: 0; flex: 1; }
+.note-card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.note-card h4 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.note-card .when { font-size: 13px; color: var(--muted); flex: none; }
+.note-card p { font-size: 15px; line-height: 1.3; }
+.note-card small { display: block; color: var(--muted); font-size: 13px; line-height: 1.3; margin-top: 2px; }
+
+/* Esfera de voz (la de /talk) */
+.sphere { position: relative; flex: none; }
+.sphere .halo { position: absolute; inset: 10%; border-radius: 50%; background: conic-gradient(from 200deg, #2f6bff, #7b5cff, #12b8ff, #2f6bff); opacity: .3; filter: blur(28px); }
+.sphere .ball { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 50% 40%, #e9f1ff, #b9cfff 80%); box-shadow: inset 0 0 20px rgb(255 255 255 / .6); animation: wobble 7s ease-in-out infinite; }
+.sphere .spot { position: absolute; border-radius: 50%; filter: blur(12px); opacity: .95; animation: orbit var(--s) linear infinite; animation-delay: var(--p); }
+.sphere .gloss { position: absolute; inset: 0; background: radial-gradient(circle at 30% 22%, rgb(255 255 255 / .6), transparent 38%); }
+@keyframes orbit { from { transform: rotate(0) translateX(var(--o)) rotate(0); } to { transform: rotate(360deg) translateX(var(--o)) rotate(-360deg); } }
+@keyframes wobble { 0%, 100% { border-radius: 50% 50% 50% 50%; } 33% { border-radius: 53% 47% 51% 49% / 48% 53% 47% 52%; } 66% { border-radius: 47% 53% 48% 52% / 52% 47% 53% 48%; } }
+
+/* Controles */
+.progress { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 6px; z-index: 5; }
+.progress i { width: 6px; height: 6px; border-radius: 50%; background: #d1d1d6; transition: background .3s, width .3s; }
+.progress i.done { background: var(--ink); }
+.progress i.now { width: 18px; border-radius: 3px; background: var(--ink); }
+.progress i.annex { opacity: .45; }
+.controls { position: fixed; z-index: 6; display: flex; gap: 6px; align-items: center; top: calc(env(safe-area-inset-top, 0px) + 12px); right: max(16px, env(safe-area-inset-right, 0px)); opacity: .4; transition: opacity .2s; }
+.controls:hover, .controls:focus-within { opacity: 1; }
+.controls button, .replay { font-size: 13px; font-weight: 500; cursor: pointer; background: var(--card); color: var(--ink); border: 0; border-radius: 999px; padding: 7px 13px; box-shadow: 0 1px 3px rgb(0 0 0 / .08); }
+.controls button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.timer { font: 600 13px/1 var(--font); padding: 8px 13px; border-radius: 999px; background: var(--card); box-shadow: 0 1px 3px rgb(0 0 0 / .08); font-variant-numeric: tabular-nums; }
+.timer.over { color: #fff; background: var(--red); }
+.hint { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); font-size: 12px; color: var(--muted); transition: opacity 1s; z-index: 5; white-space: nowrap; }
+
+.notes { display: none; position: absolute; left: calc(var(--u) * 6); right: calc(var(--u) * 6); bottom: calc(var(--u) * 3.6); background: #1d1d1f; color: #f5f5f7; border-radius: 16px; padding: calc(var(--u) * 1) calc(var(--u) * 1.4); font-size: calc(var(--u) * 1.1); z-index: 3; }
+.notes b { color: #8ab4ff; margin-right: 8px; font-weight: 600; }
+.show-notes .notes { display: block; }
+
+/* ---------- 1 · Portada ---------- */
+.cover .frame { flex-direction: row; align-items: center; gap: calc(var(--u) * 5); }
+.cover-text { flex: 1; display: flex; flex-direction: column; gap: calc(var(--u) * 2.2); min-width: 0; }
+.app-icon { width: calc(var(--u) * 6); height: calc(var(--u) * 6); border-radius: calc(var(--u) * 1.5); background: var(--ink); color: var(--bg); display: grid; place-items: center; box-shadow: 0 1px 3px rgb(0 0 0 / .15); flex: none; }
+.app-icon svg { width: 50%; height: 50%; fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.cover h1 { font-size: calc(var(--u) * 10); letter-spacing: -.05em; line-height: .95; }
+.cover .lede { font-size: calc(var(--u) * 2.3); line-height: 1.25; max-width: 24ch; color: var(--muted); font-weight: 500; letter-spacing: -.01em; }
+.cover .lede b { color: var(--ink); font-weight: 600; }
+.cover .sphere { width: calc(var(--u) * 30); height: calc(var(--u) * 30); }
+.cover .tap { position: absolute; left: 0; right: 0; bottom: calc(var(--u) * -4.5); text-align: center; font-size: calc(var(--u) * 1.3); color: var(--muted); }
+
+/* ---------- 2 · La escena ---------- */
+.scene .frame { flex-direction: row; gap: calc(var(--u) * 3); align-items: stretch; }
+.scene-text { width: 36%; display: flex; flex-direction: column; justify-content: center; gap: calc(var(--u) * 1.6); }
+.scene-text .line { font-size: calc(var(--u) * 2.7); font-weight: 700; line-height: 1.1; letter-spacing: -.025em; }
+.counter { display: flex; align-items: baseline; gap: calc(var(--u) * 1); }
+.counter .n { font-size: calc(var(--u) * 7); font-weight: 700; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; transition: color .4s; }
+.counter .lbl { color: var(--muted); font-size: calc(var(--u) * 1.4); max-width: 14ch; line-height: 1.2; }
+.scene.focus .counter .n { color: var(--brand); }
+.answer { font-size: calc(var(--u) * 1.6); }
+.answer b { color: var(--brand); font-weight: 600; }
+.map-box { flex: 1; min-width: 0; border-radius: 22px; overflow: hidden; background: var(--map); position: relative; box-shadow: var(--shadow); }
+.map-box svg { width: 100%; height: 100%; display: block; }
+.block { fill: #e3dfd5; }
+.street { stroke: #fff; stroke-width: 5; fill: none; stroke-linecap: round; }
+.seine { stroke: var(--water); stroke-width: 30; fill: none; stroke-linecap: round; }
+.pin { transform-box: fill-box; transform-origin: center; opacity: 0; }
+.pin circle { stroke: #fff; stroke-width: 1.5; }
+.active .pin { animation: pop .45s cubic-bezier(.3,1.6,.5,1) forwards; animation-delay: var(--d); }
+@keyframes pop { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: none; } }
+.scene.focus .pin:not(.keep) { animation: none; opacity: .12; transition: opacity .6s; }
+.scene.focus .pin.keep { animation: none; opacity: 1; transform: scale(1.5); transition: transform .5s cubic-bezier(.3,1.6,.5,1); }
+.iso { fill: rgb(0 113 227 / .07); stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 6 6; transform-box: fill-box; transform-origin: center; transform: scale(0); opacity: 0; transition: transform .9s cubic-bezier(.2,.8,.2,1), opacity .4s; }
+.scene.focus .iso { transform: scale(1); opacity: 1; }
+.iso-lbl { font: 600 13px var(--font); fill: var(--brand); paint-order: stroke; stroke: var(--map); stroke-width: 4px; opacity: 0; transition: opacity .5s .5s; }
+.scene.focus .iso-lbl { opacity: 1; }
+.fo-card { opacity: 0; transition: opacity .5s .4s; }
+.scene.focus .fo-card { opacity: 1; }
+.fo-card .note-card { padding: 10px; gap: 10px; border-radius: 18px; }
+.fo-card .cat { width: 32px; height: 32px; border-radius: 9px; }
+.fo-card .cat svg { width: 16px; height: 16px; }
+.fo-card h4 { font-size: 13px; } .fo-card p { font-size: 12px; } .fo-card small { font-size: 11px; }
+.you-halo { fill: rgb(0 122 255 / .18); transform-box: fill-box; transform-origin: center; animation: breathe 2.4s ease-in-out infinite; }
+@keyframes breathe { 50% { transform: scale(1.5); opacity: .5; } }
+.you { fill: var(--blue); stroke: #fff; stroke-width: 3; }
+
+/* ---------- 3 · Demo ---------- */
+.demo .frame { justify-content: center; }
+.demo-head { display: flex; align-items: center; gap: calc(var(--u) * 2.4); }
+.demo-head .sphere { width: calc(var(--u) * 8); height: calc(var(--u) * 8); }
+.live { display: inline-flex; align-items: center; gap: 8px; font-size: calc(var(--u) * 1); font-weight: 600; color: var(--red); text-transform: uppercase; letter-spacing: .03em; }
+.live::before { content: ""; width: calc(var(--u) * .8); height: calc(var(--u) * .8); border-radius: 50%; background: var(--red); animation: blink 1.4s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+.steps-list { background: var(--card); border-radius: 22px; box-shadow: var(--shadow); overflow: hidden; }
+.steps-list > div { display: grid; grid-template-columns: calc(var(--u) * 3) 1fr auto; gap: calc(var(--u) * 1.4); align-items: center; padding: calc(var(--u) * 1.3) calc(var(--u) * 1.8); }
+.steps-list > div + div { border-top: 1px solid var(--line); }
+.steps-list .no { width: calc(var(--u) * 3); height: calc(var(--u) * 3); border-radius: 50%; background: var(--fill); display: grid; place-items: center; font-weight: 600; font-size: calc(var(--u) * 1.2); }
+.steps-list .say { font-size: calc(var(--u) * 1.75); font-weight: 600; letter-spacing: -.015em; }
+.steps-list .what { font-size: calc(var(--u) * 1.25); color: var(--muted); text-align: right; }
+.steps-list .jury .no { background: var(--brand); color: #fff; }
+.steps-list .jury .say { color: var(--brand); }
+
+/* ---------- 4 · La historia ---------- */
+.story .frame { flex-direction: row; gap: calc(var(--u) * 3); align-items: stretch; }
+.story-left { width: 38%; display: flex; flex-direction: column; gap: calc(var(--u) * 1.4); justify-content: center; }
+.phone { background: var(--bg); border: calc(var(--u) * .6) solid #1d1d1f; border-radius: calc(var(--u) * 3.2); padding: calc(var(--u) * 1.2); display: flex; flex-direction: column; gap: calc(var(--u) * .8); min-height: calc(var(--u) * 30); position: relative; overflow: hidden; }
+.phone .bar { display: flex; justify-content: space-between; font-size: calc(var(--u) * 1); font-weight: 600; padding: 0 4px; }
+.phone .bar .clock { font-variant-numeric: tabular-nums; }
+.tr-head { font-size: calc(var(--u) * .9); color: var(--muted); text-align: center; }
+.bub { align-self: flex-start; max-width: 90%; padding: calc(var(--u) * .7) calc(var(--u) * 1.1); border-radius: 18px; background: #e9e9eb; font-size: calc(var(--u) * 1.2); line-height: 1.3; opacity: 0; transform: translateY(6px); transition: opacity .4s, transform .5s; }
+.bub .lang { display: block; font-size: .78em; color: var(--muted); margin-bottom: 2px; }
+.bub.es { background: var(--card); box-shadow: 0 1px 2px rgb(0 0 0 / .06); }
+.saved { align-self: flex-start; font-size: calc(var(--u) * 1); font-weight: 600; padding: 5px 12px; border-radius: 999px; background: rgb(52 199 89 / .14); color: #1f8a3b; opacity: 0; transition: opacity .4s; }
+.phone .push { position: absolute; left: calc(var(--u) * .9); right: calc(var(--u) * .9); bottom: calc(var(--u) * .9); transform: translateY(170%); transition: transform .6s cubic-bezier(.2,1.2,.3,1); }
+.story .shown { opacity: 1; transform: none; }
+.story-map { flex: 1; min-width: 0; border-radius: 22px; overflow: hidden; background: var(--map); position: relative; box-shadow: var(--shadow); }
+.story-map svg { width: 100%; height: 100%; display: block; }
+.trail { fill: none; stroke: var(--blue); stroke-width: 4; stroke-dasharray: .1 9; stroke-linecap: round; opacity: .8; }
+.cpin { opacity: 0; transform-box: fill-box; transform-origin: center; }
+.cpin.shown { opacity: 1; animation: pop .5s cubic-bezier(.3,1.6,.5,1); }
+.fence { fill: rgb(0 113 227 / .08); stroke: var(--brand); stroke-dasharray: 5 5; stroke-width: 1.5; opacity: 0; transition: opacity .4s; }
+.fence.shown { opacity: 1; }
+.fence.hit { animation: fence 1s ease-out 2; }
+@keyframes fence { 50% { fill: rgb(0 113 227 / .25); } }
+.map-lbl { font: 600 14px var(--font); fill: var(--ink); paint-order: stroke; stroke: #fff; stroke-width: 4px; }
+.map-sub { font: 500 11px var(--font); fill: var(--red); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+.replay { position: absolute; right: 12px; bottom: 12px; }
+.story .h2 { font-size: calc(var(--u) * 2.7); }
+.phone .note-card { padding: calc(var(--u) * 1); gap: calc(var(--u) * .8); border-radius: calc(var(--u) * 1.6); }
+.phone .cat { width: calc(var(--u) * 2.8); height: calc(var(--u) * 2.8); border-radius: calc(var(--u) * .8); }
+.phone .cat svg { width: 50%; height: 50%; }
+.phone .note-card h4, .phone .note-card p { font-size: calc(var(--u) * 1.1); }
+.phone .note-card .when, .phone .note-card small { font-size: calc(var(--u) * .95); }
+body.scroll .phone .note-card h4, body.scroll .phone .note-card p { font-size: 15px; }
+body.scroll .phone .note-card .when, body.scroll .phone .note-card small { font-size: 13px; }
+body.scroll .phone .cat { width: 40px; height: 40px; border-radius: 11px; }
+body.scroll .story .h2 { font-size: 25px; }
+
+/* ---------- 5 · Por qué IA ---------- */
+.flow { flex: 1; min-height: 0; }
+.flow svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.node > rect { fill: var(--card); filter: drop-shadow(0 1px 2px rgb(0 0 0 / .1)); }
+.node text { fill: var(--ink); font: 600 15px var(--font); }
+.node .sub { fill: var(--muted); font: 400 12px var(--font); }
+.node svg { fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.core-label { font: 700 26px var(--font); fill: var(--ink); letter-spacing: -.02em; }
+.wire { fill: none; stroke: var(--brand); stroke-width: 1.6; stroke-dasharray: 3 7; opacity: .6; animation: flow 1.1s linear infinite; }
+@keyframes flow { to { stroke-dashoffset: -20; } }
+.tool rect { fill: var(--card); filter: drop-shadow(0 1px 2px rgb(0 0 0 / .08)); }
+.tool text { fill: var(--ink); font: 500 13px var(--font); }
+.col-lbl { fill: var(--muted); font: 600 11px var(--font); letter-spacing: .06em; }
+.without { display: flex; align-items: baseline; gap: calc(var(--u) * 1.4); font-size: calc(var(--u) * 1.55); }
+.without b { font-size: calc(var(--u) * 1.9); }
+
+/* ---------- 6 · Real y simulado ---------- */
+.cols3 { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: calc(var(--u) * 1.8); }
+.group h3 { font-size: calc(var(--u) * .95); font-weight: 600; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); margin: 0 0 calc(var(--u) * .7) calc(var(--u) * 1.2); }
+.group ul { margin: 0; padding: 0; list-style: none; background: var(--card); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+.group li { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--u) * 1); align-items: center; padding: calc(var(--u) * 1) calc(var(--u) * 1.2); font-size: calc(var(--u) * 1.3); font-weight: 500; }
+.group li + li { border-top: 1px solid var(--line); }
+.group li span { display: block; font-weight: 400; font-size: .85em; color: var(--muted); }
+.dotc { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); border-radius: 7px; display: grid; place-items: center; color: #fff; font-size: calc(var(--u) * 1.1); font-weight: 700; }
+.real .dotc { background: var(--green); }
+.sim .dotc { background: var(--brand); }
+.plan .dotc { background: #c7c7cc; }
+.proof { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(var(--u) * 1.8); margin-top: auto; }
+.proof div { display: flex; flex-direction: column; gap: 4px; }
+.proof .n { font-size: calc(var(--u) * 3.2); font-weight: 700; letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+.proof p { color: var(--muted); font-size: calc(var(--u) * 1.15); line-height: 1.3; }
+
+/* ---------- 7 · Cierre ---------- */
+.close .frame { justify-content: center; align-items: flex-start; }
+.close blockquote { margin: 0; font-size: calc(var(--u) * 4.4); font-weight: 700; line-height: 1.06; letter-spacing: -.035em; max-width: 21ch; text-wrap: balance; }
+.close blockquote span { color: var(--muted); }
+.close .sign { display: flex; align-items: center; gap: calc(var(--u) * 1.2); font-size: calc(var(--u) * 1.4); font-weight: 600; }
+.close .app-icon { width: calc(var(--u) * 4); height: calc(var(--u) * 4); border-radius: calc(var(--u) * 1); }
+
+/* ---------- Anexo ---------- */
+.annex-tag { align-self: flex-start; font-size: calc(var(--u) * .95); font-weight: 600; color: var(--muted); background: var(--fill); padding: 4px 12px; border-radius: 999px; }
+.divider .frame { justify-content: center; }
+.qlist { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; max-width: calc(var(--u) * 60); }
+.qlist p { padding: calc(var(--u) * 1) calc(var(--u) * 1.4); font-size: calc(var(--u) * 1.4); display: flex; gap: calc(var(--u) * 1.2); }
+.qlist p + p { border-top: 1px solid var(--line); }
+.qlist b { color: var(--brand); font-weight: 600; min-width: 2.2em; }
+
+.vs { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: calc(var(--u) * 3); flex: 1; min-height: 0; }
+.quad-wrap { display: grid; grid-template-columns: auto 1fr; grid-template-rows: 1fr auto; gap: 8px; min-height: 0; }
+.yaxis { writing-mode: vertical-rl; transform: rotate(180deg); display: flex; justify-content: space-between; font-size: calc(var(--u) * .9); font-weight: 600; color: var(--muted); }
+.xaxis { grid-column: 2; display: flex; justify-content: space-between; font-size: calc(var(--u) * .9); font-weight: 600; color: var(--muted); }
+.quad { position: relative; border-radius: 22px; overflow: hidden; box-shadow: var(--shadow); background:
+  linear-gradient(var(--line), var(--line)) 50% 0 / 1px 100% no-repeat,
+  linear-gradient(var(--line), var(--line)) 0 50% / 100% 1px no-repeat, var(--card); }
+.quad .q-tr { position: absolute; right: 0; top: 0; width: 50%; height: 50%; background: rgb(0 113 227 / .05); }
+.dot { position: absolute; left: 50%; top: 50%; display: flex; align-items: center; gap: 7px; font-size: calc(var(--u) * 1.1); font-weight: 500; white-space: nowrap; transform: translate(-6px, -50%); opacity: 0; transition: left 1s cubic-bezier(.2,.8,.2,1), top 1s cubic-bezier(.2,.8,.2,1), opacity .4s; }
+.dot::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: #c7c7cc; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); flex: none; }
+.dot.r { flex-direction: row-reverse; transform: translate(calc(-100% + 6px), -50%); }
+.dot.polo { font-size: calc(var(--u) * 1.9); font-weight: 700; letter-spacing: -.02em; }
+.dot.polo::before { width: 22px; height: 22px; border: 0; box-shadow: 0 0 14px rgb(47 107 255 / .5); background: radial-gradient(circle at 35% 30%, #fff 0, #b9cfff 30%, #2f6bff 70%, #7b5cff); }
+.active .dot, .all .dot { left: var(--x); top: var(--y); opacity: 1; }
+.answers { display: flex; flex-direction: column; gap: calc(var(--u) * 1.4); justify-content: center; }
+.answers > div { background: var(--card); border-radius: 18px; padding: calc(var(--u) * 1.4); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; }
+.answers h3 { font-size: calc(var(--u) * 1.6); }
+.answers p { color: var(--muted); font-size: calc(var(--u) * 1.2); line-height: 1.35; }
+.answers p b { color: var(--ink); font-weight: 600; }
+
+.market { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: calc(var(--u) * 3); flex: 1; min-height: 0; align-items: center; }
+.market svg { width: 100%; max-height: 100%; }
+.ring { transform-box: fill-box; transform-origin: 50% 100%; transform: scale(0); transition: transform 1s cubic-bezier(.2,.8,.2,1); }
+.active .ring, .all .ring { transform: scale(1); }
+.active .ring.r2, .all .ring.r2 { transition-delay: .25s; }
+.active .ring.r3, .all .ring.r3 { transition-delay: .5s; }
+.ring-t { font: 700 22px var(--font); letter-spacing: -.02em; }
+.ring-l { font: 600 10px var(--font); letter-spacing: .06em; }
+.mk { display: flex; flex-direction: column; gap: calc(var(--u) * 1.3); }
+.mk div { display: grid; grid-template-columns: 8ch 1fr; gap: calc(var(--u) * 1.2); align-items: baseline; }
+.mk .v { font-weight: 700; font-size: calc(var(--u) * 2); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.mk p { color: var(--muted); font-size: calc(var(--u) * 1.2); }
+
+.money { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(var(--u) * 1.4); }
+.m { background: var(--card); border-radius: 18px; padding: calc(var(--u) * 1.3); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; }
+.m.main { box-shadow: 0 0 0 2px var(--brand), var(--shadow); }
+.m .tag { font-size: calc(var(--u) * .85); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
+.m.main .tag { color: var(--brand); }
+.m h3 { font-size: calc(var(--u) * 1.6); }
+.m p { color: var(--muted); font-size: calc(var(--u) * 1.12); line-height: 1.35; }
+.unit { display: flex; flex-direction: column; gap: calc(var(--u) * .9); }
+.unit-head { display: flex; align-items: baseline; gap: calc(var(--u) * 1.6); }
+.unit-head .n { font-weight: 700; font-size: calc(var(--u) * 3.4); line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.unit-head span { color: var(--muted); font-size: calc(var(--u) * 1.25); }
+.stack { display: flex; height: calc(var(--u) * 3.2); border-radius: 12px; overflow: hidden; background: var(--fill); gap: 2px; }
+.stack div { width: 0; transition: width 1s cubic-bezier(.2,.8,.2,1); display: flex; align-items: center; padding-left: 10px; font-size: calc(var(--u) * .95); font-weight: 600; white-space: nowrap; overflow: hidden; color: #fff; }
+.active .stack div, .all .stack div { width: var(--w); }
+.stack .b1 { background: var(--brand); }
+.stack .b2 { background: var(--indigo); transition-delay: .15s; }
+.stack .b3 { background: #5ac8fa; transition-delay: .3s; }
+.stack .b4 { background: #8e8e93; transition-delay: .45s; }
+.cost { display: flex; align-items: center; gap: 10px; font-size: calc(var(--u) * .95); color: var(--muted); height: calc(var(--u) * 1.4); }
+.cost i { display: block; height: 100%; width: 0; background: repeating-linear-gradient(90deg, #c7c7cc 0 6px, transparent 6px 9px); border-radius: 4px; transition: width 1s .6s; }
+.active .cost i, .all .cost i { width: calc(1.65 / 11.75 * 100%); }
+.assume { font-size: calc(var(--u) * 1.05); color: var(--muted); }
+
+.hard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--u) * 1.4); }
+.hard > div { background: var(--card); border-radius: 18px; padding: calc(var(--u) * 1.4); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; }
+.hard h3 { font-size: calc(var(--u) * 1.55); }
+.hard p { color: var(--muted); font-size: calc(var(--u) * 1.15); line-height: 1.38; }
+.hard p b { color: var(--ink); font-weight: 600; }
+
+.sources { columns: 2; column-gap: calc(var(--u) * 3); padding-left: 1.3em; margin: 0; font-size: calc(var(--u) * 1.05); color: var(--muted); }
+.sources li { break-inside: avoid; margin-bottom: 6px; }
+
+/* ---------- Pantallas angostas: diapositivas apiladas ---------- */
+body.scroll { overflow: auto; --u: 3.4px; }
+body.scroll .deck { position: static; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 56px 24px; display: flex; flex-direction: column; gap: 20px; }
+body.scroll .slide { position: static; opacity: 1; visibility: visible; display: block; }
+body.scroll .frame { width: 100%; height: auto; padding: 22px 18px; background: var(--card); border-radius: 22px; box-shadow: var(--shadow); font-size: 16px; gap: 14px; }
+body.scroll [data-at] { opacity: 1; transform: none; }
+body.scroll .big { font-size: 32px; } body.scroll .h2 { font-size: 25px; }
+body.scroll .eyebrow, body.scroll .annex-tag, body.scroll .group h3, body.scroll .m .tag, body.scroll .live { font-size: 12px; }
+body.scroll .cover .frame, body.scroll .scene .frame, body.scroll .story .frame { flex-direction: column; align-items: stretch; }
+body.scroll .cover h1 { font-size: 56px; } body.scroll .cover .lede { font-size: 19px; }
+body.scroll .app-icon { width: 52px; height: 52px; border-radius: 13px; }
+body.scroll .cover .sphere { width: 180px; height: 180px; align-self: center; } body.scroll .cover .tap { display: none; }
+body.scroll .scene-text, body.scroll .story-left { width: 100%; }
+body.scroll .scene-text .line { font-size: 22px; } body.scroll .counter .n { font-size: 48px; } body.scroll .counter .lbl, body.scroll .answer { font-size: 15px; }
+body.scroll .map-box, body.scroll .story-map { height: 280px; flex: none; }
+body.scroll .demo-head .sphere { width: 56px; height: 56px; }
+body.scroll .steps-list > div { grid-template-columns: 30px 1fr; padding: 12px 14px; }
+body.scroll .steps-list .no { width: 30px; height: 30px; font-size: 14px; }
+body.scroll .steps-list .say { font-size: 17px; } body.scroll .steps-list .what { grid-column: 2; text-align: left; font-size: 14px; }
+body.scroll .phone { min-height: 330px; border-radius: 30px; padding: 12px; gap: 8px; }
+body.scroll .phone .bar, body.scroll .tr-head, body.scroll .saved { font-size: 12px; } body.scroll .bub { font-size: 15px; }
+body.scroll .flow { height: 300px; flex: none; overflow-x: auto; } body.scroll .flow svg { min-width: 640px; }
+body.scroll .without { flex-direction: column; font-size: 16px; } body.scroll .without b { font-size: 19px; }
+body.scroll .cols3, body.scroll .proof, body.scroll .vs, body.scroll .market, body.scroll .money, body.scroll .hard { grid-template-columns: minmax(0, 1fr); }
+body.scroll .group li, body.scroll .qlist p { font-size: 15px; } body.scroll .dotc { width: 26px; height: 26px; font-size: 13px; }
+body.scroll .proof .n { font-size: 30px; } body.scroll .proof p, body.scroll .answers p, body.scroll .mk p, body.scroll .m p, body.scroll .hard p, body.scroll .sources, body.scroll .assume { font-size: 14px; }
+body.scroll .answers h3, body.scroll .m h3, body.scroll .hard h3 { font-size: 18px; }
+body.scroll .mk .v { font-size: 22px; } body.scroll .unit-head .n { font-size: 34px; }
+body.scroll .unit-head { flex-direction: column; gap: 4px; } body.scroll .unit-head span { font-size: 14px; }
+body.scroll .stack { height: 28px; } body.scroll .stack div { font-size: 0; padding: 0; } body.scroll .cost { font-size: 12px; height: 14px; }
+body.scroll .quad-wrap { height: 300px; } body.scroll .dot { font-size: 12px; } body.scroll .dot.polo { font-size: 17px; }
+body.scroll .yaxis, body.scroll .xaxis { font-size: 10px; }
+body.scroll .close blockquote { font-size: 28px; } body.scroll .close .sign { font-size: 15px; } body.scroll .close .app-icon { width: 36px; height: 36px; border-radius: 9px; }
+body.scroll .sources { columns: 1; }
+body.scroll .notes { position: static; font-size: 14px; margin-top: 6px; }
+body.scroll .progress, body.scroll .hint, body.scroll .controls .desk { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
+}
+</style>
+
+<!-- Íconos (los mismos de lucide que usa la app) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-nav" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></symbol>
+    <symbol id="i-basket" viewBox="0 0 24 24"><path d="m15 11-1 9"/><path d="m19 11-4-7"/><path d="M2 11h20"/><path d="m3.5 11 1.6 7.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 2-1.6l1.7-7.4"/><path d="M4.5 15.5h15"/><path d="m5 11 4-7"/><path d="m9 11 1 9"/></symbol>
+    <symbol id="i-trees" viewBox="0 0 24 24"><path d="M10 10v.2A3 3 0 0 1 8.9 16H5a3 3 0 0 1-1-5.8V10a3 3 0 0 1 6 0Z"/><path d="M7 16v6"/><path d="M13 19v3"/><path d="M12 19h8.3a1 1 0 0 0 .7-1.7L18 14h.3a1 1 0 0 0 .7-1.7L16 9h.2a1 1 0 0 0 .8-1.7L13 3l-1.4 1.5"/></symbol>
+    <symbol id="i-utensils" viewBox="0 0 24 24"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12s-8-7-8-12a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+    <symbol id="i-lang" viewBox="0 0 24 24"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></symbol>
+    <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></symbol>
+    <symbol id="i-screen" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  </defs>
+</svg>
+
+<div class="controls" aria-label="Controles">
+  <span class="timer" id="timer" hidden>0:00</span>
+  <button type="button" id="timer-btn" class="desk" aria-pressed="false" title="Cronómetro de 3 minutos (T)">Reloj</button>
+  <button type="button" id="notes-btn" aria-pressed="false" title="Notas del orador (N)">Notas</button>
+  <button type="button" id="fs-btn" class="desk" title="Pantalla completa (F)">Pantalla completa</button>
+</div>
+<div class="hint" id="hint">→ o clic para avanzar · N notas · T reloj · F pantalla completa</div>
+
+<main class="deck" id="deck">
+
+  <!-- 1 · Portada -->
+  <section class="slide cover" id="s1">
+    <div class="frame">
+      <div class="cover-text">
+        <span class="app-icon"><svg viewBox="0 0 24 24"><use href="#i-nav"/></svg></span>
+        <h1>Polo</h1>
+        <p class="lede">El guía de viaje por voz que camina con vos y <b>te habla antes de que preguntes</b>.</p>
+        <p class="eyebrow">build 101 · 17 de octubre de 2026</p>
+      </div>
+      <div class="sphere" data-sphere>
+        <div class="halo"></div>
+        <div class="ball"></div>
+        <p class="tap">Tocá para empezar a hablar</p>
+      </div>
+      <aside class="notes"><b>0:00 · 5 s</b>No presentar el nombre: pasar directo a la escena.</aside>
+    </div>
+  </section>
+
+  <!-- 2 · La escena -->
+  <section class="slide scene" data-steps="1" id="s2">
+    <div class="frame">
+      <div class="scene-text">
+        <span class="eyebrow">14:20 · Le Marais, París</span>
+        <p class="line">Tenés 40 minutos antes del museo. No hablás francés.</p>
+        <div class="counter"><span class="n" id="pin-count">0</span><span class="lbl" id="pin-lbl">lugares te muestra el mapa</span></div>
+        <p class="answer" data-at="1">Polo te dice <b>dos</b>: abiertos, a menos de 10 minutos a pie, de los que te gustan, y llegás al museo a tiempo.</p>
+      </div>
+      <div class="map-box">
+        <svg id="scene-map" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mapa del Marais: primero 200 lugares, después solo dos dentro de 10 minutos a pie"></svg>
+      </div>
+      <aside class="notes"><b>0:05 · 20 s</b>"Estás en París, tenés 40 minutos, no hablás francés. Abrís el mapa y te muestra 200 lugares." Clic: "Polo te dice dos." Pasar a la demo.</aside>
+    </div>
+  </section>
+
+  <!-- 3 · Demo -->
+  <section class="slide demo" id="s3">
+    <div class="frame">
+      <div class="demo-head">
+        <div class="sphere" data-sphere><div class="halo"></div><div class="ball"></div></div>
+        <div>
+          <span class="live">Demo en vivo</span>
+          <h2 class="big">Lucía camina por París con Polo</h2>
+        </div>
+      </div>
+      <div class="steps-list">
+        <div><span class="no">1</span><span class="say">“Tengo 40 minutos, ¿qué hago?”</span><span class="what">Lugares reales, abiertos, a pie</span></div>
+        <div><span class="no">2</span><span class="say">Charla con Camille, en francés</span><span class="what">Traducción en vivo; el tip queda en el mapa</span></div>
+        <div><span class="no">3</span><span class="say">“Estás a 2 minutos de la crêperie”</span><span class="what">El aviso llega solo</span></div>
+        <div class="jury"><span class="no">4</span><span class="say">Ustedes eligen una ciudad</span><span class="what">Movemos la ubicación y le preguntan lo que quieran</span></div>
+      </div>
+      <aside class="notes"><b>0:25 · 2 min</b>Pasar a la app. Si el vivo falla, la diapositiva siguiente cuenta lo mismo animado. El paso 4 solo si lo probamos antes en Montevideo.</aside>
+    </div>
+  </section>
+
+  <!-- 4 · La historia animada -->
+  <section class="slide story" id="s4">
+    <div class="frame">
+      <div class="story-left">
+        <span class="eyebrow blue">El diferencial</span>
+        <h2 class="h2">La charla traducida se convierte en una visita</h2>
+        <div class="phone">
+          <div class="bar"><span class="clock" id="story-clock">10:05</span><span>●●● ▮</span></div>
+          <p class="tr-head">Traductor · Français ↔ Español</p>
+          <div class="bub" id="b1"><span class="lang">Camille</span>Allez au Breizh Café, c’est la meilleure crêperie du quartier.</div>
+          <div class="bub es" id="b1t"><span class="lang">Traducción</span>Andá al Breizh Café, es la mejor crêperie del barrio.</div>
+          <span class="saved" id="saved">Guardado en tu mapa · de Camille</span>
+          <div class="note-card push" id="push">
+            <span class="cat" style="background: var(--red)"><svg><use href="#i-utensils"/></svg></span>
+            <div class="body">
+              <div class="top"><h4>Breizh Café</h4><span class="when">ahora</span></div>
+              <p>Estás a 2 minutos de la crêperie que te recomendó Camille.</p>
+              <small>¿Te llevo?</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="story-map">
+        <svg id="story-map" viewBox="0 0 600 440" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mapa: la recomendación de Camille queda marcada; horas después Lucía pasa cerca y le llega el aviso"></svg>
+        <button type="button" class="replay" id="replay">Repetir</button>
+      </div>
+      <aside class="notes"><b>Respaldo</b>Si la demo en vivo falla, contar esto mientras se anima. Si salió bien, saltear.</aside>
+    </div>
+  </section>
+
+  <!-- 5 · Por qué IA -->
+  <section class="slide" data-steps="2" id="s5">
+    <div class="frame">
+      <span class="eyebrow blue">Por qué la IA es indispensable</span>
+      <h2 class="h2">Un agente que escucha, decide qué buscar y responde con voz y pantalla</h2>
+      <div class="flow">
+        <svg viewBox="0 0 1000 330" role="img" aria-label="Diagrama: tu voz, tu ubicación, la cámara y la charla con un residente entran al agente; el agente usa herramientas de lugares, eventos, itinerario, memoria, rutas y frases; responde con voz, una pantalla generada y avisos al celular">
+          <defs>
+            <radialGradient id="g-ball" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#e9f1ff"/><stop offset="1" stop-color="#b9cfff"/></radialGradient>
+            <radialGradient id="g-s1"><stop offset="0" stop-color="#2f6bff"/><stop offset="1" stop-color="#2f6bff" stop-opacity="0"/></radialGradient>
+            <radialGradient id="g-s2"><stop offset="0" stop-color="#7b5cff"/><stop offset="1" stop-color="#7b5cff" stop-opacity="0"/></radialGradient>
+            <radialGradient id="g-s3"><stop offset="0" stop-color="#ff7ac8"/><stop offset="1" stop-color="#ff7ac8" stop-opacity="0"/></radialGradient>
+            <clipPath id="clip-ball"><circle cx="500" cy="150" r="72"/></clipPath>
+          </defs>
+          <text class="col-lbl" x="10" y="14">ENTRA</text>
+          <text class="col-lbl" x="785" y="14">SALE</text>
+          <g data-at="0">
+            <path class="wire" d="M215 52 C 320 52, 340 140, 428 146"/>
+            <path class="wire" d="M215 122 C 320 122, 340 148, 428 150"/>
+            <path class="wire" d="M215 192 C 320 192, 340 154, 428 154"/>
+            <path class="wire" d="M215 262 C 320 262, 340 160, 428 158"/>
+            <g class="node"><rect x="10" y="28" width="205" height="48" rx="14"/><rect x="20" y="38" width="28" height="28" rx="8" fill="#007aff"/><svg x="25" y="43" width="18" height="18" viewBox="0 0 24 24"><use href="#i-mic"/></svg><text x="58" y="49">Tu voz</text><text class="sub" x="58" y="66">llamada en tiempo real</text></g>
+            <g class="node"><rect x="10" y="98" width="205" height="48" rx="14"/><rect x="20" y="108" width="28" height="28" rx="8" fill="#34c759"/><svg x="25" y="113" width="18" height="18" viewBox="0 0 24 24"><use href="#i-pin"/></svg><text x="58" y="119">Dónde estás</text><text class="sub" x="58" y="136">ubicación y hora local</text></g>
+            <g class="node"><rect x="10" y="168" width="205" height="48" rx="14"/><rect x="20" y="178" width="28" height="28" rx="8" fill="#8e8e93"/><svg x="25" y="183" width="18" height="18" viewBox="0 0 24 24"><use href="#i-camera"/></svg><text x="58" y="189">La cámara</text><text class="sub" x="58" y="206">“¿qué es esto?”</text></g>
+            <g class="node"><rect x="10" y="238" width="205" height="48" rx="14"/><rect x="20" y="248" width="28" height="28" rx="8" fill="#ff9500"/><svg x="25" y="253" width="18" height="18" viewBox="0 0 24 24"><use href="#i-lang"/></svg><text x="58" y="259">El residente</text><text class="sub" x="58" y="276">charla traducida</text></g>
+            <g>
+              <circle cx="500" cy="150" r="92" fill="#7b5cff" opacity=".1"/>
+              <circle cx="500" cy="150" r="72" fill="url(#g-ball)"/>
+              <g clip-path="url(#clip-ball)">
+                <circle cx="478" cy="168" r="56" fill="url(#g-s1)"><animateTransform attributeName="transform" type="rotate" from="0 500 150" to="360 500 150" dur="9s" repeatCount="indefinite"/></circle>
+                <circle cx="525" cy="140" r="48" fill="url(#g-s2)"><animateTransform attributeName="transform" type="rotate" from="360 500 150" to="0 500 150" dur="12s" repeatCount="indefinite"/></circle>
+                <circle cx="510" cy="125" r="26" fill="url(#g-s3)"><animateTransform attributeName="transform" type="rotate" from="0 500 150" to="360 500 150" dur="7s" repeatCount="indefinite"/></circle>
+              </g>
+              <text class="core-label" x="500" y="252" text-anchor="middle">Polo</text>
+            </g>
+          </g>
+          <g data-at="1">
+            <path class="wire" d="M455 262 L 230 290"/><path class="wire" d="M470 264 L 345 290"/><path class="wire" d="M485 266 L 465 290"/>
+            <path class="wire" d="M515 266 L 585 290"/><path class="wire" d="M530 264 L 705 290"/><path class="wire" d="M545 262 L 825 290"/>
+            <g class="tool"><rect x="175" y="290" width="110" height="34" rx="17"/><text x="230" y="312" text-anchor="middle">lugares</text></g>
+            <g class="tool"><rect x="290" y="290" width="110" height="34" rx="17"/><text x="345" y="312" text-anchor="middle">eventos</text></g>
+            <g class="tool"><rect x="410" y="290" width="110" height="34" rx="17"/><text x="465" y="312" text-anchor="middle">itinerario</text></g>
+            <g class="tool"><rect x="530" y="290" width="110" height="34" rx="17"/><text x="585" y="312" text-anchor="middle">memoria</text></g>
+            <g class="tool"><rect x="650" y="290" width="110" height="34" rx="17"/><text x="705" y="312" text-anchor="middle">rutas</text></g>
+            <g class="tool"><rect x="770" y="290" width="110" height="34" rx="17"/><text x="825" y="312" text-anchor="middle">frases</text></g>
+          </g>
+          <g data-at="2">
+            <path class="wire" d="M572 142 C 680 135, 700 60, 785 52"/>
+            <path class="wire" d="M572 150 C 680 150, 700 122, 785 122"/>
+            <path class="wire" d="M572 158 C 680 170, 700 192, 785 192"/>
+            <g class="node"><rect x="785" y="28" width="210" height="48" rx="14"/><rect x="795" y="38" width="28" height="28" rx="8" fill="#0071e3"/><svg x="800" y="43" width="18" height="18" viewBox="0 0 24 24"><use href="#i-speaker"/></svg><text x="833" y="49">Te responde</text><text class="sub" x="833" y="66">con voz, y lo interrumpís</text></g>
+            <g class="node"><rect x="785" y="98" width="210" height="48" rx="14"/><rect x="795" y="108" width="28" height="28" rx="8" fill="#5856d6"/><svg x="800" y="113" width="18" height="18" viewBox="0 0 24 24"><use href="#i-screen"/></svg><text x="833" y="119">Arma la pantalla</text><text class="sub" x="833" y="136">solo lugares reales</text></g>
+            <g class="node"><rect x="785" y="168" width="210" height="48" rx="14"/><rect x="795" y="178" width="28" height="28" rx="8" fill="#ff3b30"/><svg x="800" y="183" width="18" height="18" viewBox="0 0 24 24"><use href="#i-bell"/></svg><text x="833" y="189">Te avisa</text><text class="sub" x="833" y="206">cuando pasás cerca</text></g>
+          </g>
+        </svg>
+      </div>
+      <p class="without" data-at="2"><b>Sin la IA</b><span class="muted">no hay conversación, ni traducción, ni nadie que decida: queda un mapa con 200 lugares.</span></p>
+      <aside class="notes"><b>2:25 · 15 s</b>Tres clics. "El agente escucha, decide qué herramienta usar y responde. Sin IA queda un mapa con 200 pines."</aside>
+    </div>
+  </section>
+
+  <!-- 6 · Real y simulado -->
+  <section class="slide" id="s6">
+    <div class="frame">
+      <span class="eyebrow blue">Lo que vieron</span>
+      <h2 class="h2">Qué funciona hoy y qué simulamos</h2>
+      <div class="cols3">
+        <div class="group real"><h3>Funciona en vivo</h3>
+          <ul>
+            <li><span class="dotc">✓</span><div>Voz en tiempo real<span>se interrumpe hablando</span></div></li>
+            <li><span class="dotc">✓</span><div>Lugares reales de Google<span>con fotos, horarios y minutos a pie</span></div></li>
+            <li><span class="dotc">✓</span><div>Traducción en las dos direcciones<span>y el tip queda en el mapa</span></div></li>
+            <li><span class="dotc">✓</span><div>Cámara, plan por voz y avisos</div></li>
+          </ul>
+        </div>
+        <div class="group sim"><h3>Simulado</h3>
+          <ul>
+            <li><span class="dotc">◎</span><div>La ubicación GPS<span>la elegimos con un buscador; se puede mover a cualquier ciudad</span></div></li>
+          </ul>
+        </div>
+        <div class="group plan"><h3>Todavía no</h3>
+          <ul>
+            <li><span class="dotc">–</span><div>Cobro a locales por visita</div></li>
+            <li><span class="dotc">–</span><div>Links de afiliado</div></li>
+          </ul>
+        </div>
+      </div>
+      <div class="proof">
+        <div><span class="n">12 / 12</span><p>pantallas correctas en nuestra prueba con casos reales, unos 1,3 s cada una</p></div>
+        <div><span class="n">0</span><p>lugares inventados: la pantalla solo muestra lo que devolvió la búsqueda en Google</p></div>
+        <div><span class="n">≤ US$0,30</span><p>por llamada de voz: se corta sola al llegar a ese tope</p></div>
+      </div>
+      <aside class="notes"><b>2:40 · 10 s</b>Decirlo antes de que lo pregunten: la ubicación es simulada y el cobro no está construido.</aside>
+    </div>
+  </section>
+
+  <!-- 7 · Cierre -->
+  <section class="slide close" id="s7">
+    <div class="frame">
+      <blockquote>Google y ChatGPT te ayudan a planear el viaje. <span>Polo te acompaña mientras lo vivís.</span></blockquote>
+      <p class="sign"><span class="app-icon"><svg viewBox="0 0 24 24"><use href="#i-nav"/></svg></span>Polo</p>
+      <aside class="notes"><b>2:50 · 10 s</b>Leer la frase y callarse.</aside>
+    </div>
+  </section>
+
+  <!-- A0 · Anexo -->
+  <section class="slide divider" data-annex id="a0">
+    <div class="frame">
+      <span class="annex-tag">Anexo · para las preguntas</span>
+      <h2 class="big">Preguntas</h2>
+      <div class="qlist">
+        <p><b>A1</b>¿En qué se diferencia de Maps o de Claude?</p>
+        <p><b>A2</b>¿Cuál es el mercado?</p>
+        <p><b>A3</b>¿Cómo gana plata?</p>
+        <p><b>A4</b>Preguntas difíciles</p>
+        <p><b>A5</b>Fuentes</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- A1 · Maps y Claude -->
+  <section class="slide" data-annex id="a1">
+    <div class="frame">
+      <span class="annex-tag">A1 · Competencia</span>
+      <h2 class="h2">Todos ayudan a planear. Nadie te acompaña y te avisa.</h2>
+      <div class="vs">
+        <div class="quad-wrap">
+          <div class="yaxis"><span>Vos preguntás</span><span>Te avisa solo</span></div>
+          <div class="quad" role="img" aria-label="Mapa de competidores: de antes del viaje a durante, y de reactivo a proactivo. Polo es el único arriba a la derecha.">
+            <div class="q-tr"></div>
+            <span class="dot" style="--x: 8%; --y: 74%">ChatGPT · Claude</span>
+            <span class="dot" style="--x: 8%; --y: 58%">Mindtrip · Layla</span>
+            <span class="dot" style="--x: 20%; --y: 88%">GetYourGuide · Viator</span>
+            <span class="dot r" style="--x: 91%; --y: 80%">Google Maps</span>
+            <span class="dot r" style="--x: 89%; --y: 64%">Audioguías</span>
+            <span class="dot r" style="--x: 74%; --y: 42%">Accor (solo huéspedes)</span>
+            <span class="dot polo" style="--x: 72%; --y: 18%">Polo</span>
+          </div>
+          <div class="xaxis"><span>Antes del viaje</span><span>Durante, en la calle</span></div>
+        </div>
+        <div class="answers">
+          <div><h3>¿Y Google Maps?</h3><p>Maps contesta lo que buscás. Polo sabe <b>tus gustos, tu tiempo libre, tu plan y lo que te dijo un residente</b>, y te habla sin que preguntes. Usamos los datos de Google; les sumamos el contexto del viajero.</p></div>
+          <div><h3>¿Y Claude o ChatGPT?</h3><p>Son asistentes generales para planear desde el sillón. Polo está en la calle con vos: <b>ubicación en vivo, plan que edita, memoria del viaje y avisos al celular</b>. El modelo no es la ventaja; todo lo de alrededor sí.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- A2 · Mercado -->
+  <section class="slide" data-annex id="a2">
+    <div class="frame">
+      <span class="annex-tag">A2 · Mercado</span>
+      <h2 class="h2">US$271 mil millones en experiencias; solo un tercio se reserva online</h2>
+      <div class="market">
+        <svg viewBox="0 0 400 300" role="img" aria-label="Círculos anidados, no a escala: 271 mil millones de dólares en experiencias, 89 mil millones online, París 15,6 mil millones de euros">
+          <circle class="ring" cx="200" cy="150" r="140" fill="#e1ecfb"/>
+          <circle class="ring r2" cx="200" cy="200" r="88" fill="#8fbaf0"/>
+          <circle class="ring r3" cx="200" cy="252" r="36" fill="#0071e3"/>
+          <text class="ring-t" x="200" y="50" text-anchor="middle" fill="#1d1d1f">US$271 B</text>
+          <text class="ring-l" x="200" y="68" text-anchor="middle" fill="#86868b">EXPERIENCIAS · MUNDO</text>
+          <text class="ring-t" x="200" y="158" text-anchor="middle" fill="#1d1d1f" style="font-size: 20px">≈ US$89 B</text>
+          <text class="ring-l" x="200" y="175" text-anchor="middle" fill="#1d1d1f">ONLINE (33%)</text>
+          <text class="ring-t" x="200" y="257" text-anchor="middle" fill="#ffffff" style="font-size: 13px">París</text>
+        </svg>
+        <div class="mk">
+          <div><span class="v">US$271 B</span><p>Tours, actividades y atracciones en 2025; US$342 B en 2029 (Arival / Phocuswright).</p></div>
+          <div><span class="v">33%</span><p>de las experiencias se reservan online, contra 64% del resto del viaje: se decide en la calle.</p></div>
+          <div><span class="v blue-t">€15,6 B</span><p>gastaron los 23,2 M de turistas internacionales en París y su región en 2025.</p></div>
+          <div><span class="v">77%</span><p>de los viajeros quiere experiencias auténticas de la cultura local (Booking.com, 2025).</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- A3 · Monetización -->
+  <section class="slide" data-annex id="a3">
+    <div class="frame">
+      <span class="annex-tag">A3 · Cómo gana plata</span>
+      <h2 class="h2">Los locales pagan por visitas reales, no por clics</h2>
+      <div class="money">
+        <div class="m main"><span class="tag">Central</span><h3>Pago por visita</h3><p>El local paga cuando el viajero entra de verdad. Solo se destaca entre lugares que ya encajan con tus gustos, y se marca. TheFork cobra €2–4 por comensal.</p></div>
+        <div class="m"><span class="tag">Desde el primer usuario</span><h3>Afiliados</h3><p>Tours, museos y eventos con link de afiliado. GetYourGuide y Viator pagan ≈ 8%.</p></div>
+        <div class="m"><span class="tag">Desde el primer usuario</span><h3>Pase de viaje</h3><p>Gratis con minutos de voz limitados; €4,99 por viaje con voz ilimitada, traductor y avisos.</p></div>
+      </div>
+      <div class="unit">
+        <div class="unit-head"><span class="n">≈ €11,75</span><span>por viaje de 4 días en París, contra €0,55–1,65 de costo de voz</span></div>
+        <div class="stack" role="img" aria-label="Ingreso por viaje: locales 6 euros, experiencia 4,80, pase 0,50, eSIM 0,45">
+          <div class="b1" style="--w: 51.1%">Locales €6,00</div>
+          <div class="b2" style="--w: 40.8%">Experiencia €4,80</div>
+          <div class="b3" style="--w: 4.3%"></div>
+          <div class="b4" style="--w: 3.8%"></div>
+        </div>
+        <div class="cost"><i></i><span>costo de voz, hasta €1,65</span></div>
+        <p class="assume">Supuestos nuestros, no datos medidos: 4 visitas × €1,50 · 1 experiencia de €60 × 8% · 10% compra el pase (€0,50) · 30% compra eSIM de €15 × 10% (€0,45). Con el 1% de los turistas de París son ≈ €2,7 M al año.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- A4 · Preguntas difíciles -->
+  <section class="slide" data-annex id="a4">
+    <div class="frame">
+      <span class="annex-tag">A4 · Preguntas difíciles</span>
+      <div class="hard">
+        <div><h3>“¿No es un ranking con reglas fijas?”</h3><p>El ranking es una herramienta más. <b>El agente decide cuándo usarla</b>, la combina con búsqueda, eventos y lo que dijo el residente, y lo explica por voz. Sin IA no hay conversación, traducción ni cámara.</p></div>
+        <div><h3>“¿Las recomendaciones pagas son honestas?”</h3><p>El pago <b>solo ordena entre lugares que ya encajan</b> con tus gustos y se marca como destacado, como exige la directiva Omnibus de la UE.</p></div>
+        <div><h3>“¿Graban al residente?”</h3><p>Se traduce en vivo y <b>se guarda el lugar recomendado</b>, no el audio. En un producto real, el residente ve en la pantalla que habla con un traductor.</p></div>
+        <div><h3>“¿Cómo saben que entró al local?”</h3><p>Por ubicación: llegó y se quedó. <b>Todavía no está construido</b>; es cómo lo vamos a medir.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- A5 · Fuentes -->
+  <section class="slide" data-annex id="a5">
+    <div class="frame">
+      <span class="annex-tag">A5 · Fuentes</span>
+      <ol class="sources">
+        <li><a href="https://www.hospitalitynet.org/news/4130515.html">UN Tourism, llegadas internacionales 2025</a></li>
+        <li><a href="https://www.traveldailynews.com/statistics-trends/global-experiences-market-projected-to-reach-342bn-by-2029/">Arival / Phocuswright, mercado de experiencias</a></li>
+        <li><a href="https://transition-pathways.europa.eu/system/files/2025-05/2025travelampsustainabilityreport-booking.com2_.pdf">Booking.com, Sustainable Travel Report 2025</a></li>
+        <li><a href="https://business.adobe.com/au/blog/consumers-embrace-generative-ai-for-trip-planning">Adobe, IA generativa para planear viajes</a></li>
+        <li><a href="https://www.lechotouristique.com/article/ile-de-france-en-2025-la-clientele-etrangere-compense-le-leger-repli-du-marche-domestique">L’Écho touristique, Île-de-France 2025</a></li>
+        <li><a href="https://quartr.com/events/tripadvisor-inc-trip-q3-2025_3Y1ZMapy">Tripadvisor Q3 2025 (Viator)</a></li>
+        <li><a href="https://www.businesswire.com/news/home/20260212812443/en/Yelp-Delivers-Record-Net-Revenue-in-2025-Accelerating-Investment-in-AI-Transformation/">Yelp, resultados 2025</a></li>
+        <li><a href="https://www.travelagentcentral.com/hotels/accor-launches-ai-travel-companion-scale">Accor ALL Concierge</a></li>
+        <li><a href="https://restaurant.eatapp.co/en/blog/best-restaurant-reservation-software-france">Comisión de TheFork</a></li>
+        <li><a href="https://track360.io/blog/viator-getyourguide-affiliate-programs-operator-teardown-2026">Afiliados Viator y GetYourGuide</a></li>
+        <li><a href="https://www.airalo.com/blog/airalo-affiliate-program-faqs">Afiliados Airalo</a></li>
+        <li><a href="https://eur-lex.europa.eu/eli/dir/2019/2161/oj">Directiva Omnibus (UE) 2019/2161</a></li>
+      </ol>
+    </div>
+  </section>
+</main>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg"
+  const $ = (s, r = document) => r.querySelector(s)
+  const el = (tag, attrs = {}, parent) => {
+    const n = document.createElementNS(NS, tag)
+    for (const k in attrs) n.setAttribute(k, attrs[k])
+    if (parent) parent.appendChild(n)
+    return n
+  }
+  const rng = (seed) => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296 }
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches
+
+  /* Esfera de voz: los mismos cuatro colores que voice-sphere.tsx */
+  const SPOTS = [["#2F6BFF", 78, 18, 9, 0], ["#7B5CFF", 66, 24, 12, -2.2], ["#12B8FF", 60, 22, 7, -4.1], ["#FF7AC8", 40, 28, 10, -1.1]]
+  document.querySelectorAll("[data-sphere] .ball").forEach((ball) => {
+    SPOTS.forEach(([c, size, orbit, s, p]) => {
+      const d = document.createElement("div")
+      d.className = "spot"
+      Object.assign(d.style, { width: size + "%", height: size + "%", left: (100 - size) / 2 + "%", top: (100 - size) / 2 + "%", background: `radial-gradient(circle, ${c} 0%, ${c}cc 35%, ${c}00 72%)` })
+      d.style.setProperty("--o", orbit + "%"); d.style.setProperty("--s", s + "s"); d.style.setProperty("--p", p + "s")
+      ball.appendChild(d)
+    })
+    const gloss = document.createElement("div"); gloss.className = "gloss"; ball.appendChild(gloss)
+  })
+
+  /* Mapa claro: manzanas, calles blancas y el Sena */
+  function city(svg, w, h, seed, cols, rows) {
+    const r = rng(seed), pts = []
+    for (let j = 0; j <= rows; j++) { pts[j] = []; for (let i = 0; i <= cols; i++) pts[j][i] = [i * w / cols + (r() - .5) * w / cols * .6, j * h / rows + (r() - .5) * h / rows * .6] }
+    const blocks = el("g", {}, svg), streets = el("g", {}, svg)
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+      const a = pts[j][i], b = pts[j][i + 1], c = pts[j + 1][i + 1], d = pts[j + 1][i]
+      const cx = (a[0] + b[0] + c[0] + d[0]) / 4, cy = (a[1] + b[1] + c[1] + d[1]) / 4, k = .8
+      const q = [a, b, c, d].map(([x, y]) => `${(cx + (x - cx) * k).toFixed(1)},${(cy + (y - cy) * k).toFixed(1)}`).join(" ")
+      if (r() < .9) el("polygon", { class: "block", points: q }, blocks)
+    }
+    for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
+      const p = pts[j][i]
+      if (i < cols) el("line", { class: "street", x1: p[0], y1: p[1], x2: pts[j][i + 1][0], y2: pts[j][i + 1][1] }, streets)
+      if (j < rows) el("line", { class: "street", x1: p[0], y1: p[1], x2: pts[j + 1][i][0], y2: pts[j + 1][i][1] }, streets)
+    }
+  }
+
+  /* ---- Diapositiva 2: 200 lugares → 2 ---- */
+  const sceneSvg = $("#scene-map")
+  city(sceneSvg, 800, 520, 7, 12, 8)
+  el("path", { class: "seine", d: "M-20,480 C150,440 260,510 420,475 S690,410 820,440" }, sceneSvg)
+  const you = [330, 280]
+  el("circle", { class: "iso", cx: you[0], cy: you[1], r: 200 }, sceneSvg)
+  el("text", { class: "iso-lbl", x: you[0] - 40, y: you[1] + 188 }, sceneSvg).textContent = "10 min a pie"
+  const COLORS = ["#ff3b30", "#ff3b30", "#ff3b30", "#ff3b30", "#ff9500", "#a2845e", "#8e8e93", "#5856d6"]
+  const r1 = rng(42), pinsG = el("g", {}, sceneSvg)
+  for (let k = 0; k < 200; k++) {
+    const x = 16 + r1() * 768, y = 20 + r1() * 420, c = COLORS[Math.floor(r1() * COLORS.length)]
+    const g = el("g", { class: "pin" }, el("g", { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)})` }, pinsG))
+    g.style.setProperty("--d", (k * 9) + "ms")
+    el("circle", { r: 6, fill: c }, g)
+  }
+  const KEEP = [
+    { x: 410, y: 170, name: "Marché des Enfants Rouges", line: "4 min a pie · ~30 min de visita", sub: "Abierto · mercado cubierto", color: "#ff3b30", icon: "i-basket", cx: 425, cy: 88 },
+    { x: 470, y: 250, name: "Square du Temple", line: "6 min a pie · ~20 min de visita", sub: "Abierto · parque", color: "#34c759", icon: "i-trees", cx: 425, cy: 266 },
+  ]
+  KEEP.forEach((p, k) => {
+    const g = el("g", { class: "pin keep" }, el("g", { transform: `translate(${p.x} ${p.y})` }, pinsG))
+    g.style.setProperty("--d", (1820 + k * 9) + "ms")
+    el("circle", { r: 6, fill: p.color }, g)
+  })
+  el("circle", { class: "you-halo", cx: you[0], cy: you[1], r: 18 }, sceneSvg)
+  el("circle", { class: "you", cx: you[0], cy: you[1], r: 9 }, sceneSvg)
+  KEEP.forEach((p) => {
+    const fo = el("foreignObject", { x: p.cx, y: p.cy, width: 290, height: 80, class: "fo-card" }, sceneSvg)
+    fo.innerHTML = `<div xmlns="http://www.w3.org/1999/xhtml" class="note-card"><span class="cat" style="background:${p.color}"><svg viewBox="0 0 24 24"><use href="#${p.icon}"/></svg></span><div class="body"><div class="top"><h4>${p.name}</h4></div><p>${p.line}</p><small>${p.sub}</small></div></div>`
+  })
+
+  let countTimer
+  function sceneCount(step) {
+    clearInterval(countTimer)
+    const n = $("#pin-count"), lbl = $("#pin-lbl")
+    $("#s2").classList.toggle("focus", step >= 1)
+    if (step >= 1) { n.textContent = "2"; lbl.textContent = "con Polo"; return }
+    lbl.textContent = "lugares te muestra el mapa"
+    if (reduce) { n.textContent = "200"; return }
+    const t0 = performance.now()
+    countTimer = setInterval(() => {
+      const v = Math.min(200, Math.round((performance.now() - t0) / 1820 * 200))
+      n.textContent = v; if (v >= 200) clearInterval(countTimer)
+    }, 30)
+  }
+
+  /* ---- Diapositiva 4: la historia ---- */
+  const storySvg = $("#story-map")
+  city(storySvg, 600, 440, 19, 9, 7)
+  el("path", { class: "seine", d: "M-20,425 C120,395 230,445 360,415 S560,375 620,390" }, storySvg)
+  const trail = el("path", { class: "trail", d: "M70,360 L150,325 L190,262 L280,240 L330,180 L392,166" }, storySvg)
+  const pinXY = [452, 128]
+  const fence = el("circle", { class: "fence", cx: pinXY[0], cy: pinXY[1], r: 74 }, storySvg)
+  const cpin = el("g", { class: "cpin" }, el("g", { transform: `translate(${pinXY[0]} ${pinXY[1]})` }, storySvg))
+  el("circle", { r: 11, fill: "#ff3b30", stroke: "#fff", "stroke-width": 2.5 }, cpin)
+  const lb = el("text", { class: "map-lbl", x: pinXY[0] - 40, y: pinXY[1] - 22 }, storySvg); lb.textContent = "Breizh Café"
+  const ls = el("text", { class: "map-sub", x: pinXY[0] - 40, y: pinXY[1] - 8 }, storySvg); ls.textContent = "de Camille"
+  lb.style.opacity = ls.style.opacity = 0
+  const halo = el("circle", { class: "you-halo", r: 16, cx: 70, cy: 360 }, storySvg)
+  const walker = el("circle", { class: "you", r: 8, cx: 70, cy: 360 }, storySvg)
+  const moveWalker = (x, y) => { walker.setAttribute("cx", x); walker.setAttribute("cy", y); halo.setAttribute("cx", x); halo.setAttribute("cy", y) }
+
+  const SHOWN = ["#b1", "#b1t", "#saved", "#push"]
+  let storyTimers = [], walkRaf
+  function storyReset() {
+    storyTimers.forEach(clearTimeout); storyTimers = []; cancelAnimationFrame(walkRaf)
+    SHOWN.forEach(s => $(s).classList.remove("shown"))
+    cpin.classList.remove("shown"); fence.classList.remove("shown", "hit")
+    lb.style.opacity = ls.style.opacity = 0
+    moveWalker(70, 360); $("#story-clock").textContent = "10:05"
+  }
+  function storyFinal() {
+    storyReset()
+    SHOWN.forEach(s => $(s).classList.add("shown"))
+    cpin.classList.add("shown"); fence.classList.add("shown"); lb.style.opacity = ls.style.opacity = 1
+    const end = trail.getPointAtLength(trail.getTotalLength()); moveWalker(end.x, end.y)
+    $("#story-clock").textContent = "19:40"
+  }
+  function storyPlay() {
+    if (reduce) { storyFinal(); return }
+    storyReset()
+    const at = (ms, fn) => storyTimers.push(setTimeout(fn, ms))
+    at(500, () => $("#b1").classList.add("shown"))
+    at(1700, () => $("#b1t").classList.add("shown"))
+    at(2900, () => { $("#saved").classList.add("shown"); cpin.classList.add("shown"); lb.style.opacity = ls.style.opacity = 1 })
+    at(4300, () => { $("#story-clock").textContent = "19:40"; fence.classList.add("shown") })
+    at(4600, () => {
+      const len = trail.getTotalLength(), t0 = performance.now(), dur = 3200
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / dur), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
+        const p = trail.getPointAtLength(len * e); moveWalker(p.x, p.y)
+        if (k < 1) walkRaf = requestAnimationFrame(step)
+      }
+      walkRaf = requestAnimationFrame(step)
+    })
+    at(7400, () => fence.classList.add("hit"))
+    at(7700, () => $("#push").classList.add("shown"))
+  }
+  $("#replay").addEventListener("click", (e) => { e.stopPropagation(); storyPlay() })
+
+  /* ---- Navegación ---- */
+  const slides = [...document.querySelectorAll(".slide")]
+  const prog = $("#progress")
+  slides.forEach(s => { const i = document.createElement("i"); if (s.hasAttribute("data-annex")) i.className = "annex"; prog.appendChild(i) })
+  let idx = 0, step = 0, mode = ""
+  const stepsOf = (s) => +(s.dataset.steps || 0)
+  const reveal = (s) => s.querySelectorAll("[data-at]").forEach(n => n.classList.toggle("on", +n.dataset.at <= step))
+
+  function apply() {
+    slides.forEach((s, i) => s.classList.toggle("active", i === idx))
+    const s = slides[idx]
+    reveal(s)
+    ;[...prog.children].forEach((b, i) => { b.classList.toggle("done", i < idx); b.classList.toggle("now", i === idx) })
+    if (s.id === "s2") sceneCount(step)
+    if (s.id === "s4") storyPlay(); else storyReset()
+    try { history.replaceState(null, "", "#" + s.id) } catch {}
+  }
+  function go(i, st = 0) {
+    const ni = Math.max(0, Math.min(slides.length - 1, i))
+    if (ni !== idx) { slides[ni].classList.remove("active"); void slides[ni].offsetWidth }
+    idx = ni; step = st; apply()
+  }
+  function next() {
+    const s = slides[idx]
+    if (step < stepsOf(s)) { step++; reveal(s); if (s.id === "s2") sceneCount(step) }
+    else if (idx < slides.length - 1) go(idx + 1, 0)
+  }
+  function prev() {
+    const s = slides[idx]
+    if (step > 0) { step--; reveal(s); if (s.id === "s2") sceneCount(step) }
+    else if (idx > 0) go(idx - 1, stepsOf(slides[idx - 1]))
+  }
+
+  const narrow = matchMedia("(max-width: 760px), (max-aspect-ratio: 1/1)")
+  function setMode() {
+    const m = narrow.matches ? "scroll" : "slides"
+    if (m === mode) return
+    mode = m
+    document.body.classList.toggle("scroll", m === "scroll")
+    if (m === "scroll") {
+      slides.forEach(s => { s.classList.add("active", "all"); s.querySelectorAll("[data-at]").forEach(n => n.classList.add("on")) })
+      $("#s2").classList.add("focus"); $("#pin-count").textContent = "2"; $("#pin-lbl").textContent = "con Polo"
+      storyFinal()
+    } else {
+      slides.forEach(s => s.classList.remove("all"))
+      const h = location.hash.slice(1), start = slides.findIndex(s => s.id === h)
+      idx = -1; go(start >= 0 ? start : 0)
+    }
+  }
+  narrow.addEventListener("change", setMode)
+  setMode()
+
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+    const k = e.key
+    if (k === "n" || k === "N") return toggleNotes()
+    if (mode !== "slides") return
+    if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].includes(k)) { if ((k === " " || k === "Enter") && e.target.closest("button, a")) return; e.preventDefault(); next() }
+    else if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(k)) { e.preventDefault(); prev() }
+    else if (k === "Home") go(0)
+    else if (k === "End") go(slides.findIndex(s => s.id === "s7"))
+    else if (k === "a" || k === "A") go(slides.findIndex(s => s.id === "a0"))
+    else if (k === "t" || k === "T") toggleTimer()
+    else if (k === "f" || k === "F") toggleFs()
+  })
+  $("#deck").addEventListener("click", (e) => {
+    if (mode !== "slides" || e.target.closest("a, button, .notes")) return
+    if (e.clientX < innerWidth * .2) prev(); else next()
+  })
+  let tx = null
+  $("#deck").addEventListener("touchstart", (e) => { tx = e.touches[0].clientX }, { passive: true })
+  $("#deck").addEventListener("touchend", (e) => {
+    if (mode !== "slides" || tx === null) return
+    const dx = e.changedTouches[0].clientX - tx; tx = null
+    if (Math.abs(dx) > 50) dx < 0 ? next() : prev()
+  })
+
+  const notesBtn = $("#notes-btn")
+  function toggleNotes(force) {
+    const on = typeof force === "boolean" ? force : !document.body.classList.contains("show-notes")
+    document.body.classList.toggle("show-notes", on); notesBtn.setAttribute("aria-pressed", String(on))
+    try { localStorage.setItem("polo-notes", on ? "1" : "0") } catch {}
+  }
+  try { if (localStorage.getItem("polo-notes") === "1") toggleNotes(true) } catch {}
+  notesBtn.addEventListener("click", () => toggleNotes())
+
+  const timerEl = $("#timer"), timerBtn = $("#timer-btn")
+  let tStart = 0, tInt
+  function toggleTimer() {
+    if (tInt) { clearInterval(tInt); tInt = null; timerEl.hidden = true; timerEl.classList.remove("over"); timerBtn.setAttribute("aria-pressed", "false"); return }
+    tStart = Date.now(); timerEl.hidden = false; timerBtn.setAttribute("aria-pressed", "true")
+    const tick = () => { const s = Math.floor((Date.now() - tStart) / 1000); timerEl.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); timerEl.classList.toggle("over", s >= 180) }
+    tick(); tInt = setInterval(tick, 500)
+  }
+  timerBtn.addEventListener("click", toggleTimer)
+
+  function toggleFs() {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+      else document.documentElement.requestFullscreen?.().catch(() => {})
+    } catch {}
+  }
+  $("#fs-btn").addEventListener("click", toggleFs)
+
+  setTimeout(() => { $("#hint").style.opacity = 0 }, 4000)
+})()
+</script>

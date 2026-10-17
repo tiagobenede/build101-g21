@@ -12,6 +12,7 @@ import { matchInterests } from "@/lib/profile/interests"
 
 import {
   buildInterestQuestion,
+  distinctInterestPlaces,
   INTEREST_INSTRUCTIONS,
   optionsSignature,
   readInterestChoice,
@@ -52,20 +53,19 @@ const lastJevQuestion = new Map<string, { signature: string; at: number }>()
 type Row = Record<string, unknown>
 const one = <T>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null))
 
-/** Revisa si hay algo para avisar en esta posición y, si hay, lo guarda. */
-export async function checkProximity(db: SupabaseClient, userId: string, position: LatLng): Promise<Notification | null> {
+/** Revisa si hay algo para avisar en esta posición y, si hay, lo guarda. `now`: la hora del viajero (puede ser simulada). */
+export async function checkProximity(db: SupabaseClient, userId: string, position: LatLng, now = new Date()): Promise<Notification | null> {
   // Un ping a la vez por usuario: si el anterior todavía está decidiendo, este se saltea.
   if (running.has(userId)) return null
   running.add(userId)
   try {
-    return await check(db, userId, position)
+    return await check(db, userId, position, now)
   } finally {
     running.delete(userId)
   }
 }
 
-async function check(db: SupabaseClient, userId: string, position: LatLng): Promise<Notification | null> {
-  const now = new Date()
+async function check(db: SupabaseClient, userId: string, position: LatLng, now: Date): Promise<Notification | null> {
   const { data: sent, error: sentError } = await db
     .from("notifications")
     .select("place_id, created_at")
@@ -74,7 +74,9 @@ async function check(db: SupabaseClient, userId: string, position: LatLng): Prom
     .limit(500)
   if (sentError) throw new Error(`No se pudieron leer los avisos: ${sentError.message}`)
 
-  const lastNotifiedAt = sent[0] ? new Date(sent[0].created_at as string) : null
+  // Los avisos se guardan con la hora real: se pasan a la del viajero para medir la pausa.
+  const shiftMs = now.getTime() - Date.now()
+  const lastNotifiedAt = sent[0] ? new Date(new Date(sent[0].created_at as string).getTime() + shiftMs) : null
   if (inCooldown({ lastNotifiedAt, cooldownMs: COOLDOWN_MS, now })) return null
 
   const trip = await activeTrip(db)
@@ -95,7 +97,7 @@ async function check(db: SupabaseClient, userId: string, position: LatLng): Prom
     db.from("interests").select("tag").eq("user_id", userId),
     db
       .from("places")
-      .select("id, name, category, tags, description, rating, lat, lng, types:data->types")
+      .select("id, name, category, tags, description, rating, rating_count, lat, lng, types:data->types")
       .eq("listed", true)
       .gte("lat", box.minLat)
       .lte("lat", box.maxLat)
@@ -131,11 +133,19 @@ async function check(db: SupabaseClient, userId: string, position: LatLng): Prom
       category: p.category as string,
       matchedTags: matched,
       rating: p.rating as number | null,
+      ratingCount: p.rating_count as number | null,
       description: p.description as string | null,
       lat: p.lat as number,
       lng: p.lng as number,
     } as InterestPlace)
   }
+
+  // Fichas duplicadas y partes de otro lugar afuera, antes de mirar qué ya se avisó: si no, avisado
+  // el Louvre, al rato aparece su sala (Appartements Napoléon III) como si fuera otro lugar.
+  const interestKept = new Set(
+    distinctInterestPlaces(candidates.filter((c): c is InterestPlace => c.kind === "interest")).map((p) => p.placeId)
+  )
+  const shown = candidates.filter((c) => c.kind !== "interest" || interestKept.has(c.placeId))
 
   const nextLockedRow = plan.find((i) => i.locked && new Date(i.starts_at as string) > now)
   const nextLocked: NextLocked | null = nextLockedRow ? { placeId: nextLockedRow.place_id as string | null, startsAt: nextLockedRow.starts_at as string } : null
@@ -149,16 +159,17 @@ async function check(db: SupabaseClient, userId: string, position: LatLng): Prom
   }
   const timeZone = timeZoneAt(position)
 
-  const byRule = pickRuleCandidate(candidates, situation)
+  const byRule = pickRuleCandidate(shown, situation)
   if (byRule) return save(db, userId, byRule, reasonText(byRule, position, timeZone))
 
-  const liked = eligible(candidates, situation).filter((c): c is InterestPlace => c.kind === "interest")
+  const liked = eligible(shown, situation).filter((c): c is InterestPlace => c.kind === "interest")
   if (liked.length === 0 || !process.env.TYPESAFE_API_KEY) return null
 
   const signature = optionsSignature(liked)
   const previous = lastJevQuestion.get(userId)
-  if (previous?.signature === signature && now.getTime() - previous.at < JEV_REPEAT_MS) return null
-  lastJevQuestion.set(userId, { signature, at: now.getTime() })
+  // Freno de gasto: con la hora real, aunque el viajero cambie la simulada.
+  if (previous?.signature === signature && Date.now() - previous.at < JEV_REPEAT_MS) return null
+  lastJevQuestion.set(userId, { signature, at: Date.now() })
 
   const profile = profileRes.data as Row
   const time = (iso: string) => new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit", timeZone }).format(new Date(iso))
@@ -186,6 +197,7 @@ async function check(db: SupabaseClient, userId: string, position: LatLng): Prom
     console.error("[proximity] jev", err instanceof Error ? err.message : err)
     return null
   })
+  if (process.env.PROXIMITY_DEBUG) console.info("[proximity] jev pregunta:", JSON.stringify({ state, criteria }, null, 1))
   if (process.env.PROXIMITY_DEBUG && answer) {
     const name = (key: string) => options.get(key)?.name ?? key
     const probs = Object.entries(answer.probabilities ?? {}).sort(([, x], [, y]) => y - x)

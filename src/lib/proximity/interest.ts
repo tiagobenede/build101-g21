@@ -13,9 +13,43 @@ import type { Candidate } from "./rules"
 // Umbrales: se cambian en src/lib/tuning.ts (o por variable de entorno).
 export const MIN_INTEREST_CONFIDENCE = PROXIMITY.minInterestConfidence
 export const MAX_INTEREST_OPTIONS = PROXIMITY.maxInterestOptions
+export const MIN_INTEREST_REVIEWS = PROXIMITY.minInterestReviews
+export const SAME_POINT_METERS = PROXIMITY.samePointMeters
+/** Para que uno "se trague" a otro en el mismo punto, tiene que tener tantas veces más reseñas. */
+const MUCH_BETTER_KNOWN = 10
 export const NONE_KEY = "ninguno"
 
-export type InterestPlace = Candidate & { kind: "interest"; rating: number | null; description: string | null }
+export type InterestPlace = Candidate & {
+  kind: "interest"
+  rating: number | null
+  /** Reseñas en Google; null si no se sabe. */
+  ratingCount?: number | null
+  description: string | null
+}
+
+/** Reseñas de un lugar: sin puntaje ni reseñas, nadie lo reseñó; con puntaje pero sin el dato, no se sabe. */
+const reviews = (p: InterestPlace) => p.ratingCount ?? (p.rating === null ? 0 : null)
+
+/**
+ * Lo que vale la pena mostrarle a Jev: Google tiene fichas duplicadas o vacías (un
+ * "Museo del Louvre" con 1 reseña) y partes de un lugar listadas aparte (las salas del
+ * Louvre). Si van como opciones separadas, Jev reparte la confianza entre lo mismo.
+ */
+export function distinctInterestPlaces(places: readonly InterestPlace[]): InterestPlace[] {
+  const known = places.filter((p) => {
+    const n = reviews(p)
+    return n === null || n >= MIN_INTEREST_REVIEWS
+  })
+  return known.filter(
+    (p) =>
+      !known.some(
+        (other) =>
+          other !== p &&
+          (reviews(other) ?? 0) >= MUCH_BETTER_KNOWN * Math.max(reviews(p) ?? 0, 1) &&
+          distanceMeters(p, other) <= SAME_POINT_METERS
+      )
+  )
+}
 
 export type TravelerSnapshot = {
   interests: string[]

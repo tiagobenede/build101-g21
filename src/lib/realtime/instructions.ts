@@ -1,5 +1,6 @@
 import type { ItineraryItem, TravelerContext } from "@/lib/data/session"
 
+import { countryLanguage, LANGUAGES } from "@/lib/translate/config"
 import { zonedDateKey } from "@/lib/time/zoned"
 
 import { MAX_ITINERARY_IN_CONTEXT, MAX_PLACES_IN_CONTEXT } from "./config"
@@ -10,7 +11,7 @@ interface InstructionsInput {
     TravelerContext,
     "firstName" | "interests" | "travelStyle" | "locationLabel" | "nearby" | "itinerary" | "constraints" | "profileSummary"
   > &
-  Partial<Pick<TravelerContext, "companions">
+  Partial<Pick<TravelerContext, "companions" | "countryCode">
   >
   nextCommitment: ItineraryItem | null
   /** Una línea de Open-Meteo, o null si no se pudo traer. */
@@ -126,6 +127,18 @@ function constraintsLine({ dietary, mobility, dailyBudget, pace, schedule }: Tra
  * cercano solo dice "París" si no hay nada a 300 m; la calle y el barrio le dan al
  * agente dónde está parado de verdad.
  */
+/**
+ * Qué idioma se habla donde está. Si es castellano, como el viajero, el traductor y las
+ * frases no tienen sentido: sin esta línea el agente los ofrece igual (y en francés).
+ */
+export function languageLine(countryCode: string | null, firstName = "el viajero"): string | null {
+  const lang = countryLanguage(countryCode)
+  if (lang === "es") {
+    return `Acá se habla castellano, como ${firstName}: no ofrezcas el traductor ni uses show_phrase, aunque un mensaje del sistema lo sugiera. Si pregunta cómo decir algo, contestale directo.`
+  }
+  return lang ? `Idioma local: ${LANGUAGES[lang]}. Las frases de show_phrase van en ese idioma.` : null
+}
+
 export function locationLine(label: string, address: string | null): string {
   if (!address) return `${label}.`
   // "París" (sin lugar cerca) o "Place des Vosges" ya están dentro de la dirección.
@@ -172,6 +185,7 @@ Gustos (en orden de importancia): ${ctx.interests.join(", ")}.${ctx.travelStyle 
 ${[
   constraintsLine(ctx.constraints),
   ctx.profileSummary ? `Lo que aprendiste de ${ctx.firstName}: ${ctx.profileSummary}` : null,
+  languageLine(ctx.countryCode ?? null, ctx.firstName),
   localTipsLine(localTips),
   recentTranslation,
   companionsLine(companions, ctx.firstName),
@@ -188,7 +202,7 @@ Si pregunta dónde está, en qué calle o en qué esquina, decíselo con la call
 
 Pantalla: lo que devuelven recommend_nearby, search_places, search_events, get_place y show_route aparece en la pantalla del viajero en ese mismo momento y en ese orden. Hablá de esos lugares (el primero es el destacado) y nunca digas que no encontraste nada si el tool devolvió lugares; si no devolvió ninguno, la pantalla queda vacía. Para recomendar o mostrar un lugar usá siempre uno de esos tools, aunque esté en la lista de cerca, así lo que decís y lo que se ve coinciden. Los datos de place_facts también se ven en la pantalla. Si pregunta cómo se dice algo o qué decirle a alguien del lugar ("¿cómo pido un café?", "¿cómo le pregunto si tiene sin gluten?"), llamá a show_phrase con la frase corta en el idioma local y decila vos también.
 Si quiere ir a un lugar ("llevame", "dale, vamos para ahí", "¿cómo llego?", "mostrame cómo ir"), llamá a show_route con ese lugar (si dice "ahí" o "ese", es el que está en la pantalla o el último que nombraste): la pantalla pasa al mapa con la caminata. Decí los minutos que devuelve y para qué lado arrancar solo si lo sabés; no inventes calles.
-No preguntes cuánto tiempo tiene: si no lo dice, recommend_nearby usa el próximo compromiso del plan. Cuando pida qué hacer o adónde ir, llamá a recommend_nearby sin anunciarlo y recomendá el primer lugar que devuelva (mencioná otro solo si te lo pide); decí cuántos minutos camina y cuánto puede quedarse. Si tiene un compromiso, que llegue con margen. Está caminando: si dice "cerca" o "por acá", o pide comer o un café, no le ofrezcas nada a más de 10 min a pie; si dice que no le importa caminar, pasá un max_walk_minutes más alto. Si no devuelve lugares, decíselo y preguntá si quiere caminar más o hacer otra cosa.
+No preguntes cuánto tiempo tiene: si no lo dice, recommend_nearby usa el próximo compromiso del plan. Cuando pida qué hacer o adónde ir, llamá a recommend_nearby sin anunciarlo y recomendá el primer lugar que devuelva (mencioná otro solo si te lo pide); decí cuántos minutos camina y cuánto puede quedarse. Si además dice cuánto tiempo libre tiene ("tengo una hora", "hasta las 6"), llamá también a search_events con when "now": si hay un evento que empieza pronto y entra en ese tiempo, recomendá ese (con la hora y cuánto camina); si no, el lugar. Si tiene un compromiso, que llegue con margen: si recommend_nearby devuelve next_commitment_walk_min, lo que recomienda queda de camino; decí que le queda de paso a ese compromiso y cuánto camina después hasta ahí (then_walk_min). Está caminando: si dice "cerca" o "por acá", o pide comer o un café, no le ofrezcas nada a más de 10 min a pie; si dice que no le importa caminar, pasá un max_walk_minutes más alto. Si no devuelve lugares, decíselo y preguntá si quiere caminar más o hacer otra cosa.
 Si busca algo puntual (una comida concreta como sushi, ramen o vegetariano, un tipo de lugar o uno por su nombre), usá directamente search_places, no recommend_nearby; para un tipo de lugar pasá max_walk_minutes (10 si dijo "cerca"). Si pide "el mejor" o dice que no le importa caminar, usá search_places con max_walk_minutes 30 y decí cuánto camina. Mientras buscás la charla sigue: si el resultado llega con "late": true, retomalo con una frase como "ya tengo lo que buscabas".
 Tené en cuenta la hora y el día: recomendá lo que tiene sentido ahora (nada de desayuno de noche ni un museo que está por cerrar), entendé "esta noche", "mañana" o "en un rato" desde esta hora; lo que pide es para ahora o para hoy salvo que diga otra cosa, así que no le preguntes fechas ni para cuándo, y si pregunta la hora o el día, decíselos. Si va a llover, preferí lugares cubiertos y avisale. No leas el plan en voz alta: usalo para que lo que recomiendes no se superponga.
 Lo no negociable se respeta siempre: no recomiendes nada que lo contradiga.

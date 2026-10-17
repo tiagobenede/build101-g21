@@ -13,6 +13,7 @@ import { closingInfo } from "@/lib/places/opening"
 import { allowRequest } from "@/lib/realtime/rate-limit"
 import { getWeatherSummary } from "@/lib/weather"
 import { createClient } from "@/lib/supabase/server"
+import { serverNow } from "@/lib/time/server-clock"
 import { zonedDateKey, zonedTimeValue } from "@/lib/time/zoned"
 
 const MAX_PLACES = 6
@@ -96,10 +97,10 @@ const toGenUiPlace = (p: Place, origin: { lat: number; lng: number }): GenUiPlac
 })
 
 /** Suma si está abierto y cuándo cierra (Google, cacheado). Lo que tarda o falla queda en null. */
-async function withOpening(place: GenUiPlace, googleId: unknown, localTime: string, timeZone: string): Promise<GenUiPlace> {
+async function withOpening(place: GenUiPlace, googleId: unknown, now: Date, localTime: string, timeZone: string): Promise<GenUiPlace> {
   if (typeof googleId !== "string") return place
   const info = await Promise.race([
-    getOpeningInfo(googleId, new Date(), timeZone),
+    getOpeningInfo(googleId, now, timeZone),
     new Promise<null>((resolve) => setTimeout(() => resolve(null), OPENING_TIMEOUT_MS)),
   ])
   if (!info) return place
@@ -157,7 +158,7 @@ export async function POST(req: Request) {
     rows = (data ?? []) as PlaceWithData[]
     placeIds = namedPlaceIds(parsed.data.request, rows)
   }
-  const now = new Date()
+  const now = await serverNow()
   const localTime = zonedTimeValue(now.toISOString(), ctx.timeZone)
   const googleIds = new Map(rows.map((p) => [p.id, p.data?.google_place_id]))
   const places = await Promise.all(
@@ -165,7 +166,7 @@ export async function POST(req: Request) {
       rows.map((p) => toGenUiPlace(p, ctx.location)),
       placeIds,
       MAX_PLACES
-    ).map((p) => withOpening(p, googleIds.get(p.id), localTime, ctx.timeZone))
+    ).map((p) => withOpening(p, googleIds.get(p.id), now, localTime, ctx.timeZone))
   )
   // Una frase, una historia o una foto se muestran aunque no haya lugares.
   if (places.length === 0 && !story && !seen && !phrase)

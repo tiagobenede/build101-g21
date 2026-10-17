@@ -7,6 +7,7 @@ import { distanceMeters } from "@/lib/geo"
 import { REFRESH_DISTANCE_M } from "@/lib/location/simulate"
 import { checkProximity } from "@/lib/proximity/engine"
 import { createClient } from "@/lib/supabase/server"
+import { serverNow } from "@/lib/time/server-clock"
 
 const pingSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -47,8 +48,9 @@ export async function savePing(input: PingInput): Promise<PingResult> {
   if (!error) {
     // Avisos por cercanía (C-6): después de responder, para no frenar las demás server actions.
     const position = { lat: parsed.data.lat, lng: parsed.data.lng }
+    const now = await serverNow()
     after(async () => {
-      await checkProximity(await createClient(), user.id, position).catch((err: unknown) =>
+      await checkProximity(await createClient(), user.id, position, now).catch((err: unknown) =>
         console.error("[proximity]", err instanceof Error ? err.message : err)
       )
     })

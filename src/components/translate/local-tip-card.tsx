@@ -8,6 +8,7 @@ import { addTipToItinerary, dismissTip, saveTip } from "@/app/tips/actions"
 import { NotificationCard } from "@/components/rumbo/place-notification"
 import { placePhotoUrl } from "@/components/rumbo/place-thumb"
 import { Button } from "@/components/ui/button"
+import { clientNow } from "@/hooks/use-clock"
 import { zonedTimeValue } from "@/lib/time/zoned"
 import { planSlots, splitRecommender, type LocalTipView } from "@/lib/tips/view"
 import { cn } from "@/lib/utils"
@@ -117,7 +118,7 @@ export function LocalTipCard({ tip, timeZone, onChange, onGo, className }: Local
         ) : (
           <div className="flex items-center gap-1.5">
             {tip.placeId && !scheduled && (
-              <Button size="sm" className={ACTION} disabled={busy} onClick={() => setSlots(planSlots(Date.now()))}>
+              <Button size="sm" className={ACTION} disabled={busy} onClick={() => setSlots(planSlots(clientNow().getTime()))}>
                 <CalendarPlusIcon className="size-3.5" />
                 Agendar
               </Button>

@@ -4,6 +4,7 @@ import { ChevronRightIcon } from "lucide-react"
 import { Fragment, useActionState, useEffect, useState } from "react"
 import { toast } from "sonner"
 
+import { useLocation } from "@/components/location/location-provider"
 import { UserAvatar } from "@/components/rumbo/user-avatar"
 import { Card } from "@/components/ui/card"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
@@ -22,6 +23,7 @@ const INITIAL_STATE: LoginState = { error: null }
 export function AccountPicker({ accounts }: AccountPickerProps) {
   const [state, formAction, pending] = useActionState(loginAsDemo, INITIAL_STATE)
   const [selected, setSelected] = useState<string | null>(null)
+  const { teleport } = useLocation()
 
   useEffect(() => {
     if (state.error) toast.error(state.error)
@@ -39,7 +41,11 @@ export function AccountPicker({ accounts }: AccountPickerProps) {
                 name="email"
                 value={account.email}
                 disabled={pending}
-                onClick={() => setSelected(account.email)}
+                onClick={() => {
+                  setSelected(account.email)
+                  // La cuenta de la demo arranca en su lugar (el server lo guarda como primer ping).
+                  if (account.start) teleport(account.start)
+                }}
                 className="text-left disabled:cursor-wait"
               >
                 <ItemMedia>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { closingInfo, openLongEnough } from "./opening"
+import { closingInfo, hoursOfDay, mondayIndex, openAt, openLongEnough } from "./opening"
 
 describe("closingInfo", () => {
   it("cuánto falta para que cierre", () => {
@@ -49,5 +49,33 @@ describe("openLongEnough", () => {
 
   it("abierto sin cierre legible ('Abierto 24 horas') queda elegible", () => {
     expect(openLongEnough({ openNow: true, hoursToday: "Abierto 24 horas" }, "3:00", 10, 60)).toBe(true)
+  })
+})
+
+describe("openAt (hora simulada)", () => {
+  it("abierto dentro de un tramo, cerrado fuera", () => {
+    expect(openAt("7:00–14:00", "9:30")).toBe(true)
+    expect(openAt("7:00–14:00", "18:00")).toBe(false)
+  })
+
+  it("'Cerrado' y 'Abierto las 24 horas'", () => {
+    expect(openAt("Cerrado", "12:00")).toBe(false)
+    expect(openAt("Abierto las 24 horas", "3:00")).toBe(true)
+  })
+
+  it("sin horario no se sabe", () => {
+    expect(openAt(null, "12:00")).toBeNull()
+  })
+
+  it("toma el día de la semana de la zona (lunes = 0)", () => {
+    const week = ["lunes: 9:00–18:00", "martes: Cerrado", "miércoles: 9:00–18:00", "jueves: 9:00–18:00", "viernes: 9:00–18:00", "sábado: 10:00–20:00", "domingo: Cerrado"]
+    // Domingo 18/10/2026 a las 13:30 UTC: en París es domingo; en Nueva York también.
+    const sunday = new Date("2026-10-18T13:30:00Z")
+    expect(mondayIndex(sunday, "Europe/Paris")).toBe(6)
+    expect(hoursOfDay(week, mondayIndex(sunday, "Europe/Paris"))).toBe("Cerrado")
+    // Lunes 00:30 en París es todavía domingo en Nueva York.
+    const lateSunday = new Date("2026-10-18T22:30:00Z")
+    expect(mondayIndex(lateSunday, "Europe/Paris")).toBe(0)
+    expect(mondayIndex(lateSunday, "America/New_York")).toBe(6)
   })
 })

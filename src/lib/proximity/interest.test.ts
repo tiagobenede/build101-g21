@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { buildInterestQuestion, MAX_INTEREST_OPTIONS, NONE_KEY, optionsSignature, readInterestChoice, type InterestPlace, type TravelerSnapshot } from "./interest"
+import { buildInterestQuestion, distinctInterestPlaces, MAX_INTEREST_OPTIONS, NONE_KEY, optionsSignature, readInterestChoice, type InterestPlace, type TravelerSnapshot } from "./interest"
 
 const HERE = { lat: 48.8556, lng: 2.3655 }
 const place = (i: number, over: Partial<InterestPlace> = {}): InterestPlace => ({
@@ -61,5 +61,31 @@ describe("readInterestChoice", () => {
 describe("optionsSignature", () => {
   it("no depende del orden", () => {
     expect(optionsSignature([place(1), place(2)])).toBe(optionsSignature([place(2), place(1)]))
+  })
+})
+
+describe("distinctInterestPlaces", () => {
+  const names = (ps: InterestPlace[]) => ps.map((p) => p.name)
+  const louvre = place(0, { name: "Museo del Louvre", ratingCount: 380_389 })
+
+  it("saca las fichas con pocas reseñas o sin reseñas", () => {
+    const duplicate = place(9, { name: "Museo del Louvre", ratingCount: 1 })
+    const empty = place(8, { name: "ルーヴル美術館", rating: null, ratingCount: null })
+    expect(names(distinctInterestPlaces([louvre, duplicate, empty]))).toEqual(["Museo del Louvre"])
+  })
+
+  it("junta lo que está en el mismo punto que un lugar mucho más conocido", () => {
+    const room = { ...place(1, { name: "Appartements Napoléon III", ratingCount: 82 }), lat: louvre.lat, lng: louvre.lng }
+    expect(names(distinctInterestPlaces([louvre, room]))).toEqual(["Museo del Louvre"])
+  })
+
+  it("deja dos lugares conocidos en el mismo punto, y los que están más lejos", () => {
+    const twin = { ...place(1, { name: "Café vecino", ratingCount: 60_000 }), lat: louvre.lat, lng: louvre.lng }
+    const away = place(5, { name: "Galerie", ratingCount: 155 }) // a 50 m
+    expect(names(distinctInterestPlaces([louvre, twin, away]))).toEqual(["Museo del Louvre", "Café vecino", "Galerie"])
+  })
+
+  it("con puntaje pero sin el dato de reseñas, no lo saca", () => {
+    expect(distinctInterestPlaces([place(1)])).toHaveLength(1)
   })
 })

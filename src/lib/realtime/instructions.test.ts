@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { NearbyPlace } from "@/lib/data/session"
 
 import { MAX_PLACES_IN_CONTEXT } from "./config"
-import { buildInstructions, companionsLine, formatTodayPlan, localTipsLine, locationLine, nowLine } from "./instructions"
+import { buildInstructions, companionsLine, formatTodayPlan, languageLine, localTipsLine, locationLine, nowLine } from "./instructions"
 
 const PLANNED = { place_id: null, status: "planned", source: "user", locked: false, created_by: null } as const
 
@@ -197,5 +197,18 @@ describe("viaje compartido", () => {
     const plan = formatTodayPlan([item("aaaaaaaa1", "u-sofia"), item("bbbbbbbb2", "u-yo")], now, "Europe/Paris", new Map([["u-sofia", "Sofía"]]))
     expect(plan).toContain("Actividad aaaaaaaa1 (sumó Sofía)")
     expect(plan).not.toContain("Actividad bbbbbbbb2 (sumó")
+  })
+})
+
+describe("languageLine", () => {
+  it("en un país de habla castellana no ofrece el traductor", () => {
+    expect(languageLine("UY", "Lucía")).toMatch(/castellano, como Lucía: no ofrezcas el traductor/)
+  })
+  it("dice el idioma local en otro país", () => {
+    expect(languageLine("FR")).toBe("Idioma local: Français. Las frases de show_phrase van en ese idioma.")
+  })
+  it("sin país conocido no agrega nada", () => {
+    expect(languageLine(null)).toBeNull()
+    expect(languageLine("JP")).toBeNull()
   })
 })

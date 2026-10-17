@@ -1,17 +1,22 @@
 "use client"
 
+import tzLookup from "@photostructure/tz-lookup"
 import { LocateFixedIcon, MapPinIcon, SearchIcon } from "lucide-react"
 import dynamic from "next/dynamic"
-import { useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
 
 import { Joystick } from "@/components/location/joystick"
 import { LocationSearch } from "@/components/location/location-search"
 import { useLocation, type LocationSource } from "@/components/location/location-provider"
 import type { MapPlace, MapStop } from "@/components/location/map-view"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { clientNow, useClock } from "@/hooks/use-clock"
 import { distanceMeters, walkMinutes, type LatLng } from "@/lib/geo"
 import { SPEED_MULTIPLIERS, type SpeedMultiplier } from "@/lib/location/simulate"
+import { zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
 
 // Google Maps usa `window`: solo en el cliente.
 const MapView = dynamic(() => import("@/components/location/map-view"), {
@@ -127,6 +132,7 @@ export function MapScreen({ places, stops }: MapScreenProps) {
               <ToggleGroupItem value="real">GPS real</ToggleGroupItem>
             </ToggleGroup>
           </ControlRow>
+          <ClockRow position={position} />
           {source === "mock" && (
             <>
               <ControlRow label="Velocidad">
@@ -152,6 +158,77 @@ export function MapScreen({ places, stops }: MapScreenProps) {
         </div>
       </div>
     </main>
+  )
+}
+
+/** Hora simulada (o la real), en la hora local de donde está el pin. */
+function ClockRow({ position }: { position: LatLng }) {
+  const router = useRouter()
+  const { offsetMs, setOffsetMs } = useClock()
+  const [simulated, setSimulated] = useState(offsetMs !== 0)
+  // null hasta montar: la hora depende del reloj del cliente y no tiene que entrar al HTML del server.
+  const [realMs, setRealMs] = useState<number | null>(null)
+  const timeZone = useMemo(() => {
+    try {
+      return tzLookup(position.lat, position.lng)
+    } catch {
+      return "UTC"
+    }
+  }, [position.lat, position.lng])
+
+  // El reloj corre: se muestra la hora (simulada o real) y se actualiza cada 15 s.
+  useEffect(() => {
+    const timer = setInterval(() => setRealMs(Date.now()), 15_000)
+    const first = setTimeout(() => setRealMs(Date.now()), 0)
+    return () => {
+      clearInterval(timer)
+      clearTimeout(first)
+    }
+  }, [])
+  const now = realMs === null ? null : new Date(realMs + offsetMs)
+
+  const apply = (next: number) => {
+    setOffsetMs(next)
+    setRealMs(Date.now())
+    // Las pantallas del server (plan de hoy, lugares abiertos) se rearman con la hora nueva.
+    router.refresh()
+  }
+  const pickTime = (hhmm: string) => {
+    if (!/^\d{2}:\d{2}$/.test(hhmm)) return
+    const target = new Date(zonedTimeToIso(zonedDateKey(clientNow(), timeZone), hhmm, timeZone))
+    apply(target.getTime() - Date.now())
+  }
+
+  return (
+    <>
+      <ControlRow label="Hora">
+        <ToggleGroup
+          type="single"
+          value={simulated ? "mock" : "real"}
+          onValueChange={(v) => {
+            if (!v) return
+            setSimulated(v === "mock")
+            if (v === "real") apply(0)
+          }}
+          variant="outline"
+          size="sm"
+        >
+          <ToggleGroupItem value="mock">Simulada</ToggleGroupItem>
+          <ToggleGroupItem value="real">Real</ToggleGroupItem>
+        </ToggleGroup>
+      </ControlRow>
+      {simulated && now && (
+        <ControlRow label={`Hora en ${timeZone.split("/").pop()?.replace(/_/g, " ")}`}>
+          <Input
+            type="time"
+            aria-label="Hora simulada"
+            className="h-8 w-32 tabular-nums"
+            value={zonedTimeValue(now.toISOString(), timeZone)}
+            onChange={(e) => pickTime(e.target.value)}
+          />
+        </ControlRow>
+      )}
+    </>
   )
 }
 

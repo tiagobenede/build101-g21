@@ -21,7 +21,12 @@ describe("resolveAvailableMinutes", () => {
   const now = new Date("2026-10-17T10:00:00Z")
 
   it("usa lo que dijo el viajero", () => {
-    expect(resolveAvailableMinutes(45, new Date("2026-10-17T10:30:00Z"), now)).toBe(45)
+    expect(resolveAvailableMinutes(45, new Date("2026-10-17T12:00:00Z"), now)).toBe(45)
+    expect(resolveAvailableMinutes(45, null, now)).toBe(45)
+  })
+
+  it("si el compromiso llega antes de lo que dijo, manda el compromiso (con margen)", () => {
+    expect(resolveAvailableMinutes(45, new Date("2026-10-17T10:30:00Z"), now)).toBe(15)
   })
 
   it("sin dato, llega al próximo compromiso con margen", () => {
@@ -92,5 +97,30 @@ describe("rankPlaces", () => {
     const mcdonalds = { ...place("mc", [], 3), name: "McDonald's" }
     const ranked = rankPlaces({ ...base, interests: ["mcdonald's"], places: [mcdonalds, place("museo", ["arte"], 2)] })
     expect(ranked.map((r) => [r.place.id, r.matchedTags])).toEqual([["mc", ["mcdonald's"]]])
+  })
+})
+
+describe("rankPlaces con un compromiso después", () => {
+  // Una línea norte-sur: el viajero en 0, el compromiso 2 km al sur (~32 min a pie).
+  const south = (meters: number) => -meters / 111_320
+  const at = (id: string, tags: string[], lat: number, walkMinutes: number): RankablePlace => ({ ...place(id, tags, walkMinutes, 40), lat })
+  const nextStop = { lat: south(2_000), lng: 0, walkMinutes: 32 }
+
+  it("prefiere lo que queda de camino a lo que queda para el otro lado", () => {
+    const onTheWay = at("de camino", ["mercados"], south(600), 10)
+    const behind = at("para atrás", ["mercados"], -south(600), 10)
+    const ranked = rankPlaces({ ...base, availableMinutes: 120, nextStop, places: [behind, onTheWay] })
+    expect(ranked.map((r) => r.place.id)).toEqual(["de camino", "para atrás"])
+    expect(ranked[0]!.walkToNextMinutes).toBeLessThan(ranked[1]!.walkToNextMinutes!)
+  })
+
+  it("el tiempo tiene que alcanzar para ir, quedarse y llegar al compromiso", () => {
+    const behind = at("para atrás", ["mercados"], -south(600), 10)
+    // 10 de ida + ~42 hasta el compromiso: con 55 min quedan menos de 10 de visita.
+    expect(rankPlaces({ ...base, availableMinutes: 55, nextStop, places: [behind] })).toEqual([])
+  })
+
+  it("sin compromiso, walkToNextMinutes es null", () => {
+    expect(rankPlaces({ ...base, places: [place("x", ["comida"], 5)] })[0]!.walkToNextMinutes).toBeNull()
   })
 })

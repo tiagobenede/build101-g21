@@ -183,7 +183,8 @@ export async function fetchParisEvents(opts: {
   timeZone: string
 }): Promise<ParisEvent[]> {
   const { near, when, kind, freeOnly, now, timeZone } = opts
-  const key = `${when}|${kind}|${freeOnly}|${near.lat.toFixed(2)},${near.lng.toFixed(2)}`
+  // La hora va en la clave: con la hora simulada, "ahora" puede ser otro momento del día.
+  const key = `${when}|${kind}|${freeOnly}|${near.lat.toFixed(2)},${near.lng.toFixed(2)}|${now.toISOString().slice(0, 13)}`
   const hit = cache.get(key)
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.events
 

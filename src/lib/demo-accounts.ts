@@ -7,12 +7,16 @@ export type DemoAccount = {
   tint: string
   /** Primer login: cada vez que entra se borra su perfil y arranca el onboarding. */
   firstLogin?: boolean
+  /** Dónde arranca la ubicación simulada al entrar (para la demo); sin esto, donde haya quedado. */
+  start?: { lat: number; lng: number }
 }
 
 export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
   { email: "tiago@rumbo.demo", name: "Tiago", tagline: "Autos, diseño y café", initials: "T", tint: "#FF9F0A" },
-  { email: "lucas@rumbo.demo", name: "Lucas", tagline: "Museos, historia y librerías", initials: "L", tint: "#5E5CE6" },
-  { email: "nicolas@rumbo.demo", name: "Nicolas", tagline: "Comida, mercados y parques", initials: "N", tint: "#30B0C7" },
+  // Guion de la demo (docs/pitch/casos-jurado.md): Lucas llegando al Louvre por la Pirámide (a ~70 m del
+  // museo: parado en el museo, Jev duda de avisarle), Nicolas en Union Square.
+  { email: "lucas@rumbo.demo", name: "Lucas", tagline: "Museos, historia y librerías", initials: "L", tint: "#5E5CE6", start: { lat: 48.86105, lng: 2.33698 } },
+  { email: "nicolas@rumbo.demo", name: "Nicolas", tagline: "Comida, mercados y parques", initials: "N", tint: "#30B0C7", start: { lat: 40.7359, lng: -73.9911 } },
   { email: "nuevo@rumbo.demo", name: "Alex Romero", tagline: "Primer login: arranca con el onboarding", initials: "AR", tint: "#34C759", firstLogin: true },
 ]
 

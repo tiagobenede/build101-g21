@@ -137,7 +137,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   const teleport = useCallback((next: LatLng) => {
     vectorRef.current = { x: 0, y: 0 }
+    // Saltar a un lugar es ubicación simulada: el GPS real lo pisaría.
+    setSourceState("mock")
     setPosition(next)
+    // Se guarda ya: en /login no hay pings (que es cuando se guarda al moverse).
+    writeStored({ position: next, source: "mock", speed: speedRef.current })
   }, [])
 
   // GPS real: solo cuando la fuente es "real".

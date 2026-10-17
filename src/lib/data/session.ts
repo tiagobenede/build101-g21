@@ -86,6 +86,8 @@ export type TravelerContext = {
 }
 
 const FALLBACK_LOCATION: LatLng = { lat: 48.8606, lng: 2.3522 }
+/** Más lejos que esto, un ítem del plan es de otra ciudad: si te moviste de ciudad, no te lo mostramos. */
+const OTHER_CITY_METERS = 100_000
 
 export interface TravelerContextOptions {
   /** Ubicación en vivo del cliente (GPS simulado o real). Sin esto, se usa el último ping guardado. */
@@ -196,7 +198,9 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
     profileSummary: profile.compiled_summary,
     trip,
     companions: members.filter((m) => m.userId !== user.id),
-    itinerary: (itineraryRes.data ?? []) as ItineraryItem[],
+    itinerary: ((itineraryRes.data ?? []) as ItineraryItem[]).filter(
+      (i) => i.lat == null || i.lng == null || distanceMeters(location, { lat: i.lat, lng: i.lng }) <= OTHER_CITY_METERS,
+    ),
     location,
     locationSource,
     locationLabel: nearestPlaceLabel(location, placesRes.data as Place[], locale.city ?? "tu ubicación"),

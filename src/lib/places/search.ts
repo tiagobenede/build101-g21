@@ -1,9 +1,13 @@
 import "server-only"
 
 import { distanceMeters, walkMinutes, walkRadiusMeters, type LatLng } from "@/lib/geo"
+import { timeZoneAt } from "@/lib/location/locale"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { isSimulated } from "@/lib/time/clock"
+import { zonedTimeValue } from "@/lib/time/zoned"
 
 import { GOOGLE_FIELD_MASK, toPlaceRow, type GooglePlace, type PlaceRow } from "./google-types"
+import { hoursOfDay, mondayIndex, openAt } from "./opening"
 import { pickSearchResults } from "./search-rank"
 
 const TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
@@ -53,7 +57,7 @@ async function textSearch(apiKey: string, query: string, openNow: boolean | null
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask": `${GOOGLE_FIELD_MASK},places.currentOpeningHours.openNow,places.internationalPhoneNumber,places.businessStatus`,
+      "X-Goog-FieldMask": `${GOOGLE_FIELD_MASK},places.currentOpeningHours.openNow,places.currentOpeningHours.weekdayDescriptions,places.internationalPhoneNumber,places.businessStatus`,
     },
     body: JSON.stringify({
       textQuery: query,
@@ -76,12 +80,17 @@ export async function searchPlaces(
   openNow: boolean | null,
   location: LatLng,
   city: string,
-  { maxWalkMinutes = null }: { maxWalkMinutes?: number | null } = {}
+  { maxWalkMinutes = null, now = new Date() }: { maxWalkMinutes?: number | null; now?: Date } = {}
 ): Promise<FoundPlace[]> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) throw new Error("Falta GOOGLE_API_KEY.")
 
-  const key = `${query.toLowerCase().trim()}|${openNow}|${maxWalkMinutes}|${location.lat.toFixed(2)},${location.lng.toFixed(2)}`
+  // Con hora simulada, el "abierto ahora" de Google (que mira la hora real) no sirve: se calcula
+  // con el horario de la semana a esa hora.
+  const simulated = isSimulated(now)
+  const askOpenNow = openNow && !simulated
+  const timeZone = timeZoneAt(location)
+  const key = `${query.toLowerCase().trim()}|${openNow}|${maxWalkMinutes}|${location.lat.toFixed(2)},${location.lng.toFixed(2)}|${simulated ? now.toISOString().slice(0, 15) : ""}`
   const hit = cache.get(key)
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.places
 
@@ -109,12 +118,12 @@ export async function searchPlaces(
         status: g.businessStatus ?? null,
       }))
 
-  let candidates = toCandidates(await textSearch(apiKey, query, openNow, location, area))
+  let candidates = toCandidates(await textSearch(apiKey, query, askOpenNow, location, area))
   let rows = pickSearchResults(candidates, { byName, max })
   // Google ordena por relevancia en toda la zona: si quedaron pocos a pie, se completa
   // buscando solo dentro del radio caminable (como "cerca" en Google Maps).
   if (!byName && rows.length < MIN_KIND_RESULTS) {
-    const nearby = toCandidates(await textSearch(apiKey, query, openNow, location, { restrict: area.bias }))
+    const nearby = toCandidates(await textSearch(apiKey, query, askOpenNow, location, { restrict: area.bias }))
     const seen = new Set(candidates.map((c) => c.id))
     candidates = [...candidates, ...nearby.filter((c) => !seen.has(c.id))]
     rows = pickSearchResults(candidates, { byName, max })
@@ -128,11 +137,17 @@ export async function searchPlaces(
     if (error) console.error("[places] upsert search results failed", error.message)
   }
 
-  const found = rows.map(({ g, row }) => ({
-    ...row,
-    walkMinutes: walkMinutes(location, row),
-    openNow: g.currentOpeningHours?.openNow ?? null,
-  }))
+  const day = mondayIndex(now, timeZone)
+  const localTime = zonedTimeValue(now.toISOString(), timeZone)
+  const found = rows
+    .map(({ g, row }) => ({
+      ...row,
+      walkMinutes: walkMinutes(location, row),
+      openNow: simulated
+        ? openAt(hoursOfDay(g.currentOpeningHours?.weekdayDescriptions, day), localTime)
+        : (g.currentOpeningHours?.openNow ?? null),
+    }))
+    .filter((p) => !(openNow && simulated && p.openNow === false))
   cache.set(key, { at: Date.now(), places: found })
   return found
 }

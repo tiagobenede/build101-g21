@@ -9,6 +9,7 @@ import { needsOnboarding } from "@/lib/data/onboarding"
 import { getTravelerContext } from "@/lib/data/session"
 import { formatTime } from "@/lib/format"
 import { createClient } from "@/lib/supabase/server"
+import { serverNow } from "@/lib/time/server-clock"
 import { zonedDateKey } from "@/lib/time/zoned"
 import { matchInterests, type MatchablePlace } from "@/lib/profile/interests"
 
@@ -25,7 +26,7 @@ async function HomeContent() {
   if (user && (await needsOnboarding(supabase, user.id))) redirect("/onboarding")
 
   const ctx = await getTravelerContext()
-  const today = zonedDateKey(new Date(), ctx.timeZone)
+  const today = zonedDateKey(await serverNow(), ctx.timeZone)
   const todayItems = ctx.itinerary.filter((i) => zonedDateKey(new Date(i.starts_at), ctx.timeZone) === today)
   const forYou = (p: MatchablePlace) => matchInterests(p, ctx.interests).length > 0
   const nearby = [...ctx.nearby]

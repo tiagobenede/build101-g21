@@ -2,6 +2,7 @@
  * Ranking de lugares cercanos para el tool `recommend_nearby`: gustos × distancia
  * × qué tan conocido es × tiempo libre × próximo compromiso. Puro, sin base de datos, para testearlo solo.
  */
+import { walkMinutes as walkBetween, type LatLng } from "@/lib/geo"
 import { matchInterests } from "@/lib/profile/interests"
 
 import type { Place } from "./types"
@@ -64,6 +65,8 @@ export type Ranked = {
   stayMinutes: number
   matchedTags: string[]
   score: number
+  /** Con un próximo compromiso con lugar: minutos a pie desde acá hasta él. */
+  walkToNextMinutes: number | null
 }
 
 export type RankInput = {
@@ -80,19 +83,23 @@ export type RankInput = {
   dietary?: string[]
   /** Cuántos devolver (por defecto MAX_RECOMMENDATIONS). */
   limit?: number
+  /** Dónde es el próximo compromiso y a cuántos minutos queda yendo derecho: lo que se recomiende tiene que quedar de camino. */
+  nextStop?: (LatLng & { walkMinutes: number }) | null
 }
 
+/** Cada minuto que el lugar lo desvía de camino al compromiso resta esto del puntaje. */
+const DETOUR_WEIGHT = 1 / 4
+
 /**
- * Minutos libres: lo que dijo, o hasta el próximo compromiso con margen,
- * o una hora por defecto.
+ * Minutos libres: lo que dijo, o hasta el próximo compromiso con margen, o una hora por
+ * defecto. Si dijo cuánto tiene y el compromiso llega antes, manda el compromiso.
  */
 export function resolveAvailableMinutes(stated: number | null, nextCommitmentAt: Date | null, now: Date): number {
-  if (stated !== null) return Math.max(0, stated)
-  if (nextCommitmentAt) {
-    const until = Math.floor((nextCommitmentAt.getTime() - now.getTime()) / 60_000)
-    return Math.max(0, until - COMMITMENT_BUFFER_MINUTES)
-  }
-  return DEFAULT_AVAILABLE_MINUTES
+  const untilCommitment = nextCommitmentAt
+    ? Math.max(0, Math.floor((nextCommitmentAt.getTime() - now.getTime()) / 60_000) - COMMITMENT_BUFFER_MINUTES)
+    : null
+  if (stated !== null) return Math.max(0, Math.min(stated, untilCommitment ?? stated))
+  return untilCommitment ?? DEFAULT_AVAILABLE_MINUTES
 }
 
 /** El primer gusto pesa más: 2^(n-i). */
@@ -110,6 +117,7 @@ export function rankPlaces({
   maxWalkMinutes,
   dietary = [],
   limit = MAX_RECOMMENDATIONS,
+  nextStop = null,
 }: RankInput): Ranked[] {
   const weights = interestWeights(interests)
   const diets = dietary.filter((d): d is Diet => (DIETS as readonly string[]).includes(d))
@@ -121,7 +129,11 @@ export function rankPlaces({
     .filter((p) => !p.googleTypes?.some((t) => excluded.has(t)))
     .map((place) => {
       const walk = place.walkMinutes
-      const stay = Math.min(place.typical_visit_minutes, availableMinutes - walk)
+      // Con un compromiso después: el tiempo también tiene que alcanzar para llegar de ahí a él,
+      // y cuenta lo que se desvía del camino (ir derecho vs. pasar por el lugar).
+      const walkToNext = nextStop ? walkBetween(place, nextStop) : 0
+      const detour = nextStop ? Math.max(0, walk + walkToNext - nextStop.walkMinutes) : 0
+      const stay = Math.min(place.typical_visit_minutes, availableMinutes - walk - walkToNext)
       // Gustos de la lista y propios ("mcdonald's" coincide por nombre), más lo que pidió ahora.
       const liked = matchInterests(place, interests)
       const matchedTags = requestedTag && !liked.includes(requestedTag) ? [...liked, requestedTag] : liked
@@ -129,8 +141,9 @@ export function rankPlaces({
       const interestScore = requestedTag ? (profileScore > 0 ? PROFILE_TIEBREAK : 0) : profileScore
       const penalty = alreadyRecommended.includes(place.id) ? 100 : 0
       const dietBoost = place.googleTypes?.some((t) => boosted.has(t)) ? DIET_BOOST : 0
-      const score = interestScore + dietBoost + (place.rating ?? 4) + FAME_WEIGHT * fame(place.rating_count) - walk / 10 - penalty
-      return { place, walkMinutes: walk, stayMinutes: stay, matchedTags, score }
+      const distance = walk / 10 + detour * DETOUR_WEIGHT
+      const score = interestScore + dietBoost + (place.rating ?? 4) + FAME_WEIGHT * fame(place.rating_count) - distance - penalty
+      return { place, walkMinutes: walk, stayMinutes: stay, matchedTags, score, walkToNextMinutes: nextStop ? walkToNext : null }
     })
     .filter((r) => r.stayMinutes >= MIN_STAY_MINUTES && r.matchedTags.length > 0)
     .sort((a, b) => b.score - a.score)
