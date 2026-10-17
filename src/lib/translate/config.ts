@@ -8,6 +8,13 @@ export const TRANSLATE_MODEL = process.env.TRANSLATE_MODEL ?? "gpt-realtime-tran
 /** Transcribe lo que se dijo en el idioma original (el modelo solo da la traducción). */
 export const INPUT_TRANSCRIPTION_MODEL = "gpt-realtime-whisper"
 export const TRANSLATE_KEY_TTL_SECONDS = 60
+/**
+ * Quién pone la voz: ElevenLabs lee el texto traducido (voz fija, natural) u OpenAI con su
+ * propio audio (más rápido, pero imita la voz de quien habla). `openai` para comparar.
+ */
+export const TRANSLATE_VOICE: "elevenlabs" | "openai" = process.env.NEXT_PUBLIC_TRANSLATE_VOICE === "openai" ? "openai" : "elevenlabs"
+/** Si el modelo deja de traducir este tiempo, se lee lo que quedó sin punto final. */
+export const SPEAK_QUIET_MS = 800
 
 /** Idiomas que ofrece la pantalla (la API acepta muchos más). */
 export const LANGUAGES = {

@@ -8,12 +8,15 @@ import {
   ACTIVE_MAX_MS,
   FLUSH_MAX_MS,
   FLUSH_QUIET_MS,
+  SPEAK_QUIET_MS,
   TRANSLATE_USD_PER_MINUTE,
+  TRANSLATE_VOICE,
   type Lang,
   type Speaker,
 } from "@/lib/translate/config"
 import { connectTranslation, type TranslationConnection } from "@/lib/translate/connection"
 import { UtteranceBuilder, type Utterance } from "@/lib/translate/utterances"
+import { SentenceSplitter, VoiceQueue } from "@/lib/translate/voice"
 
 /** off: sin mic · ready: mic listo, nada abierto (no cobra) · connecting · listening · finishing: termina de traducir. */
 export type TranslatorState = "off" | "ready" | "connecting" | "listening" | "finishing"
@@ -23,6 +26,10 @@ type Direction = {
   track: MediaStreamTrack
   conn: TranslationConnection | null
   builder: UtteranceBuilder
+  /** Idioma al que se traduce (el de la voz). */
+  targetLang: Lang
+  splitter: SentenceSplitter
+  speakTimer: ReturnType<typeof setTimeout> | null
   openedAt: number
   lastOutputAt: number
   releasing: boolean
@@ -67,6 +74,19 @@ export function useTranslator({
   const turnsRef = useRef<Utterance[]>([])
   /** Frases que se están guardando: el resumen al cerrar tiene que verlas. */
   const savingRef = useRef(new Set<Promise<unknown>>())
+  const voiceRef = useRef<VoiceQueue | null>(null)
+  const voiceFailedRef = useRef(false)
+  /** Una cola para los dos lados: nunca suenan dos traducciones a la vez. */
+  const voice = useCallback(
+    () =>
+      (voiceRef.current ??= new VoiceQueue((err) => {
+        console.error("[translate] voz", err)
+        if (voiceFailedRef.current) return
+        voiceFailedRef.current = true
+        toast.error("No pude poner voz a la traducción; sigue el texto.")
+      })),
+    []
+  )
   useEffect(() => {
     langsRef.current = { myLang, theirLang, location }
     onTurnRef.current = onTurn
@@ -108,6 +128,17 @@ export function useTranslator({
     [upsert]
   )
 
+  /** Lee lo que quedó sin punto final del lado `d`. */
+  const speakRest = useCallback(
+    (d: Direction) => {
+      if (d.speakTimer) clearTimeout(d.speakTimer)
+      d.speakTimer = null
+      const rest = d.splitter.flush()
+      if (rest) voice().say(rest, d.targetLang)
+    },
+    [voice]
+  )
+
   const closeDirection = useCallback(
     async (d: Direction) => {
       if (d.closed) return
@@ -115,13 +146,14 @@ export function useTranslator({
       d.track.enabled = false
       await d.conn?.close()
       d.track.stop()
+      speakRest(d)
       const last = d.builder.finish()
       if (last) save(last)
       if (d.openedAt) billedMsRef.current += Date.now() - d.openedAt
       openRef.current.delete(d)
       setSpentUsd((billedMsRef.current / 60_000) * TRANSLATE_USD_PER_MINUTE)
     },
-    [save]
+    [save, speakRest]
   )
 
   /** Deja de mandar el mic, espera que termine de traducir y cierra. */
@@ -153,11 +185,15 @@ export function useTranslator({
       const mic = micRef.current
       if (!mic) return
       const { myLang: mine, theirLang: theirs, location: here } = langsRef.current
+      const targetLang = who === "me" ? theirs : mine
       const d: Direction = {
         speaker: who,
         track: mic.getAudioTracks()[0].clone(),
         conn: null,
         builder: new UtteranceBuilder(who),
+        targetLang,
+        splitter: new SentenceSplitter(),
+        speakTimer: null,
         openedAt: 0,
         lastOutputAt: Date.now(),
         releasing: false,
@@ -172,7 +208,7 @@ export function useTranslator({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          targetLang: who === "me" ? theirs : mine,
+          targetLang,
           myLang: mine,
           theirLang: theirs,
           conversationId: conversationRef.current,
@@ -186,10 +222,18 @@ export function useTranslator({
       d.conn = await connectTranslation({
         key: body.data.key,
         track: d.track,
+        muted: TRANSLATE_VOICE === "elevenlabs",
         onEvent: (ev) => {
           if (ev.type === "session.input_transcript.delta" || ev.type === "session.output_transcript.delta") {
             const kind = ev.type === "session.input_transcript.delta" ? "input" : "output"
-            if (kind === "output") d.lastOutputAt = Date.now()
+            if (kind === "output") {
+              d.lastOutputAt = Date.now()
+              if (TRANSLATE_VOICE === "elevenlabs" && !d.closed) {
+                for (const sentence of d.splitter.push(ev.delta ?? "")) voice().say(sentence, targetLang)
+                if (d.speakTimer) clearTimeout(d.speakTimer)
+                d.speakTimer = setTimeout(() => speakRest(d), SPEAK_QUIET_MS)
+              }
+            }
             upsert(d.builder.add(kind, ev.delta ?? ""))
           } else if (ev.type === "error") {
             console.error("[translate]", ev.error?.message ?? ev)
@@ -201,7 +245,7 @@ export function useTranslator({
       if (activeRef.current !== d) return void closeDirection(d)
       setState("listening")
     },
-    [closeDirection, upsert]
+    [closeDirection, speakRest, upsert, voice]
   )
 
   /** Apretar el botón de alguien: si ya hablaba, suelta; si hablaba el otro, cambia. */
@@ -256,6 +300,8 @@ export function useTranslator({
     const mic = micRef.current
     micRef.current = null
     await Promise.all([...openRef.current].map((d) => closeDirection(d)))
+    voiceRef.current?.stop()
+    voiceFailedRef.current = false
     mic?.getTracks().forEach((t) => t.stop())
     setState("off")
     const conversationId = conversationRef.current
