@@ -1,8 +1,8 @@
 import { z } from "zod"
 
 import type { Place } from "@/lib/agent/types"
-import { getTravelerContext, TRIP_TIME_ZONE } from "@/lib/data/session"
-import { walkMinutes } from "@/lib/geo"
+import { getTravelerContext, NEARBY_RADIUS_METERS } from "@/lib/data/session"
+import { boundingBox, walkMinutes } from "@/lib/geo"
 import { buildGenUiUserMessage, namedPlaceIds, screenPlaces } from "@/lib/genui/context"
 import { buildGenUiLibrary, GENUI_COMPONENTS, GENUI_EXAMPLES } from "@/lib/genui/library"
 import { genUiProvider, streamCompletion } from "@/lib/genui/provider"
@@ -87,7 +87,14 @@ export async function POST(req: Request) {
     const { data } = await supabase.from("places").select(columns).in("id", placeIds)
     rows = (data ?? []) as Place[]
   } else {
-    const { data } = await supabase.from("places").select(columns).eq("city", ctx.trip?.destination ?? "París")
+    const box = boundingBox(ctx.location, NEARBY_RADIUS_METERS)
+    const { data } = await supabase
+      .from("places")
+      .select(columns)
+      .gte("lat", box.minLat)
+      .lte("lat", box.maxLat)
+      .gte("lng", box.minLng)
+      .lte("lng", box.maxLng)
     rows = (data ?? []) as Place[]
     placeIds = namedPlaceIds(parsed.data.request, rows)
   }
@@ -98,10 +105,10 @@ export async function POST(req: Request) {
   )
   if (places.length === 0) return Response.json({ error: "No hay lugares para mostrar." }, { status: 422 })
   const now = new Date()
-  const today = zonedDateKey(now, TRIP_TIME_ZONE)
+  const today = zonedDateKey(now, ctx.timeZone)
   const itinerary = ctx.itinerary
-    .filter((i) => zonedDateKey(new Date(i.starts_at), TRIP_TIME_ZONE) === today && i.status !== "skipped")
-    .map((i) => ({ time: zonedTimeValue(i.starts_at, TRIP_TIME_ZONE), title: i.title, locked: i.locked }))
+    .filter((i) => zonedDateKey(new Date(i.starts_at), ctx.timeZone) === today && i.status !== "skipped")
+    .map((i) => ({ time: zonedTimeValue(i.starts_at, ctx.timeZone), title: i.title, locked: i.locked }))
 
   const data: GenUiData = {
     origin: ctx.location,
@@ -114,7 +121,7 @@ export async function POST(req: Request) {
     places,
     itinerary,
     weather: data.weather,
-    localTime: zonedTimeValue(now.toISOString(), TRIP_TIME_ZONE),
+    localTime: zonedTimeValue(now.toISOString(), ctx.timeZone),
   })
 
   const signal = AbortSignal.any([req.signal, AbortSignal.timeout(TIMEOUT_MS)])

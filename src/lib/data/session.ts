@@ -5,11 +5,11 @@ import { connection } from "next/server"
 
 import type { Place } from "@/lib/agent/types"
 import { findDemoAccount, type DemoAccount } from "@/lib/demo-accounts"
-import { distanceMeters, nearestPlaceLabel, walkMinutes, type LatLng } from "@/lib/geo"
+import { boundingBox, distanceMeters, nearestPlaceLabel, walkMinutes, type LatLng } from "@/lib/geo"
+import { localeAt } from "@/lib/location/locale"
 import { ensureNearbyPlaces } from "@/lib/places/nearby"
 import { createClient } from "@/lib/supabase/server"
 
-export { TRIP_TIME_ZONE } from "@/lib/config"
 export const NEARBY_RADIUS_METERS = 4_000
 
 export type Trip = {
@@ -71,6 +71,10 @@ export type TravelerContext = {
   location: LatLng
   locationSource: LocationSource
   locationLabel: string
+  /** Zona horaria, ciudad y país de donde está ahora (no del viaje): horas y búsquedas salen de acá. */
+  timeZone: string
+  city: string | null
+  country: string | null
   nearby: NearbyPlace[]
 }
 
@@ -133,10 +137,12 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
       : trip
         ? [{ lat: trip.lat, lng: trip.lng }, "trip"]
         : [FALLBACK_LOCATION, "fallback"]
-  const city = trip?.destination ?? "París"
+  // Zona horaria y ciudad de donde está ahora (no del viaje).
+  const locale = await localeAt(location)
 
   // Los lugares vienen de Google Places y quedan guardados en `places`.
-  await ensureNearbyPlaces(location, city)
+  await ensureNearbyPlaces(location, locale.city ?? "")
+  const box = boundingBox(location, NEARBY_RADIUS_METERS)
 
   const [itineraryRes, placesRes] = await Promise.all([
     trip
@@ -149,7 +155,11 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
     supabase
       .from("places")
       .select("id, name, category, tags, description, lat, lng, rating, typical_visit_minutes")
-      .eq("city", city)
+      // Por cercanía, no por ciudad: así funciona en cualquier lugar del mundo.
+      .gte("lat", box.minLat)
+      .lte("lat", box.maxLat)
+      .gte("lng", box.minLng)
+      .lte("lng", box.maxLng)
       .eq("listed", true),
   ])
 
@@ -184,8 +194,10 @@ export async function getTravelerContext(options: TravelerContextOptions = {}): 
     itinerary: (itineraryRes.data ?? []) as ItineraryItem[],
     location,
     locationSource,
-    // Con todos los lugares de la ciudad, no solo los del radio: el más cercano decide.
-    locationLabel: nearestPlaceLabel(location, placesRes.data as Place[], trip?.destination ?? "tu ubicación"),
+    locationLabel: nearestPlaceLabel(location, placesRes.data as Place[], locale.city ?? "tu ubicación"),
+    timeZone: locale.timeZone,
+    city: locale.city,
+    country: locale.country,
     nearby,
   }
 }

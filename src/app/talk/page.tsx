@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 
 import { PageSkeleton } from "@/components/rumbo/page-skeleton"
-import { getTravelerContext, nextCommitment, TRIP_TIME_ZONE } from "@/lib/data/session"
+import { getTravelerContext, nextCommitment } from "@/lib/data/session"
 import { formatTime, tripDay } from "@/lib/format"
 
 import { TalkClient } from "./talk-client"
@@ -14,9 +14,9 @@ async function TalkContent() {
   return (
     <TalkClient
       location={{
-        city: [ctx.trip?.destination, ctx.trip?.country].filter(Boolean).join(", "),
+        city: [ctx.city, ctx.country].filter(Boolean).join(", "),
         tripDay: day ? `Día ${day.day} de ${day.total}` : null,
-        timeZone: TRIP_TIME_ZONE,
+        timeZone: ctx.timeZone,
       }}
       nextCommitment={commitment ? { title: commitment.title, startsAt: commitment.starts_at } : null}
       mapPlaces={ctx.nearby.map((p) => ({
@@ -29,7 +29,7 @@ async function TalkContent() {
       }))}
       stops={ctx.itinerary
         .filter((i) => i.lat !== null && i.lng !== null)
-        .map((i) => ({ id: i.id, title: i.title, time: formatTime(i.starts_at), lat: i.lat!, lng: i.lng! }))}
+        .map((i) => ({ id: i.id, title: i.title, time: formatTime(i.starts_at, ctx.timeZone), lat: i.lat!, lng: i.lng! }))}
       places={ctx.nearby.map((p) => ({
         id: p.id,
         name: p.name,

@@ -1,6 +1,6 @@
 import "server-only"
 
-import { getTravelerContext, nextCommitment, TRIP_TIME_ZONE, type TravelerContext } from "@/lib/data/session"
+import { getTravelerContext, nextCommitment, type TravelerContext } from "@/lib/data/session"
 import type { LatLng } from "@/lib/geo"
 import { getWeatherSummary } from "@/lib/weather"
 
@@ -19,7 +19,7 @@ export async function buildSessionInstructions(location: LatLng | null): Promise
     nextCommitment: nextCommitment(ctx.itinerary, now),
     weather,
     now,
-    timeZone: TRIP_TIME_ZONE,
+    timeZone: ctx.timeZone,
   })
   return { ctx, instructions }
 }

@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
-import { getTravelerContext, TRIP_TIME_ZONE } from "@/lib/data/session"
+import { getTravelerContext } from "@/lib/data/session"
 import { tripDay } from "@/lib/format"
 import { zonedDateKey } from "@/lib/time/zoned"
 
@@ -19,8 +19,8 @@ const MAX_NEARBY = 6
 
 async function HomeContent() {
   const ctx = await getTravelerContext()
-  const today = zonedDateKey(new Date(), TRIP_TIME_ZONE)
-  const todayItems = ctx.itinerary.filter((i) => zonedDateKey(new Date(i.starts_at), TRIP_TIME_ZONE) === today)
+  const today = zonedDateKey(new Date(), ctx.timeZone)
+  const todayItems = ctx.itinerary.filter((i) => zonedDateKey(new Date(i.starts_at), ctx.timeZone) === today)
   const day = ctx.trip ? tripDay(ctx.trip.start_date, ctx.trip.end_date) : null
   const forYou = (tags: string[]) => tags.some((t) => ctx.interests.includes(t))
   const nearby = [...ctx.nearby]
@@ -84,7 +84,7 @@ async function HomeContent() {
 
       <ItinerarySection
         items={todayItems}
-        timeZone={TRIP_TIME_ZONE}
+        timeZone={ctx.timeZone}
         today={today}
         places={ctx.nearby.map((p) => ({
           id: p.id,

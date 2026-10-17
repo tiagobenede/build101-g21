@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@openuidev/react-lang": "^1.0.1",
+    "@photostructure/tz-lookup": "^11.7.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "class-variance-authority": "^0.7.1",

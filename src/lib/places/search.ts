@@ -1,6 +1,6 @@
 import "server-only"
 
-import { walkMinutes, type LatLng } from "@/lib/geo"
+import { distanceMeters, walkMinutes, type LatLng } from "@/lib/geo"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 import { GOOGLE_FIELD_MASK, toPlaceRow, type GooglePlace, type PlaceRow } from "./google-types"
@@ -8,6 +8,8 @@ import { GOOGLE_FIELD_MASK, toPlaceRow, type GooglePlace, type PlaceRow } from "
 const TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 const BIAS_RADIUS_METERS = 3_000
 const MAX_RESULTS = 3
+/** Google usa la ubicación solo como sesgo: con consultas ambiguas ("la costa") devuelve otros países. */
+const MAX_RESULT_DISTANCE_METERS = 30_000
 /** Misma búsqueda en la misma zona: no se vuelve a pagar en un rato. */
 const CACHE_MS = 60 * 60 * 1000
 
@@ -50,6 +52,7 @@ export async function searchPlaces(query: string, openNow: boolean | null, locat
   const rows = (body.places ?? [])
     .map((g) => ({ g, row: toPlaceRow(g, city, { keepUnknown: true }) }))
     .filter((r): r is { g: GooglePlace; row: PlaceRow } => r.row !== null)
+    .filter(({ row }) => distanceMeters(location, row) <= MAX_RESULT_DISTANCE_METERS)
     .slice(0, MAX_RESULTS)
 
   if (rows.length > 0) {

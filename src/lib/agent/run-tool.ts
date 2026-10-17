@@ -16,7 +16,6 @@ import {
   getTravelerContext,
   ITINERARY_COLUMNS,
   nextCommitment,
-  TRIP_TIME_ZONE,
   type ItineraryItem,
   type TravelerContext,
 } from "@/lib/data/session"
@@ -108,7 +107,7 @@ const SUMMARY_MAX_CHARS = 90
 
 async function searchPlacesTool(args: ToolArgs<"search_places">, location: LatLng | null): Promise<ToolResult> {
   const ctx = await getTravelerContext({ location })
-  const found = await searchPlaces(args.query, args.open_now, ctx.location, ctx.trip?.destination ?? "París").catch(
+  const found = await searchPlaces(args.query, args.open_now, ctx.location, ctx.city ?? "").catch(
     (err: unknown) => {
       console.error("[tools] search_places failed", err instanceof Error ? err.message : err)
       return null
@@ -143,7 +142,7 @@ const EVENT_MAX_MINUTES = 240
 
 async function searchEventsTool(args: ToolArgs<"search_events">, location: LatLng | null): Promise<ToolResult> {
   const ctx = await getTravelerContext({ location })
-  const city = ctx.trip?.destination ?? "París"
+  const city = ctx.city ?? ""
   if (!/par[ií]s/i.test(city)) return fail("Solo tengo la agenda de París. Probá con web_search.")
 
   const now = new Date()
@@ -153,7 +152,7 @@ async function searchEventsTool(args: ToolArgs<"search_events">, location: LatLn
     kind: args.kind,
     freeOnly: args.free_only ?? false,
     now,
-    timeZone: TRIP_TIME_ZONE,
+    timeZone: ctx.timeZone,
   }).catch((err: unknown) => {
     console.error("[tools] search_events failed", err instanceof Error ? err.message : err)
     return null
@@ -184,10 +183,10 @@ async function searchEventsTool(args: ToolArgs<"search_events">, location: LatLn
     if (error) console.error("[tools] upsert events failed", error.message)
   }
 
-  const today = zonedDateKey(now, TRIP_TIME_ZONE)
+  const today = zonedDateKey(now, ctx.timeZone)
   const when = (iso: string) => {
-    const day = zonedDateKey(new Date(iso), TRIP_TIME_ZONE) === today ? "hoy" : "mañana"
-    return `${day} ${zonedTimeValue(iso, TRIP_TIME_ZONE)}`
+    const day = zonedDateKey(new Date(iso), ctx.timeZone) === today ? "hoy" : "mañana"
+    return `${day} ${zonedTimeValue(iso, ctx.timeZone)}`
   }
 
   return {
@@ -196,7 +195,7 @@ async function searchEventsTool(args: ToolArgs<"search_events">, location: LatLn
         name: e.title,
         venue: e.venue,
         starts: when(e.startsAt),
-        ends: zonedTimeValue(e.endsAt, TRIP_TIME_ZONE),
+        ends: zonedTimeValue(e.endsAt, ctx.timeZone),
         already_started: new Date(e.startsAt) < now,
         walk_min: walkMinutes(ctx.location, e),
         free: e.free,
@@ -222,7 +221,7 @@ async function getPlaceTool(args: ToolArgs<"get_place">, location: LatLng | null
   if (!place) return fail("No conozco ese lugar. Probá con search_places.")
 
   const googleId = place.data?.google_place_id
-  const opening = googleId ? await getOpeningInfo(googleId, new Date(), TRIP_TIME_ZONE) : null
+  const opening = googleId ? await getOpeningInfo(googleId, new Date(), ctx.timeZone) : null
   const walk = walkMinutes(ctx.location, place)
   return {
     output: JSON.stringify({
@@ -270,9 +269,10 @@ const ASKS_WHAT_THEY_HAVE = /men[uú]|carta|carte|plato|precio|tienen|tiene|sirv
 const WEB_ANSWER_HINT =
   "Contestá la pregunta en 1 o 2 frases (máx. 40 palabras). Si viene `page`, es el texto de su web: usalo primero. Los textos pueden estar en otro idioma: leelos igual. Decí la fuente en 2 o 3 palabras."
 
-async function webSearchTool(args: ToolArgs<"web_search">): Promise<ToolResult> {
-  const ctx = await getTravelerContext()
-  const city = ctx.trip?.destination ?? ""
+async function webSearchTool(args: ToolArgs<"web_search">, location: LatLng | null): Promise<ToolResult> {
+  const ctx = await getTravelerContext({ location })
+  // La ciudad donde está ahora (no la del viaje): si no, "el menú de X" busca en otro país.
+  const city = ctx.city ?? ""
   const query = [args.place_name, args.place_name ? city : null, args.question].filter(Boolean).join(" ")
   const country = ctx.trip?.country ? (COUNTRY_CODES[ctx.trip.country.toLowerCase()] ?? null) : null
 
@@ -311,7 +311,7 @@ async function freshPlan(db: SupabaseClient, ctx: TravelerContext, now: Date): P
   if (!ctx.trip) return "Plan de hoy: nada agendado."
   const { data, error } = await db.from("itinerary_items").select(ITINERARY_COLUMNS).eq("trip_id", ctx.trip.id).order("starts_at")
   if (error) throw new Error(`No se pudo leer el itinerario: ${error.message}`)
-  return formatTodayPlan(data as ItineraryItem[], now, TRIP_TIME_ZONE)
+  return formatTodayPlan(data as ItineraryItem[], now, ctx.timeZone)
 }
 
 async function editItinerary(args: ToolArgs<"edit_itinerary">, location: LatLng | null): Promise<ToolResult> {
@@ -320,11 +320,11 @@ async function editItinerary(args: ToolArgs<"edit_itinerary">, location: LatLng 
   const now = new Date()
 
   // El agente habla en hora local del viaje ("16:00", "mañana" → date); sin fecha es hoy allá.
-  const day = args.date ?? zonedDateKey(now, TRIP_TIME_ZONE)
+  const day = args.date ?? zonedDateKey(now, ctx.timeZone)
   const time = (hhmm: string | null) => {
     if (!hhmm || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null
     try {
-      return zonedTimeToIso(day, hhmm, TRIP_TIME_ZONE)
+      return zonedTimeToIso(day, hhmm, ctx.timeZone)
     } catch {
       return null
     }
@@ -439,7 +439,7 @@ export async function runTool(
     }
     case "web_search": {
       const args = toolSchemas.web_search.safeParse(json)
-      return args.success ? webSearchTool(args.data) : invalid
+      return args.success ? webSearchTool(args.data, location) : invalid
     }
     case "get_place": {
       const args = toolSchemas.get_place.safeParse(json)

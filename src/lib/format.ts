@@ -1,6 +1,4 @@
-import { TRIP_TIME_ZONE } from "@/lib/config"
-
-export function formatTime(iso: string, timeZone: string = TRIP_TIME_ZONE): string {
+export function formatTime(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit", timeZone }).format(new Date(iso))
 }
 

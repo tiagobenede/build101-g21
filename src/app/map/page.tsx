@@ -22,7 +22,7 @@ async function MapContent() {
       }))}
       stops={ctx.itinerary
         .filter((i) => i.lat !== null && i.lng !== null)
-        .map((i) => ({ id: i.id, title: i.title, time: formatTime(i.starts_at), lat: i.lat!, lng: i.lng! }))}
+        .map((i) => ({ id: i.id, title: i.title, time: formatTime(i.starts_at, ctx.timeZone), lat: i.lat!, lng: i.lng! }))}
     />
   )
 }

@@ -40,6 +40,15 @@ export function nearestPlaceLabel(
   return best?.name ?? fallback
 }
 
+const METERS_PER_DEGREE_LAT = 111_320
+
+/** Recuadro que contiene un círculo de `meters` alrededor de `center` (para filtrar en la base). */
+export function boundingBox(center: LatLng, meters: number) {
+  const dLat = meters / METERS_PER_DEGREE_LAT
+  const dLng = meters / (METERS_PER_DEGREE_LAT * Math.cos(toRad(center.lat)))
+  return { minLat: center.lat - dLat, maxLat: center.lat + dLat, minLng: center.lng - dLng, maxLng: center.lng + dLng }
+}
+
 export function formatDistance(meters: number): string {
   return meters < 1000 ? `${Math.round(meters / 10) * 10} m` : `${(meters / 1000).toFixed(1)} km`
 }
