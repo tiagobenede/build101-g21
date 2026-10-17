@@ -13,6 +13,8 @@ interface BlobEntranceProps {
   state: CallState
   inputVolumeRef: RefObject<number>
   outputVolumeRef: RefObject<number>
+  /** Pensando: el blob queda solo en contorno. */
+  hollow?: boolean
   /** Termina la entrada: el blob ya está quieto en su lugar. */
   onLanded: () => void
 }
@@ -21,7 +23,7 @@ interface BlobEntranceProps {
  * El blob entra desde abajo de la pantalla: sube rápido estirado, se aplasta al frenar y
  * rebota elástico hasta quedar redondo.
  */
-export function BlobEntrance({ state, inputVolumeRef, outputVolumeRef, onLanded }: BlobEntranceProps) {
+export function BlobEntrance({ state, inputVolumeRef, outputVolumeRef, hollow, onLanded }: BlobEntranceProps) {
   const ref = useRef<HTMLDivElement>(null)
   const onLandedRef = useRef(onLanded)
 
@@ -57,7 +59,7 @@ export function BlobEntrance({ state, inputVolumeRef, outputVolumeRef, onLanded 
 
   return (
     <div ref={ref} className="invisible will-change-transform">
-      <VoiceSphere state={state} inputVolumeRef={inputVolumeRef} outputVolumeRef={outputVolumeRef} className="size-56 sm:size-64" />
+      <VoiceSphere state={state} inputVolumeRef={inputVolumeRef} outputVolumeRef={outputVolumeRef} hollow={hollow} className="size-56 sm:size-64" />
     </div>
   )
 }

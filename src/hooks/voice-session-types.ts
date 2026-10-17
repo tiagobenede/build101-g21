@@ -28,6 +28,8 @@ export interface VoiceCall {
   /** Costo estimado en USD de la llamada. */
   costUsd: number
   start: () => Promise<void>
+  /** Vacía los lugares de la charla anterior (volver a la pantalla con la llamada cortada). */
+  clearPlaces: () => void
   end: () => void
   /**
    * Le cuenta al agente algo que pasó en la pantalla. Con `keep`, si la llamada no está

@@ -11,7 +11,7 @@ import { currentPushState, disablePush, enablePush, type PushState } from "@/lib
 const DESCRIPTION: Record<PushState, string> = {
   unsupported: "Este navegador no permite notificaciones push.",
   denied: "Están bloqueadas: habilitalas en la configuración del navegador.",
-  off: "Te avisa cuando pasás cerca de algo, aunque Rumbo esté en segundo plano.",
+  off: "Te avisa cuando pasás cerca de algo, aunque Polo esté en segundo plano.",
   on: "Activados en este navegador.",
 }
 

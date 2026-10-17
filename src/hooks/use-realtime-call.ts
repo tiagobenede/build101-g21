@@ -77,6 +77,8 @@ export function useRealtimeCall(
   const [speakerMuted, setSpeakerMutedState] = useState(false)
   const [costUsd, setCostUsd] = useState(0)
 
+  const clearPlaces = useCallback(() => setPlaces([]), [])
+
   const connRef = useRef<RealtimeConnection | null>(null)
   const lastActivityRef = useRef(0)
   const costRef = useRef(0)
@@ -478,6 +480,7 @@ export function useRealtimeCall(
     outputVolumeRef,
     costUsd,
     start,
+    clearPlaces,
     end: hangUp,
     note,
   }

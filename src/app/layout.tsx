@@ -8,10 +8,10 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Rumbo",
+  title: "Polo",
   description: "Asistente de viaje por voz que conoce tus gustos, tu ubicación y tu tiempo.",
   // iPhone: al agregarla a la pantalla de inicio abre a pantalla completa, como una app.
-  appleWebApp: { capable: true, title: "Rumbo", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Polo", statusBarStyle: "default" },
 }
 
 export const viewport: Viewport = {

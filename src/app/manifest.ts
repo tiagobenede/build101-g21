@@ -1,13 +1,13 @@
 import type { MetadataRoute } from "next"
 
 /**
- * Manifest de la PWA. En iPhone, las notificaciones push solo funcionan si Rumbo está
+ * Manifest de la PWA. En iPhone, las notificaciones push solo funcionan si Polo está
  * agregado a la pantalla de inicio (Safari → Compartir → "Agregar a inicio").
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Rumbo",
-    short_name: "Rumbo",
+    name: "Polo",
+    short_name: "Polo",
     description: "Tu guía de viaje por voz. Sabe dónde estás, qué te gusta y cuánto tiempo tenés.",
     start_url: "/",
     scope: "/",

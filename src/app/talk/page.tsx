@@ -3,6 +3,7 @@ import { Suspense } from "react"
 import { TalkSkeleton } from "@/components/rumbo/talk-skeleton"
 import { getTravelerContext, nextCommitment } from "@/lib/data/session"
 import { formatTime } from "@/lib/format"
+import { matchInterests } from "@/lib/profile/interests"
 import { localLanguage } from "@/lib/translate/config"
 
 import { TalkClient } from "./talk-client"
@@ -26,7 +27,7 @@ async function TalkContent() {
         category: p.category,
         lat: p.lat,
         lng: p.lng,
-        forYou: p.tags.some((t) => ctx.interests.includes(t)),
+        forYou: matchInterests(p, ctx.interests).length > 0,
       }))}
       stops={ctx.itinerary
         .filter((i) => i.lat !== null && i.lng !== null)

@@ -1,7 +1,8 @@
 "use client"
 
+import { gsap } from "gsap"
 import { useRouter } from "next/navigation"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { completeOnboarding } from "@/app/onboarding/actions"
@@ -10,6 +11,7 @@ import { useSimulatedOnboarding } from "@/hooks/use-simulated-onboarding"
 import { LAST_QUESTION, ONBOARDING_QUESTIONS } from "@/lib/onboarding/questions"
 import { extractionSchema } from "@/lib/onboarding/schema"
 import { toResult, type OnboardingState } from "@/lib/onboarding/state"
+import { cn } from "@/lib/utils"
 
 import { BlobEntrance } from "./blob-entrance"
 import { KeywordBubbles } from "./keyword-bubbles"
@@ -19,6 +21,9 @@ import { QuestionHeadline } from "./question-headline"
 
 /** Pantalla en blanco antes de que entre el blob (mientras se conecta la llamada). */
 const INTRO_MS = 2_200
+
+/** Lo mínimo que el blob se queda "pensando", aunque el resumen llegue al toque. */
+const MIN_THINK_MS = 2_200
 
 type Phase = "intro" | "talk" | "review"
 
@@ -53,6 +58,10 @@ export function OnboardingFlow({ demo = false }: OnboardingFlowProps) {
   const [saving, setSaving] = useState(false)
   /** Lo que se muestra para confirmar; null mientras se arma. */
   const [review, setReview] = useState<OnboardingState | null>(null)
+  /** El blob ya se difuminó: se muestra el resumen. */
+  const [revealed, setRevealed] = useState(false)
+  const blobRef = useRef<HTMLDivElement>(null)
+  const thinkingSince = useRef(0)
 
   const save = useCallback(
     async (result: Parameters<typeof completeOnboarding>[0], origin?: HTMLElement) => {
@@ -83,6 +92,7 @@ export function OnboardingFlow({ demo = false }: OnboardingFlowProps) {
   // El agente cerró (o lo salteó): al resumen, o directo a la home si no contó nada.
   const onFinished = useCallback(
     (end: OnboardingEnd) => {
+      thinkingSince.current = performance.now()
       if (end.state.insights.length > 0) {
         setReview(end.state)
         setPhase("review")
@@ -107,7 +117,8 @@ export function OnboardingFlow({ demo = false }: OnboardingFlowProps) {
   const open = useCallback(async () => {
     setFailed(false)
     const [connected] = await Promise.all([connect(), new Promise((r) => setTimeout(r, INTRO_MS))])
-    if (connected) setPhase("talk")
+    // Si lo saltearon mientras conectaba, ya está en el resumen.
+    if (connected) setPhase((p) => (p === "intro" ? "talk" : p))
     else setFailed(true)
   }, [connect])
 
@@ -118,25 +129,38 @@ export function OnboardingFlow({ demo = false }: OnboardingFlowProps) {
 
   const onLanded = useCallback(() => {
     setLanded(true)
-    begin()
-  }, [begin])
+    // Si lo saltearon antes de que aterrice, la llamada ya está cortada.
+    if (phase === "talk") begin()
+  }, [begin, phase])
+
+  // Resumen listo: el blob que pensaba se difumina y recién ahí entra el resumen.
+  useEffect(() => {
+    if (phase !== "review" || !review || revealed) return
+    const el = blobRef.current
+    if (!el) return void setRevealed(true)
+    const wait = Math.max(0, MIN_THINK_MS - (performance.now() - thinkingSince.current)) / 1000
+    const tween = gsap.to(el, {
+      delay: wait,
+      scale: 1.35,
+      autoAlpha: 0,
+      filter: "blur(28px)",
+      duration: 0.8,
+      ease: "power2.in",
+      onComplete: () => setRevealed(true),
+    })
+    return () => void tween.kill()
+  }, [phase, review, revealed])
 
   const skip = () => {
     hangUp()
     onFinished(snapshot())
   }
 
-  if (phase === "review") {
-    return review ? (
-      <OnboardingReview onboarding={review} saving={saving} onConfirm={(rejected, origin) => void save(toResult(review, rejected), origin)} />
-    ) : (
-      <main className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-white">
-        <span className="bg-muted-foreground/40 size-2.5 animate-ping rounded-full" />
-        <p className="text-muted-foreground text-[15px]">Armando tu resumen…</p>
-      </main>
-    )
+  if (phase === "review" && review && revealed) {
+    return <OnboardingReview onboarding={review} saving={saving} onConfirm={(rejected, origin) => void save(toResult(review, rejected), origin)} />
   }
 
+  const thinking = phase === "review"
   const question = ONBOARDING_QUESTIONS[onboarding.question - 1]
 
   return (
@@ -144,24 +168,37 @@ export function OnboardingFlow({ demo = false }: OnboardingFlowProps) {
       <button
         type="button"
         onClick={skip}
-        disabled={saving}
-        className="text-muted-foreground/60 hover:text-muted-foreground absolute top-[max(1rem,env(safe-area-inset-top))] right-4 text-[13px] underline underline-offset-4 transition-colors"
+        disabled={saving || thinking}
+        className={cn(
+          "text-muted-foreground/60 hover:text-muted-foreground absolute top-[max(1rem,env(safe-area-inset-top))] right-4 text-[13px] underline underline-offset-4 transition-[color,opacity] duration-500",
+          thinking && "pointer-events-none opacity-0"
+        )}
       >
         Ahora no, saltear
       </button>
 
-      <div className="flex min-h-[9.5rem] w-full items-end justify-center pt-20">
+      <div
+        className={cn("flex min-h-[9.5rem] w-full items-end justify-center pt-20 transition-opacity duration-500", thinking && "opacity-0")}
+      >
         {landed && <QuestionHeadline step={question.id} total={LAST_QUESTION} title={question.title} />}
       </div>
 
       <div className="flex flex-1 items-center justify-center">
-        {phase === "talk" && (
-          <BlobEntrance
-            state={call.state}
-            inputVolumeRef={call.inputVolumeRef}
-            outputVolumeRef={call.outputVolumeRef}
-            onLanded={onLanded}
-          />
+        {phase !== "intro" && (
+          <div ref={blobRef} className="will-change-[transform,filter,opacity]">
+            <BlobEntrance
+              state={call.state}
+              inputVolumeRef={call.inputVolumeRef}
+              outputVolumeRef={call.outputVolumeRef}
+              hollow={thinking}
+              onLanded={onLanded}
+            />
+          </div>
+        )}
+        {thinking && (
+          <span role="status" className="sr-only">
+            Armando tu resumen…
+          </span>
         )}
         {failed && (
           <button type="button" onClick={() => void open()} className="text-muted-foreground text-[15px] underline underline-offset-4">
@@ -170,7 +207,12 @@ export function OnboardingFlow({ demo = false }: OnboardingFlowProps) {
         )}
       </div>
 
-      <div className="flex min-h-40 w-full items-start justify-center pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <div
+        className={cn(
+          "flex min-h-40 w-full items-start justify-center pb-[max(2rem,env(safe-area-inset-bottom))] transition-opacity duration-500",
+          thinking && "opacity-0"
+        )}
+      >
         <KeywordBubbles keywords={onboarding.keywords} />
       </div>
     </main>

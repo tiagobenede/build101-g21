@@ -5,7 +5,6 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { placeFacts } from "@/lib/agent/facts"
 import { interestQuery, tagWithInterest } from "@/lib/agent/interest-fallback"
 import {
-  INTEREST_TAGS,
   MAX_RECOMMENDATIONS,
   NEAR_ONLY_TAGS,
   rankPlaces,
@@ -31,6 +30,8 @@ import {
 } from "@/lib/data/session"
 import { fetchParisEvents } from "@/lib/events/paris"
 import { walkMinutes, type LatLng } from "@/lib/geo"
+import { whereLine } from "@/lib/location/corner"
+import { getWhere } from "@/lib/location/where"
 import { walkingRoute } from "@/lib/maps/walking-route"
 import { getOpeningInfo } from "@/lib/places/details"
 import { findPlaceByName } from "@/lib/places/lookup"
@@ -524,10 +525,10 @@ async function rememberTool(args: ToolArgs<"remember">, location: LatLng | null)
   })
   if (!saved.ok) return fail(saved.error)
 
-  // "Me encantan los autos" también suma el gusto al perfil: así pesa en recommend_nearby,
-  // en el mapa ("para vos") y en la home. "No me gustan los museos" lo saca.
-  if (args.interest) {
-    const updated = await setInterest(db, args.interest, !args.avoid)
+  // "Me encantan los McDonald's" también va a los gustos del perfil: así lo ven
+  // recommend_nearby, los avisos por cercanía, el mapa y la home. "No me gustan los museos" lo saca.
+  for (const interest of args.interests ?? []) {
+    const updated = await setInterest(db, interest, !args.avoid)
     if (!updated.ok) return fail(updated.error)
   }
 
@@ -537,7 +538,8 @@ async function rememberTool(args: ToolArgs<"remember">, location: LatLng | null)
     const { dietary, mobility, dailyBudget, pace, schedule } = ctx.constraints
     if (!dietary.includes(args.diet)) {
       const updated = await updateProfile(db, {
-        interests: ctx.interests.filter((t): t is (typeof INTEREST_TAGS)[number] => (INTEREST_TAGS as readonly string[]).includes(t)),
+        // Todos, también los propios: si no, guardar la dieta borraría "mcdonald's".
+        interests: ctx.interests,
         dietary: [...dietary, args.diet],
         mobility,
         dailyBudget,
@@ -548,6 +550,12 @@ async function rememberTool(args: ToolArgs<"remember">, location: LatLng | null)
     }
   }
   return { output: JSON.stringify({ ok: true, profile: saved.data.summary }), cards: [] }
+}
+
+/** Dónde está parado: calle, esquina y coordenadas de la ubicación en vivo. */
+async function whereAmITool(location: LatLng | null): Promise<ToolResult> {
+  const at = location ?? (await getTravelerContext()).location
+  return { output: JSON.stringify({ where: whereLine(await getWhere(at)) }), cards: [] }
 }
 
 /** La última charla con el traductor, entera, si terminó hace poco. */
@@ -612,6 +620,8 @@ export async function runTool(
       const args = toolSchemas.show_route.safeParse(json)
       return args.success ? showRouteTool(args.data, location) : invalid
     }
+    case "where_am_i":
+      return whereAmITool(location)
     case "edit_itinerary": {
       const args = toolSchemas.edit_itinerary.safeParse(json)
       return args.success ? editItinerary(args.data, location) : invalid

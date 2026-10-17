@@ -174,7 +174,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         if (res.success && shouldRefresh(lastRefreshRef.current, position)) {
           const firstPing = lastRefreshRef.current === null
           lastRefreshRef.current = position
-          if (!firstPing) router.refresh()
+          // El primero solo refresca si la pantalla se armó con un ping viejo de otro lado
+          // (ej. el último era en París y ahora el GPS está en Montevideo).
+          if (!firstPing || res.movedFar) router.refresh()
         }
       })
       .finally(() => {

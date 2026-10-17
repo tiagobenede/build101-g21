@@ -110,7 +110,7 @@ export function TranslatorTips({ tips, scan, timeZone, onChange, onGo }: Transla
       {showResult && scan.last === "error" && (
         <StatusRow muted>
           <TriangleAlertIcon className="size-4" />
-          No pude revisar lo que dijo. Si te recomendó algo, pedíselo a Rumbo.
+          No pude revisar lo que dijo. Si te recomendó algo, pedíselo a Polo.
         </StatusRow>
       )}
 

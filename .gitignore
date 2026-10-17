@@ -44,3 +44,6 @@ next-env.d.ts
 
 # realtime mock (docs/)
 docs/realtime-mock/benchmark-results/*.wav
+
+# material del video del pitch (pesado, no va en git)
+/video-frames/

@@ -142,7 +142,7 @@ export function LocalTipCard({ tip, timeZone, onChange, onGo, className }: Local
     >
       <p className="text-[15px] leading-snug">{facts}</p>
       <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[13px] leading-snug">
-        {tip.placeId ? tip.what : "No lo encontré en el mapa: pedile a Rumbo que lo busque."}
+        {tip.placeId ? tip.what : "No lo encontré en el mapa: pedile a Polo que lo busque."}
       </p>
     </NotificationCard>
   )

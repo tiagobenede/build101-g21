@@ -38,7 +38,7 @@ export function tipsJsonSchema(): Record<string, unknown> {
 
 export type Turn = { speaker: Speaker; original: string; translated: string }
 
-export const TIPS_SYSTEM_PROMPT = `Sos parte de Rumbo, un guía de viaje. Un viajero habla con una persona local a través de un traductor.
+export const TIPS_SYSTEM_PROMPT = `Sos parte de Polo, un guía de viaje. Un viajero habla con una persona local a través de un traductor.
 Te paso los últimos turnos. Extraé SOLO los lugares concretos (un restaurante, un mercado, un bar, un museo, una calle, un barrio) que la persona local recomienda en su ÚLTIMO turno. Usá los turnos anteriores para entender a qué responde ("¿dónde como?" → lo que nombra es para comer).
 Nada de lugares que solo menciona sin recomendar, ni de recomendaciones genéricas ("andá a un café"). Si no hay, devolvé tips vacío.`
 

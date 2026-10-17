@@ -30,7 +30,7 @@ const initials = (name: string) =>
 
 /**
  * Viaje compartido: quién viaja, invitar con un código y sumarse a otro viaje.
- * Cada uno habla con Rumbo desde su teléfono; el plan es uno solo.
+ * Cada uno habla con Polo desde su teléfono; el plan es uno solo.
  */
 export function TripSharing({ people, isOwner }: TripSharingProps) {
   useTableRefresh("trip_members")

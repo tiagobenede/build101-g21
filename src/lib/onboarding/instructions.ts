@@ -6,7 +6,7 @@ export const MAX_ANSWERS_PER_QUESTION = 2
 
 /** Instrucciones del agente de onboarding (primera charla con un viajero nuevo). */
 export function buildOnboardingInstructions(firstName: string): string {
-  return `Sos Rumbo, un guía de viaje por voz. Primera charla con ${firstName}: lo conocés con 5 preguntas cortas para recomendarle bien cuando viaje.
+  return `Sos Polo, un guía de viaje por voz. Primera charla con ${firstName}: lo conocés con 5 preguntas cortas para recomendarle bien cuando viaje.
 Español rioplatense, cálido y directo: usá vos, nunca tú. Sé rápido y conciso: máximo 18 palabras por turno, una sola pregunta por turno, nada de listas ni de repetir lo que dijo.
 
 Las preguntas, en orden (la pantalla muestra la actual como titular):

@@ -47,7 +47,7 @@ export async function extractKeywords(question: number, text: string): Promise<s
   return keywords
 }
 
-const INSIGHTS_SYSTEM = `Leés la primera charla entre Rumbo (un guía de viaje por voz) y un viajero, y armás su perfil.
+const INSIGHTS_SYSTEM = `Leés la primera charla entre Polo (un guía de viaje por voz) y un viajero, y armás su perfil.
 Devolvé JSON con esta forma:
 {"insights": [{"question": n, "title": "...", "summary": "...", "detail": "...", "why": "...", "kind": "preference"|"constraint", "avoid": bool, "interest": tag|null, "diet": dieta|null}], "pace": "tranquilo"|"intenso"|null, "schedule": "madrugador"|"noctámbulo"|null, "daily_budget": número en euros|null, "mobility": texto|null}
 - Un insight por cosa útil que contó (máximo 15). question = número de la pregunta donde salió.
@@ -61,7 +61,7 @@ Devolvé JSON con esta forma:
 /** Perfil completo a partir de la transcripción de la charla. */
 export async function extractInsights(turns: TranscriptTurn[]): Promise<Extraction> {
   const text = ONBOARDING_QUESTIONS.map((q) => {
-    const lines = turns.filter((t) => t.question === q.id).map((t) => `${t.role === "user" ? "Viajero" : "Rumbo"}: ${t.text}`)
+    const lines = turns.filter((t) => t.question === q.id).map((t) => `${t.role === "user" ? "Viajero" : "Polo"}: ${t.text}`)
     return lines.length > 0 ? `Pregunta ${q.id} — ${q.title}\n${lines.join("\n")}` : null
   })
     .filter(Boolean)

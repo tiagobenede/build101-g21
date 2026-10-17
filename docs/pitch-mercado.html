@@ -1,0 +1,293 @@
+<title>Polo: mercado y monetización</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: columna de lectura de ~760px; los números del pitch en grilla, el resto en tablas y listas sobrias. */
+:root {
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --ink: #141a2e;
+  --muted: #5a6280;
+  --line: #dfe3ee;
+  --accent: #2547c9;
+  --accent-soft: #e6ebfb;
+  --amber: #9a5b00;
+  --amber-soft: #fbf0dc;
+  --green: #17734a;
+  --green-soft: #e1f3ea;
+  --grey-soft: #eceef4;
+  --f-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --f-body: "Source Sans 3", "Helvetica Neue", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1322; --surface: #171c30; --ink: #e9ecf6; --muted: #9aa2bf; --line: #2a3150;
+    --accent: #8ea6ff; --accent-soft: #212b52; --amber: #f0b45a; --amber-soft: #3a2c14;
+    --green: #6fd3a2; --green-soft: #153528; --grey-soft: #232a43; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1322; --surface: #171c30; --ink: #e9ecf6; --muted: #9aa2bf; --line: #2a3150;
+  --accent: #8ea6ff; --accent-soft: #212b52; --amber: #f0b45a; --amber-soft: #3a2c14;
+  --green: #6fd3a2; --green-soft: #153528; --grey-soft: #232a43; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 17px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+main { max-width: 820px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2rem, 6vw, 3rem); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 1.12rem; font-weight: 700; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.2rem; color: var(--muted); }
+.quote {
+  font-family: var(--f-display); font-size: 1.35rem; font-weight: 500; line-height: 1.3;
+  background: var(--accent-soft); color: var(--ink); padding: 20px 24px; border-radius: 14px;
+}
+.quote small { display: block; font-family: var(--f-body); font-size: 0.85rem; color: var(--muted); margin-top: 8px; font-weight: 400; }
+
+/* Números del pitch */
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.stat .n { font-family: var(--f-display); font-size: 2rem; font-weight: 700; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+.stat .what { font-size: 0.95rem; }
+.stat .src { font-size: 0.78rem; color: var(--muted); margin-top: auto; }
+.stat .use { font-size: 0.85rem; color: var(--muted); font-style: italic; }
+
+/* Tablas */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; min-width: 560px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.total td { font-weight: 600; background: var(--accent-soft); }
+tr.us td { background: var(--accent-soft); }
+
+/* Opciones de monetización */
+.options { display: flex; flex-direction: column; gap: 12px; }
+.opt { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; display: grid; gap: 8px; }
+.opt-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; }
+.opt-head h3 { flex: 1 1 260px; }
+.opt dl { margin: 0; display: grid; grid-template-columns: 120px 1fr; gap: 4px 12px; font-size: 0.95rem; }
+.opt dt { color: var(--muted); font-size: 0.85rem; padding-top: 2px; }
+.opt dd { margin: 0; min-width: 0; }
+@media (max-width: 520px) { .opt dl { grid-template-columns: 1fr; } .opt dt { padding-top: 6px; } }
+.pill { font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.p-now { background: var(--green-soft); color: var(--green); }
+.p-next { background: var(--accent-soft); color: var(--accent); }
+.p-later { background: var(--grey-soft); color: var(--muted); }
+.assume { background: var(--amber-soft); color: var(--amber); padding: 12px 16px; border-radius: 10px; font-size: 0.92rem; }
+
+ul.plain, ol.plain { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; max-width: 70ch; }
+.risk { display: grid; grid-template-columns: 1fr; gap: 4px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.risk:last-child { border-bottom: 0; }
+.risk b { font-family: var(--f-display); font-weight: 700; }
+.sources { font-size: 0.85rem; color: var(--muted); }
+.sources ol { padding-left: 1.4em; display: flex; flex-direction: column; gap: 4px; }
+.sources a { word-break: break-word; }
+</style>
+
+<main>
+  <header style="display:flex;flex-direction:column;gap:14px">
+    <span class="eyebrow">Hackathon · Pitch · 17 oct 2026</span>
+    <h1>Polo: mercado y cómo gana plata</h1>
+    <p class="lede">Polo es un guía de viaje por voz que te acompaña mientras caminás: sabe dónde estás, qué te gusta y qué tenés en el plan, traduce tus charlas con residentes y te avisa cuando pasás cerca de algo que te interesa. El nombre viene de Marco Polo, el viajero, y del polo de la brújula. Este documento junta los números para el pitch y las formas de monetizarlo.</p>
+  </header>
+
+  <section>
+    <span class="eyebrow">La frase</span>
+    <div class="quote">“Google y ChatGPT te ayudan a planear el viaje. Polo te acompaña durante el viaje, en la calle, y convierte cada recomendación en una visita que un local paga.”
+      <small>El hueco: la planificación ya tiene dueños; el momento “estoy acá, tengo 40 minutos, ¿qué hago?” no.</small>
+    </div>
+  </section>
+
+  <section>
+    <h2>Números para el pitch</h2>
+    <p>Elegidos para contar una historia: mercado enorme, poco digitalizado, viajeros que ya usan IA y quieren lo local, y negocios que ya pagan por aparecer.</p>
+    <div class="stats">
+      <div class="stat"><span class="n">1.520 M</span><span class="what">llegadas de turistas internacionales en 2025 (+4%), con US$1,9 billones de gasto.</span><span class="use">Tamaño del mundo.</span><span class="src">UN Tourism, ene 2026 [1]</span></div>
+      <div class="stat"><span class="n">US$271 B</span><span class="what">mercado de experiencias (tours, actividades, atracciones) en 2025; US$342 B en 2029.</span><span class="use">El mercado donde vive Polo.</span><span class="src">Arival / Phocuswright [2]</span></div>
+      <div class="stat"><span class="n">33%</span><span class="what">de las experiencias se reservan online, contra 64% del resto de los viajes.</span><span class="use">Mercado todavía analógico: la oportunidad.</span><span class="src">Arival / Phocuswright [2]</span></div>
+      <div class="stat"><span class="n">77%</span><span class="what">de los viajeros quiere experiencias auténticas de la cultura local; 73% quiere que su gasto quede en la comunidad.</span><span class="use">Justifica el foco en locales y en tips de residentes.</span><span class="src">Booking.com, 32.000 viajeros, 2025 [3]</span></div>
+      <div class="stat"><span class="n">29%</span><span class="what">de los consumidores de EE.UU. ya usó IA para planear un viaje; 53% de ellos para buscar atracciones locales.</span><span class="use">El hábito ya existe.</span><span class="src">Adobe, 5.000 personas, sep 2025 [4]</span></div>
+      <div class="stat"><span class="n">23,2 M</span><span class="what">turistas internacionales en París y su región en 2025, que gastaron €15.600 M (≈ €670 cada uno).</span><span class="use">Nuestra ciudad de lanzamiento.</span><span class="src">Visit Paris Region [5]</span></div>
+      <div class="stat"><span class="n">~22%</span><span class="what">de take rate de Viator: US$294 M de ingresos sobre US$1.300 M reservados en el Q3 2025.</span><span class="use">Lo que se puede cobrar en experiencias.</span><span class="src">Tripadvisor Q3 2025 [6]</span></div>
+      <div class="stat"><span class="n">US$948 M</span><span class="what">facturó Yelp en publicidad a negocios locales en 2025; el costo por clic subió 10%.</span><span class="use">Los locales ya pagan por ser descubiertos, y cada vez más.</span><span class="src">Yelp, resultados 2025 [7]</span></div>
+      <div class="stat"><span class="n">1 M</span><span class="what">de conversaciones en el piloto del concierge con IA de Accor, ya desplegado en app, web y WhatsApp.</span><span class="use">Los grandes validan la categoría.</span><span class="src">Travel Agent Central [8]</span></div>
+      <div class="stat"><span class="n">≤ US$0,30</span><span class="what">cuesta como máximo una llamada de voz de Polo (corte automático); una pantalla generada, ~US$0,0002.</span><span class="use">Margen sano desde el día uno.</span><span class="src">Medición propia, README del repo</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tamaño de mercado</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Capa</th><th>Qué es</th><th class="num">Tamaño</th></tr></thead>
+        <tbody>
+          <tr><td>TAM</td><td>Experiencias en destino a nivel mundial (tours, actividades, atracciones)</td><td class="num">US$271 B</td></tr>
+          <tr><td>SAM</td><td>La parte que hoy ya se reserva online (33%)</td><td class="num">≈ US$89 B</td></tr>
+          <tr><td>Cabeza de playa</td><td>Gasto de turistas internacionales en París y su región</td><td class="num">€15,6 B</td></tr>
+          <tr><td>Además</td><td>Comida y bebida, que en París es cerca de 25% del gasto local del turista (dato de Mastercard, más viejo) [9]</td><td class="num">≈ €3,8 B</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Para el pitch alcanza con el TAM y la cabeza de playa. El SAM es una cuenta nuestra (271 × 33%), conviene decirlo así si preguntan.</p>
+  </section>
+
+  <section>
+    <h2>Competencia y dónde entra Polo</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Quién</th><th>Qué hace</th><th>Qué le falta</th></tr></thead>
+        <tbody>
+          <tr><td>Google Maps / Gemini</td><td>Búsqueda de lugares, reseñas, anuncios locales</td><td>Reactivo: tenés que buscar. No conoce tu itinerario ni tus charlas.</td></tr>
+          <tr><td>ChatGPT y similares</td><td>Planificación general por chat</td><td>No está en la calle con vos ni te avisa cuando pasás cerca.</td></tr>
+          <tr><td>Mindtrip (≈US$22 M levantados), Layla (€3 M)</td><td>Planificación de viajes con IA, antes de salir</td><td>Foco en planear y reservar, no en el momento del recorrido.</td></tr>
+          <tr><td>GetYourGuide, Viator</td><td>Marketplace de experiencias</td><td>Catálogo, no guía. Son socios posibles, no rivales.</td></tr>
+          <tr><td>Audioguías (app ≈ US$175 M)</td><td>Relatos grabados por punto</td><td>Contenido fijo, no conversa ni se adapta.</td></tr>
+          <tr><td>Accor ALL Concierge</td><td>Concierge con IA para huéspedes</td><td>Cerrado a una cadena. Valida la demanda B2B.</td></tr>
+          <tr class="us"><td><b>Polo</b></td><td>Guía por voz durante el viaje, proactivo, con memoria</td><td>Diferencial: voz manos libres, avisos por cercanía, y la traducción que guarda lo que te recomienda un residente.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Formas de monetizar</h2>
+    <p>La que ya hablamos (comisión de locales) es la central. Alrededor hay otras siete; las ordené por cuándo tienen sentido.</p>
+    <div class="options">
+      <article class="opt">
+        <div class="opt-head"><h3>1. Pago por visita de locales</h3><span class="pill p-now">Ahora</span></div>
+        <dl>
+          <dt>Cómo</dt><dd>El local paga cuando un viajero que Polo le recomendó entra de verdad (lo sabemos por la ubicación: llegó al lugar y se quedó). Mejor que cobrar por clic o por aparecer.</dd>
+          <dt>Referencia</dt><dd>TheFork cobra ≈ €2–4 por comensal más una cuota mensual. Yelp cobra por clic y subió el precio 10% en 2025.</dd>
+          <dt>Cuidado</dt><dd>Solo se “empuja” un local entre los que ya encajan con los gustos del viajero (el ranking actual decide primero), y se marca como destacado. Así no se rompe la confianza.</dd>
+        </dl>
+      </article>
+      <article class="opt">
+        <div class="opt-head"><h3>2. Afiliados de experiencias y entradas</h3><span class="pill p-now">Ahora</span></div>
+        <dl>
+          <dt>Cómo</dt><dd>Cuando Polo sugiere un tour, un museo o un evento, “Llevame” o “Al plan” abre la reserva con link de afiliado.</dd>
+          <dt>Referencia</dt><dd>GetYourGuide y Viator pagan ≈ 8% a afiliados; Viator se queda con ≈ 22% de lo que vende.</dd>
+          <dt>Por qué</dt><dd>Cero ventas a locales para arrancar: monetiza desde el primer usuario.</dd>
+        </dl>
+      </article>
+      <article class="opt">
+        <div class="opt-head"><h3>3. Pase de viaje (freemium)</h3><span class="pill p-now">Ahora</span></div>
+        <dl>
+          <dt>Cómo</dt><dd>Gratis con minutos de voz limitados; pase por viaje (por ejemplo €4,99) con voz ilimitada, traductor y avisos por cercanía.</dd>
+          <dt>Referencia</dt><dd>TripIt Pro ≈ US$49/año; Wanderlog Pro ≈ US$24–50/año. Un pase por viaje encaja mejor con quien viaja dos veces al año.</dd>
+          <dt>Por qué</dt><dd>El costo de voz es variable; el pase lo cubre con margen.</dd>
+        </dl>
+      </article>
+      <article class="opt">
+        <div class="opt-head"><h3>4. Reservas de restaurantes</h3><span class="pill p-next">Después</span></div>
+        <dl>
+          <dt>Cómo</dt><dd>“Reservame en la crêperie a las 20” por voz, con comisión por comensal o vía integración con TheFork.</dd>
+          <dt>Referencia</dt><dd>€2–4 por comensal es lo que el mercado ya acepta.</dd>
+        </dl>
+      </article>
+      <article class="opt">
+        <div class="opt-head"><h3>5. Venta cruzada de viaje</h3><span class="pill p-next">Después</span></div>
+        <dl>
+          <dt>Cómo</dt><dd>eSIM, seguro de viaje, traslados, ofrecidos en el momento justo (“no tenés datos”, “llegás al aeropuerto”).</dd>
+          <dt>Referencia</dt><dd>Airalo paga 10% por venta de eSIM.</dd>
+        </dl>
+      </article>
+      <article class="opt">
+        <div class="opt-head"><h3>6. Marca blanca para hoteles</h3><span class="pill p-next">Después</span></div>
+        <dl>
+          <dt>Cómo</dt><dd>Hoteles y cadenas medianas ofrecen Polo como su concierge, con su marca. Cobro por habitación por mes.</dd>
+          <dt>Referencia</dt><dd>Accor ya lo hizo con su propio equipo (1 M de conversaciones). Las cadenas que no pueden construirlo son el mercado.</dd>
+        </dl>
+      </article>
+      <article class="opt">
+        <div class="opt-head"><h3>7. Datos y campañas para destinos (DMOs)</h3><span class="pill p-later">Más adelante</span></div>
+        <dl>
+          <dt>Cómo</dt><dd>Oficinas de turismo pagan por campañas (“llevá gente al barrio X”) y por datos anónimos de recorridos y preguntas.</dd>
+          <dt>Referencia</dt><dd>85% de las DMOs mantiene o sube su presupuesto digital, y 54% no puede demostrar retorno (Sojern 2025). Polo mide visitas reales: ese es el argumento.</dd>
+        </dl>
+      </article>
+      <article class="opt">
+        <div class="opt-head"><h3>8. Red de tips de residentes</h3><span class="pill p-later">Más adelante</span></div>
+        <dl>
+          <dt>Cómo</dt><dd>Los tips que los residentes dan en las charlas traducidas se vuelven una red: el residente cobra una parte cuando su recomendación genera una visita paga.</dd>
+          <dt>Por qué</dt><dd>Es lo que nadie más tiene y alimenta el contenido sin costo editorial.</dd>
+        </dl>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ingreso por viaje: un ejemplo</h2>
+    <p class="assume">Todos los valores de esta tabla son supuestos nuestros para ilustrar, no datos medidos. Presentarlos así en el pitch.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Concepto (viaje de 4 días en París)</th><th>Supuesto</th><th class="num">Por viaje</th></tr></thead>
+        <tbody>
+          <tr><td>Visitas a locales atribuidas</td><td>4 visitas × €1,50</td><td class="num">€6,00</td></tr>
+          <tr><td>Experiencia reservada</td><td>1 × €60 × 8%</td><td class="num">€4,80</td></tr>
+          <tr><td>Pase de viaje</td><td>10% compra × €4,99</td><td class="num">€0,50</td></tr>
+          <tr><td>eSIM</td><td>30% compra × €15 × 10%</td><td class="num">€0,45</td></tr>
+          <tr class="total"><td>Ingreso</td><td></td><td class="num">≈ €11,75</td></tr>
+          <tr><td>Costo de voz</td><td>6 llamadas, entre US$0,10 y el tope de US$0,30</td><td class="num">€0,55–1,65</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Si Polo acompaña al 1% de los turistas internacionales de París (≈ 232.000 viajes), son ≈ €2,7 M al año en una sola ciudad, con margen bruto de más del 85%.</p>
+  </section>
+
+  <section>
+    <h2>Preguntas difíciles que nos van a hacer</h2>
+    <div>
+      <div class="risk"><b>“Si los locales pagan, ¿las recomendaciones dejan de ser honestas?”</b><span>El pago nunca mete un lugar que no encaja con tus gustos; solo ordena entre los que ya encajan, y se muestra como destacado. En la UE es obligatorio avisar cuando un ranking incluye resultados pagos (directiva Omnibus 2019/2161), así que lo diseñamos así desde el principio.</span></div>
+      <div class="risk"><b>“¿Qué pasa cuando Google lo haga?”</b><span>Google responde búsquedas. Polo conoce tu itinerario, tu tiempo libre y lo que te dijo un residente esta mañana, y te habla sin que preguntes. La memoria del viaje es nuestra ventaja.</span></div>
+      <div class="risk"><b>“¿Cómo consiguen locales al principio?”</b><span>No hace falta: arrancamos con afiliados de experiencias y el pase de viaje. Los locales llegan cuando les podemos mostrar visitas reales que ya les mandamos gratis.</span></div>
+      <div class="risk"><b>“La voz es cara.”</b><span>Una llamada cuesta como máximo US$0,30 porque se corta sola, y una pantalla generada cuesta US$0,0002. Con un ingreso de ≈ €12 por viaje, el margen aguanta.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Guion de 90 segundos</h2>
+    <ol class="plain">
+      <li><b>Problema (15 s).</b> Estás en París, tenés 40 minutos libres, no hablás francés. Abrís Maps y ves 200 pines.</li>
+      <li><b>Demo (40 s).</b> Lucía le habla a Polo, Polo le recomienda algo a 3 minutos. Charla traducida con Camille, que le recomienda una crêperie. Más tarde: “Estás a 2 minutos de la crêperie que te recomendó Camille”.</li>
+      <li><b>Mercado (15 s).</b> US$271 B en experiencias, solo un tercio online. 77% de los viajeros quiere lo local.</li>
+      <li><b>Negocio (15 s).</b> Los locales pagan por visita real, no por clic. Más afiliados y pase de viaje. ≈ €12 por viaje, voz a menos de US$0,30 por llamada.</li>
+      <li><b>Cierre (5 s).</b> La frase de arriba.</li>
+    </ol>
+  </section>
+
+  <section class="sources">
+    <h2 style="font-size:1.1rem">Fuentes</h2>
+    <ol>
+      <li><a href="https://www.hospitalitynet.org/news/4130515.html">UN Tourism, llegadas internacionales 2025 (Hospitality Net)</a></li>
+      <li><a href="https://www.traveldailynews.com/statistics-trends/global-experiences-market-projected-to-reach-342bn-by-2029/">Arival / Phocuswright, mercado de experiencias (TravelDailyNews)</a></li>
+      <li><a href="https://transition-pathways.europa.eu/system/files/2025-05/2025travelampsustainabilityreport-booking.com2_.pdf">Booking.com, Sustainable Travel Report 2025</a></li>
+      <li><a href="https://business.adobe.com/au/blog/consumers-embrace-generative-ai-for-trip-planning">Adobe, uso de IA generativa para planear viajes</a></li>
+      <li><a href="https://www.lechotouristique.com/article/ile-de-france-en-2025-la-clientele-etrangere-compense-le-leger-repli-du-marche-domestique">L’Écho touristique, balance 2025 de Île-de-France</a> · <a href="https://www.linfodurable.fr/paris-et-lile-de-france-ont-attire-pres-de-50-millions-de-touristes-lan-dernier-55648">L’info durable</a></li>
+      <li><a href="https://quartr.com/events/tripadvisor-inc-trip-q3-2025_3Y1ZMapy">Tripadvisor Q3 2025 (Quartr)</a> · <a href="https://www.phocuswire.com/tripadvisor-q2-2025">PhocusWire Q2 2025</a></li>
+      <li><a href="https://www.businesswire.com/news/home/20260212812443/en/Yelp-Delivers-Record-Net-Revenue-in-2025-Accelerating-Investment-in-AI-Transformation/">Yelp, resultados 2025 (Business Wire)</a></li>
+      <li><a href="https://www.travelagentcentral.com/hotels/accor-launches-ai-travel-companion-scale">Accor ALL Concierge (Travel Agent Central)</a></li>
+      <li><a href="https://www.smartertravel.com/cities-dining-shopping/">SmarterTravel, gasto en comida por ciudad (Mastercard)</a></li>
+      <li><a href="https://www.ttgasia.com/2025/02/07/digital-advertising-spend-among-dmos-remain-strong-new-sojern-report/">Sojern, State of Destination Marketing 2025 (TTG Asia)</a></li>
+      <li><a href="https://restaurant.eatapp.co/en/blog/best-restaurant-reservation-software-france">Comisión de TheFork (Eat App)</a> · <a href="https://track360.io/blog/viator-getyourguide-affiliate-programs-operator-teardown-2026">Afiliados Viator / GetYourGuide (Track360)</a> · <a href="https://www.airalo.com/blog/airalo-affiliate-program-faqs">Afiliados Airalo</a></li>
+      <li><a href="https://www.phocuswire.com/mindtrip-ai-travel-planning-capital-one-ventures-united-airlines-ventures">Mindtrip (PhocusWire)</a> · <a href="https://www.travolution.com/news/technology/new-travel-start-up-layla-announces-%E2%82%AC3m-in-funding-for-travel-recommendation-app/">Layla (Travolution)</a> · <a href="https://gii.tw/report/ires1676745-audio-tour-guide-app-market-by-tour-type-device.html">Mercado de apps de audioguía (360iResearch)</a></li>
+      <li><a href="https://www.pilotplans.com/blog/review-of-tripit">TripIt Pro (Pilot)</a> · <a href="https://apps.apple.com/us/app/wanderlog/id1476732439">Wanderlog en App Store</a></li>
+    </ol>
+  </section>
+</main>

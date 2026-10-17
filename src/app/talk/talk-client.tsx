@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { addItem } from "@/app/itinerary/actions"
@@ -29,6 +29,7 @@ import { ScrollFade } from "@/components/rumbo/scroll-fade"
 import { CameraSheet } from "@/components/camera/camera-sheet"
 import { TranslatorTips, type TipScan } from "@/components/translate/translator-tips"
 import { TranslatorPanel } from "@/components/translate/translator-panel"
+import { MicWave } from "@/components/rumbo/mic-wave"
 import { TALK_STATUS_IDLE, VoiceStage } from "@/components/rumbo/voice-stage"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -272,6 +273,21 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
     // eslint-disable-next-line react-hooks/set-state-in-effect -- responde a una pantalla nueva que llega por streaming
     if (screenId) setShowMap(false)
   }, [screenId])
+  // Next guarda esta pantalla oculta al navegar (cacheComponents). Al volver con la llamada
+  // cortada arranca limpia: blob en el medio y "Tocá para empezar a hablar", no lo de la charla anterior.
+  const callStateRef = useRef(call.state)
+  useLayoutEffect(() => {
+    callStateRef.current = call.state
+  })
+  const { clearPlaces } = call
+  const { clear: clearGenUi } = genui
+  useLayoutEffect(() => {
+    if (callStateRef.current !== "off") return
+    clearPlaces()
+    clearGenUi()
+    setShowMap(false)
+  }, [clearPlaces, clearGenUi])
+
   const active = call.state !== "off"
   const hasPlaces = call.places.length > 0 || genui.screen !== null
 
@@ -367,6 +383,10 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
           )}
 
           <footer className="animate-in fade-in slide-in-from-bottom-2 relative z-10 mx-auto duration-500 w-full max-w-md px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            {/* Con el blob arriba como glow ya no se ve reaccionar a tu voz: esta onda muestra si el audio llega. */}
+            {active && hasPlaces && (
+              <MicWave volumeRef={call.inputVolumeRef} muted={call.micMuted} className="animate-in fade-in mb-4 duration-500" />
+            )}
             {active ? (
               <div className="flex items-center justify-center gap-4">
                 <RoundToggle
@@ -395,7 +415,7 @@ export function TalkClient({ location, nextCommitment, places, mapPlaces, stops 
               <div className="flex items-center gap-3">
                 <Button onClick={() => void call.start()} size="lg" className="h-14 flex-1 rounded-full text-base">
                   <MicIcon className="size-5" />
-                  Hablar con Rumbo
+                  Hablar con Polo
                 </Button>
                 <ToolButton label="Sacar foto" icon={<CameraIcon />} busy={photo.busy} onClick={() => setCameraOpen(true)} />
                 <ToolButton label="Traducir" icon={<LanguagesIcon />} onClick={openTranslator} />

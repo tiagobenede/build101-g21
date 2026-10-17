@@ -1,5 +1,5 @@
 /**
- * Traduce los tipos de Google Places (New) a lo que usa Rumbo: categoría (la de
+ * Traduce los tipos de Google Places (New) a lo que usa Polo: categoría (la de
  * los íconos), tags de gustos y minutos típicos de visita. Puro, para testearlo solo.
  */
 import type { Place } from "@/lib/agent/types"

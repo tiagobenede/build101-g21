@@ -25,6 +25,22 @@ const MOTION: Record<CallState, { wobble: number; tempo: number }> = {
   talking: { wobble: 10, tempo: 1.3 },
 }
 
+/** Pensando (`hollow`): sin relleno, contornos que se retuercen más rápido. */
+const HOLLOW_MOTION = { wobble: 15, tempo: 1.9 }
+/**
+ * Contornos del modo pensando: desfase del reloj, escala, grosor y desenfoque de cada uno.
+ * Gruesos y muy difuminados: se leen como luz, no como línea.
+ */
+const RINGS = [
+  { lag: 0, scale: 1, width: 7, blur: 6 },
+  { lag: 0.9, scale: 0.9, width: 5, blur: 5 },
+  { lag: 1.8, scale: 0.8, width: 4, blur: 4 },
+] as const
+/** Halo que queda detrás de los contornos mientras piensa. */
+const HOLLOW_HALO = 0.18
+const RING_GRADIENT = "#2F6BFF, #7B5CFF, #FF7AC8, #12B8FF, #2F6BFF"
+/** Grados por segundo (de reloj) que gira el degradé de los contornos. */
+const RING_SPIN = 70
 const SMOOTHING = 0.12
 const VOLUME_SCALE = 0.2
 const VOLUME_WOBBLE = 9
@@ -41,6 +57,8 @@ interface VoiceSphereProps {
   state: CallState
   inputVolumeRef: RefObject<number>
   outputVolumeRef: RefObject<number>
+  /** Pensando: se apaga el relleno y quedan solo contornos animados. */
+  hollow?: boolean
   className?: string
 }
 
@@ -49,14 +67,18 @@ interface VoiceSphereProps {
  * giran adentro y crecen con la voz. Sin WebGL: un solo requestAnimationFrame escribe los
  * estilos (sin re-renders).
  */
-export function VoiceSphere({ state, inputVolumeRef, outputVolumeRef, className }: VoiceSphereProps) {
+export function VoiceSphere({ state, inputVolumeRef, outputVolumeRef, hollow = false, className }: VoiceSphereProps) {
+  const haloRef = useRef<HTMLDivElement>(null)
   const shapeRef = useRef<HTMLDivElement>(null)
   const spotRefs = useRef<(HTMLDivElement | null)[]>([])
+  const ringRefs = useRef<(HTMLDivElement | null)[]>([])
   const stateRef = useRef(state)
+  const hollowRef = useRef(hollow)
 
   useEffect(() => {
     stateRef.current = state
-  }, [state])
+    hollowRef.current = hollow
+  }, [state, hollow])
 
   // Layout effect: el primer cuadro se dibuja antes de pintar (si no, se ve redondo un instante).
   useLayoutEffect(() => {
@@ -68,6 +90,7 @@ export function VoiceSphere({ state, inputVolumeRef, outputVolumeRef, className 
     // cuadro a cuadro, así el de la barra se reemplaza por el de /talk sin que se note.
     let synced = true
     let clock = 0
+    let hollowMix = 0
     let last = performance.now()
 
     const tick = (now: number) => {
@@ -76,16 +99,32 @@ export function VoiceSphere({ state, inputVolumeRef, outputVolumeRef, className 
       const s = stateRef.current
       const volume = s === "talking" ? outputVolumeRef.current : s === "listening" ? inputVolumeRef.current : 0
       level += ((volume ?? 0) - level) * SMOOTHING
-      wobble += (MOTION[s].wobble + level * VOLUME_WOBBLE - wobble) * EASE
-      tempo += (MOTION[s].tempo - tempo) * EASE
-      synced &&= s === "off"
+      const target = hollowRef.current ? HOLLOW_MOTION : MOTION[s]
+      hollowMix += ((hollowRef.current ? 1 : 0) - hollowMix) * EASE
+      wobble += (target.wobble + level * VOLUME_WOBBLE - wobble) * EASE
+      tempo += (target.tempo - tempo) * EASE
+      synced &&= s === "off" && !hollowRef.current
       clock = synced ? (now / 1000) * MOTION.off.tempo : clock + dt * tempo
 
       const shape = shapeRef.current
       if (shape) {
         shape.style.borderRadius = blobRadius(clock, wobble)
-        shape.style.transform = `scale(${1 + level * VOLUME_SCALE + Math.sin(clock * 0.8) * 0.015})`
+        shape.style.transform = `scale(${(1 + level * VOLUME_SCALE + Math.sin(clock * 0.8) * 0.015) * (1 - hollowMix * 0.2)})`
+        shape.style.opacity = String(1 - hollowMix)
       }
+      if (haloRef.current) haloRef.current.style.opacity = String(0.3 + (HOLLOW_HALO - 0.3) * hollowMix)
+      RINGS.forEach((ring, i) => {
+        const el = ringRefs.current[i]
+        if (!el) return
+        const t = clock - ring.lag
+        const stroke = el.firstElementChild as HTMLElement | null
+        if (stroke) {
+          stroke.style.borderRadius = blobRadius(t, wobble)
+          stroke.style.background = `conic-gradient(from ${t * RING_SPIN}deg, ${RING_GRADIENT})`
+        }
+        el.style.transform = `scale(${ring.scale * (1 + Math.sin(t * 1.4) * 0.03)}) rotate(${t * 12}deg)`
+        el.style.opacity = String(hollowMix * (1 - i * 0.22))
+      })
       SPOTS.forEach((spot, i) => {
         const el = spotRefs.current[i]
         if (!el) return
@@ -102,7 +141,34 @@ export function VoiceSphere({ state, inputVolumeRef, outputVolumeRef, className 
   return (
     <div className={cn("relative shrink-0", className)} aria-hidden>
       {/* Halo difuso detrás, con los mismos colores. */}
-      <div className="absolute inset-[10%] rounded-full bg-[conic-gradient(from_200deg,#2F6BFF,#7B5CFF,#12B8FF,#2F6BFF)] opacity-30 blur-2xl" />
+      <div
+        ref={haloRef}
+        className="absolute inset-[10%] rounded-full bg-[conic-gradient(from_200deg,#2F6BFF,#7B5CFF,#12B8FF,#2F6BFF)] opacity-30 blur-2xl"
+      />
+      {/*
+        Modo pensando: anillos con degradé. La máscara (que deja solo el borde) va adentro y
+        el blur afuera: si comparten elemento, la máscara recorta el desenfoque.
+      */}
+      {RINGS.map((ring, i) => (
+        <div
+          key={ring.lag}
+          ref={(el) => {
+            ringRefs.current[i] = el
+          }}
+          className="absolute inset-0 opacity-0 will-change-transform"
+          style={{ filter: `blur(${ring.blur}px)` }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              padding: ring.width,
+              mask: "linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)",
+              WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+              WebkitMaskComposite: "xor",
+            }}
+          />
+        </div>
+      ))}
       <div
         ref={shapeRef}
         className="absolute inset-0 overflow-hidden bg-[radial-gradient(circle_at_50%_40%,#E9F1FF,#B9CFFF_80%)] shadow-[inset_0_0_20px_rgba(255,255,255,0.6)] will-change-transform"

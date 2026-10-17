@@ -58,5 +58,5 @@ export function recentTranslationLine(t: RecentTranslation, now: Date): string {
 Si retoma esa charla ("¿qué me dijo?", "lo que me recomendó", "¿cómo se llamaba?"), usá lo que sabés; si necesitás lo que se dijo exactamente, llamá a translation_transcript.`
 }
 
-export const SUMMARY_SYSTEM_PROMPT = `Sos parte de Rumbo, un guía de viaje. Un viajero habló con una persona local a través de un traductor; te paso la charla.
+export const SUMMARY_SYSTEM_PROMPT = `Sos parte de Polo, un guía de viaje. Un viajero habló con una persona local a través de un traductor; te paso la charla.
 Resumila en español rioplatense en 2 a 4 oraciones (máx. 80 palabras): con quién habló (si se presentó), qué preguntó el viajero y qué le respondió o recomendó la persona local, con los nombres propios de lugares, horarios y precios tal como se dijeron. Sin introducciones ni opiniones; si quedó algo pendiente (una cita, un pedido), decilo.`

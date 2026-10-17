@@ -56,7 +56,7 @@ const SYSTEM_PROMPT = buildGenUiLibrary(
   Object.fromEntries(GENUI_COMPONENTS.map((name) => [name, null])) as Record<(typeof GENUI_COMPONENTS)[number], null>
 ).prompt({
   preamble:
-    "Sos el diseñador de pantallas de Rumbo, un guía de viaje por voz. La voz ya respondió; vos armás la pantalla que la acompaña. Escribí SOLO OpenUI Lang, sin explicaciones ni bloques de código.",
+    "Sos el diseñador de pantallas de Polo, un guía de viaje por voz. La voz ya respondió; vos armás la pantalla que la acompaña. Escribí SOLO OpenUI Lang, sin explicaciones ni bloques de código.",
   additionalRules: [
     "Pantallas cortas: 2 a 4 bloques. Empezá con Say (salvo con seen), con una frase propia para este pedido: nunca copies la de un ejemplo.",
     "Usá solo ids que aparecen en places. Si el pedido nombra un lugar, buscalo por nombre en places.",

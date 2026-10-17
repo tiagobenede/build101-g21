@@ -10,6 +10,7 @@ import { z } from "zod"
 import type { PlaceCard } from "@/hooks/voice-session-types"
 import { DIETS, INTEREST_TAGS } from "@/lib/agent/rank"
 import { EVENT_KIND_NAMES } from "@/lib/events/paris"
+import { MAX_INTEREST_LENGTH } from "@/lib/profile/interests"
 
 export const toolSchemas = {
   recommend_nearby: z.object({
@@ -67,6 +68,7 @@ export const toolSchemas = {
   show_route: z.object({
     place_name: z.string().min(2).max(120).describe("El lugar adonde quiere ir, con el nombre que aparece en la pantalla o en un resultado."),
   }),
+  where_am_i: z.object({}),
   edit_itinerary: z.object({
     op: z.enum(["add", "move", "remove", "done", "skip", "undo"]),
     item_ref: z.string().max(36).nullable().describe("Ref entre corchetes del plan (para move, remove, done, skip)."),
@@ -86,10 +88,13 @@ export const toolSchemas = {
       .enum(DIETS)
       .nullable()
       .describe("Si es una restricción de comida, cuál. null si no es de comida."),
-    interest: z
-      .enum(INTEREST_TAGS)
+    interests: z
+      .array(z.string().min(2).max(MAX_INTEREST_LENGTH))
+      .max(4)
       .nullable()
-      .describe("El gusto de la lista que corresponde ('me encantan los autos clásicos' → autos). null si no encaja en ninguno."),
+      .describe(
+        `Gustos que se suman al perfil (o se sacan si avoid). Usá el de la lista si encaja (${INTEREST_TAGS.join(", ")}); si no, el gusto en 1 a 3 palabras como lo dijo ('McDonald's', 'hospitales'). Ej.: 'me encantan los autos clásicos' → ["autos"]. null si no es un gusto.`
+      ),
   }),
   translation_transcript: z.object({}),
   open_translator: z.object({}),
@@ -124,6 +129,8 @@ const descriptions: Record<ToolName, string> = {
     "Datos prácticos de un lugar: si está abierto ahora, el horario de hoy, el teléfono, minutos a pie y de visita. Usalo cuando pregunte eso de un lugar puntual; para contar su historia no hace falta.",
   show_route:
     "Muestra en la pantalla el mapa con la caminata hasta un lugar y devuelve los minutos y metros reales a pie. Usalo cuando quiera ir a un lugar: 'llevame', 'dale, vamos', '¿cómo llego?', 'mostrame cómo ir'.",
+  where_am_i:
+    "Dónde está parado ahora el viajero: calle, esquina más cercana (a cuántos metros) y coordenadas. Usalo cuando pregunte dónde está, en qué calle o esquina, o sus coordenadas, si se movió desde que empezó la llamada. No muestra nada en pantalla.",
   edit_itinerary:
     "Cambia el plan del viaje: add (agrega un lugar o actividad), move (cambia el horario), remove, done, skip, undo (deshace el último cambio). Devuelve el plan de hoy actualizado. Las reservas no se pueden cambiar.",
   remember:

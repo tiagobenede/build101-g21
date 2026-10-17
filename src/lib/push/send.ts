@@ -6,7 +6,7 @@ import webpush, { WebPushError } from "web-push"
 /**
  * Manda una notificación push a todos los navegadores donde el viajero activó los avisos.
  * Lo usa el motor de cercanía (C-6) cuando crea un aviso. El service worker
- * (`public/sw.js`) la muestra, salvo que Rumbo esté abierto y a la vista.
+ * (`public/sw.js`) la muestra, salvo que Polo esté abierto y a la vista.
  */
 
 export type PushPayload = {

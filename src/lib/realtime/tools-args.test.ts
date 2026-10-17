@@ -25,11 +25,12 @@ describe("fillMissingNulls", () => {
 })
 
 describe("remember con gusto", () => {
-  it("acepta el gusto de la lista y, si falta, queda null", () => {
-    const withTag = { statement: "Le encantan los autos clásicos", kind: "preference", avoid: false, diet: null, interest: "autos" }
+  it("acepta gustos de la lista y propios y, si faltan, queda null", () => {
+    const withTag = { statement: "Le encantan los autos clásicos", kind: "preference", avoid: false, diet: null, interests: ["autos"] }
     expect(toolSchemas.remember.safeParse(withTag).success).toBe(true)
+    expect(toolSchemas.remember.safeParse({ ...withTag, interests: ["McDonald's", "hospitales"] }).success).toBe(true)
     const filled = fillMissingNulls("remember", { statement: "Le encantan los autos", kind: "preference", avoid: false }) as Record<string, unknown>
-    expect(filled.interest).toBeNull()
-    expect(toolSchemas.remember.safeParse({ ...withTag, interest: "yates" }).success).toBe(false)
+    expect(filled.interests).toBeNull()
+    expect(toolSchemas.remember.safeParse({ ...withTag, interests: ["x"] }).success).toBe(false)
   })
 })

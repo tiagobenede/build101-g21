@@ -3,8 +3,8 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { z } from "zod"
 
-import { INTEREST_TAGS } from "@/lib/agent/rank"
 import { fail, ok, type Result } from "@/lib/data/result"
+import { MAX_INTEREST_LENGTH, normalizeInterest } from "@/lib/profile/interests"
 import { compileProfileSummary, type ProfileFact } from "@/lib/profile/summary"
 
 /**
@@ -13,8 +13,18 @@ import { compileProfileSummary, type ProfileFact } from "@/lib/profile/summary"
  * cliente del usuario logueado y devuelven un `Result` con el error en español.
  */
 
+/** Un gusto de la lista ("autos") o uno propio ("mcdonald's"), ya normalizado. */
+const interestSchema = z.string().transform((raw, ctx) => {
+  const tag = normalizeInterest(raw)
+  if (!tag) ctx.addIssue({ code: "custom", message: "Gusto inválido." })
+  return tag ?? ""
+})
+
+/** Tope de gustos guardados (los de la lista más los propios). */
+const MAX_INTERESTS = 40
+
 const profileSchema = z.object({
-  interests: z.array(z.enum(INTEREST_TAGS)).max(INTEREST_TAGS.length),
+  interests: z.array(interestSchema).max(MAX_INTERESTS),
   dietary: z.array(z.string().trim().min(1).max(40)).max(10),
   mobility: z.string().trim().min(1).max(80).nullable(),
   dailyBudget: z.number().int().min(0).max(100_000).nullable(),
@@ -124,21 +134,22 @@ export function updateProfile(db: SupabaseClient, input: ProfileInput): Promise<
 }
 
 /** Un gusto: los de `INTEREST_TAGS` o uno que escribió el viajero ("jazz", "vinos naturales"). */
-export const interestTagSchema = z.string().trim().toLowerCase().min(2).max(30)
+export const interestTagSchema = z.string().trim().toLowerCase().min(2).max(MAX_INTEREST_LENGTH)
 
 /**
- * Suma un gusto al perfil (`on`) o lo saca (cuando dice que algo no le gusta). Los gustos
- * nuevos van al final: el orden lo eligió el viajero (onboarding o "Editar mis gustos").
+ * Suma un gusto al perfil (`on`) o lo saca (cuando dice que algo no le gusta). Puede ser de
+ * la lista ("autos") o propio ("mcdonald's"). Los nuevos van al final: el orden lo eligió el
+ * viajero (onboarding o "Editar mis gustos").
  */
-export function setInterest(db: SupabaseClient, tag: string, on: boolean): Promise<Result<null>> {
+export function setInterest(db: SupabaseClient, raw: string, on: boolean): Promise<Result<null>> {
   return guarded("interest", async () => {
-    const parsed = interestTagSchema.safeParse(tag)
-    if (!parsed.success) return fail("Gusto inválido.")
+    const tag = normalizeInterest(raw)
+    if (!tag) return fail("Gusto inválido.")
     const uid = await userId(db)
     if (!uid) return fail("Sin sesión.")
     const { error } = on
-      ? await db.from("interests").upsert({ user_id: uid, tag: parsed.data }, { onConflict: "user_id,tag", ignoreDuplicates: true })
-      : await db.from("interests").delete().eq("user_id", uid).eq("tag", parsed.data)
+      ? await db.from("interests").upsert({ user_id: uid, tag }, { onConflict: "user_id,tag", ignoreDuplicates: true })
+      : await db.from("interests").delete().eq("user_id", uid).eq("tag", tag)
     if (error) throw new Error(error.message)
     return ok(null)
   })

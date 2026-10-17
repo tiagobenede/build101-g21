@@ -8,6 +8,7 @@ import { timeZoneAt } from "@/lib/location/locale"
 import { sendPushToUser } from "@/lib/push/send"
 import { activeTrip } from "@/lib/translate/server"
 import { PROXIMITY } from "@/lib/tuning"
+import { matchInterests } from "@/lib/profile/interests"
 
 import {
   buildInterestQuestion,
@@ -94,7 +95,7 @@ async function check(db: SupabaseClient, userId: string, position: LatLng): Prom
     db.from("interests").select("tag").eq("user_id", userId),
     db
       .from("places")
-      .select("id, name, category, tags, description, rating, lat, lng")
+      .select("id, name, category, tags, description, rating, lat, lng, types:data->types")
       .eq("listed", true)
       .gte("lat", box.minLat)
       .lte("lat", box.maxLat)
@@ -117,7 +118,11 @@ async function check(db: SupabaseClient, userId: string, position: LatLng): Prom
   }
   const nearbyPlaces = placesRes.data as Row[]
   for (const p of nearbyPlaces) {
-    const matched = (p.tags as string[]).filter((t) => interests.includes(t))
+    // Mismo cruce que el agente: tags de la lista y gustos propios por nombre o tipo de Google.
+    const matched = matchInterests(
+      { name: p.name as string, category: p.category as string, tags: p.tags as string[], googleTypes: (p.types as string[] | null) ?? [] },
+      interests
+    )
     if (matched.length === 0) continue
     candidates.push({
       kind: "interest",

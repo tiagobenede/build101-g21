@@ -10,6 +10,7 @@ import { getTravelerContext } from "@/lib/data/session"
 import { formatTime } from "@/lib/format"
 import { createClient } from "@/lib/supabase/server"
 import { zonedDateKey } from "@/lib/time/zoned"
+import { matchInterests, type MatchablePlace } from "@/lib/profile/interests"
 
 /** Lugares en la lista que se despliega desde el mapa. */
 const MAX_NEARBY = 20
@@ -26,9 +27,9 @@ async function HomeContent() {
   const ctx = await getTravelerContext()
   const today = zonedDateKey(new Date(), ctx.timeZone)
   const todayItems = ctx.itinerary.filter((i) => zonedDateKey(new Date(i.starts_at), ctx.timeZone) === today)
-  const forYou = (tags: string[]) => tags.some((t) => ctx.interests.includes(t))
+  const forYou = (p: MatchablePlace) => matchInterests(p, ctx.interests).length > 0
   const nearby = [...ctx.nearby]
-    .sort((a, b) => Number(forYou(b.tags)) - Number(forYou(a.tags)) || a.distanceMeters - b.distanceMeters)
+    .sort((a, b) => Number(forYou(b)) - Number(forYou(a)) || a.distanceMeters - b.distanceMeters)
     .slice(0, MAX_NEARBY)
   const companionNames = Object.fromEntries(ctx.companions.map((c) => [c.userId, c.firstName]))
 
@@ -41,7 +42,7 @@ async function HomeContent() {
           category: p.category,
           lat: p.lat,
           lng: p.lng,
-          forYou: forYou(p.tags),
+          forYou: forYou(p),
         }))}
         stops={todayItems
           .filter((i) => i.lat !== null && i.lng !== null)
@@ -57,7 +58,7 @@ async function HomeContent() {
           name: p.name,
           category: p.category,
           walkMinutes: p.walkMinutes,
-          forYou: forYou(p.tags),
+          forYou: forYou(p),
         }))}
       />
 
