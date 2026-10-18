@@ -43,7 +43,7 @@ const SEED_USERS: readonly SeedUser[] = [
     id: "22222222-2222-4222-8222-222222222222",
     tripId: "aaaaaaa1-0000-4000-8000-000000000002",
     profile: { full_name: "Lucas", home_city: "Buenos Aires", travel_style: "Museos, historia y librerías", onboarded: true },
-    interests: ["arte", "historia", "libros"],
+    interests: ["arte", "historia", "libros", "louvre"],
     trip: { startOffsetDays: -1, endOffsetDays: 3 },
     plan: [
       {
