@@ -4,6 +4,7 @@ import { Suspense } from "react"
 import { logout } from "@/app/login/actions"
 import { PushToggle } from "@/components/notifications/push-toggle"
 import { InterestsEditor } from "@/components/profile/interests-editor"
+import { ResetDemoButton } from "@/components/profile/reset-demo-button"
 import { PageSkeleton } from "@/components/rumbo/page-skeleton"
 import { GroupedList, Section } from "@/components/rumbo/section"
 import { UserAvatar } from "@/components/rumbo/user-avatar"
@@ -60,6 +61,10 @@ async function ProfileContent() {
           <PushToggle />
         </GroupedList>
       </Section>
+
+      <GroupedList>
+        <ResetDemoButton />
+      </GroupedList>
 
       <GroupedList>
         <form action={logout}>

@@ -22,6 +22,7 @@ export type LocationSource = "mock" | "real"
 export const DEFAULT_POSITION: LatLng = { lat: 48.8606, lng: 2.3522 }
 
 const STORAGE_KEY = "rumbo.location"
+export const DEFAULT_SPEED: SpeedMultiplier = 20
 const STEP_INTERVAL_MS = 50
 /** Tope por paso (si la pestaña estuvo frenada) para no saltar de golpe. */
 const MAX_STEP_SECONDS = 1
@@ -71,8 +72,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [position, setPosition] = useState<LatLng>(DEFAULT_POSITION)
   const [heading, setHeading] = useState<number | null>(null)
   const [source, setSourceState] = useState<LocationSource>("mock")
-  const [speed, setSpeed] = useState<SpeedMultiplier>(1)
+  // Por defecto rápido: en la demo se camina con el joystick de un punto a otro.
+  const [speed, setSpeedState] = useState<SpeedMultiplier>(DEFAULT_SPEED)
   const [restored, setRestored] = useState(false)
+
+  // Velocidad para el joystick y para guardar, sin esperar un render.
+  const speedRef = useRef<SpeedMultiplier>(DEFAULT_SPEED)
 
   // Restaurar la última posición simulada después de hidratar (el server no tiene localStorage,
   // así que el primer render tiene que ser igual en los dos lados).
@@ -82,14 +87,14 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     if (stored) {
       setPosition(stored.position)
       setSourceState(stored.source)
-      setSpeed(stored.speed)
+      setSpeedState(stored.speed)
+      speedRef.current = stored.speed
     }
     setRestored(true)
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
   const vectorRef = useRef<Vector>({ x: 0, y: 0 })
-  const speedRef = useRef<SpeedMultiplier>(speed)
   const lastPingRef = useRef<PingMark | null>(null)
   const lastRefreshRef = useRef<LatLng | null>(null)
 
@@ -101,9 +106,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setSourceState(next)
   }, [])
 
-  useEffect(() => {
-    speedRef.current = speed
-  }, [speed])
+  // El ref se actualiza ya (no en un efecto): `teleport` justo después guarda la velocidad nueva.
+  const setSpeed = useCallback((next: SpeedMultiplier) => {
+    speedRef.current = next
+    setSpeedState(next)
+  }, [])
 
   // Joystick: integrar la posición cada 50 ms mientras el vector no sea cero. Es un intervalo y no
   // requestAnimationFrame para que siga caminando aunque la pestaña quede en segundo plano.
@@ -190,7 +197,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<LocationContextValue>(
     () => ({ position, heading, source, setSource, speed, setSpeed, setVector, teleport }),
-    [position, heading, source, setSource, speed, setVector, teleport]
+    [position, heading, source, setSource, speed, setSpeed, setVector, teleport]
   )
 
   return <LocationContext.Provider value={value}>{children}</LocationContext.Provider>

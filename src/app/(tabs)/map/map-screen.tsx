@@ -13,7 +13,7 @@ import type { MapPlace, MapStop } from "@/components/location/map-view"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { clientNow, useClock } from "@/hooks/use-clock"
+import { useClock } from "@/hooks/use-clock"
 import { distanceMeters, walkMinutes, type LatLng } from "@/lib/geo"
 import { SPEED_MULTIPLIERS, type SpeedMultiplier } from "@/lib/location/simulate"
 import { zonedDateKey, zonedTimeToIso, zonedTimeValue } from "@/lib/time/zoned"
@@ -195,7 +195,8 @@ function ClockRow({ position }: { position: LatLng }) {
   }
   const pickTime = (hhmm: string) => {
     if (!/^\d{2}:\d{2}$/.test(hhmm)) return
-    const target = new Date(zonedTimeToIso(zonedDateKey(clientNow(), timeZone), hhmm, timeZone))
+    // La hora elegida es de hoy (fecha real), aunque ya hubiera otra hora simulada.
+    const target = new Date(zonedTimeToIso(zonedDateKey(new Date(), timeZone), hhmm, timeZone))
     apply(target.getTime() - Date.now())
   }
 
