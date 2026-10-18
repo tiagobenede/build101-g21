@@ -50,6 +50,11 @@ export type Notification = { id: string; place_id: string; reason_text: string; 
 const running = new Set<string>()
 const lastJevQuestion = new Map<string, { signature: string; at: number }>()
 
+/** Olvida a quién ya se le preguntó a Jev (al reiniciar la demo: si no, por 10 min no vuelve a avisar). */
+export function forgetJevQuestions(userIds: readonly string[]) {
+  for (const id of userIds) lastJevQuestion.delete(id)
+}
+
 type Row = Record<string, unknown>
 const one = <T>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null))
 
@@ -185,7 +190,13 @@ async function check(db: SupabaseClient, userId: string, position: LatLng, now: 
         .join("; ") || null,
     profileSummary: profile.compiled_summary as string | null,
     localTime: time(now.toISOString()),
-    whereLabel: nearestPlaceLabel(position, nearbyPlaces as (LatLng & { name: string })[], trip?.destination ?? "la calle"),
+    // "Dónde" sin los lugares que se ofrecen: si no, a 70 m del Louvre dice "estás en el Museo del
+    // Louvre" y Jev no ve para qué avisarle del Louvre.
+    whereLabel: nearestPlaceLabel(
+      position,
+      (nearbyPlaces as (LatLng & { id: string; name: string })[]).filter((p) => !liked.some((l) => l.placeId === p.id || l.name === p.name)),
+      trip?.destination ?? "la calle"
+    ),
     todayPlan: plan.map((i) => `${time(i.starts_at as string)} ${i.title}${i.locked ? " (reserva)" : ""} (${i.status})`),
     nextCommitment: nextLocked
       ? `${nextLockedRow!.title} a las ${time(nextLocked.startsAt)} (reserva, en ${Math.round((new Date(nextLocked.startsAt).getTime() - now.getTime()) / 60_000)} min)`

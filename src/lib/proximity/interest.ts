@@ -1,4 +1,5 @@
 import { distanceMeters, formatDistance, type LatLng } from "@/lib/geo"
+import { INTEREST_TAGS } from "@/lib/agent/rank"
 import type { JevChoice } from "@/lib/jev"
 import { PROXIMITY } from "@/lib/tuning"
 
@@ -75,7 +76,10 @@ export function buildInterestQuestion(places: readonly InterestPlace[], position
   for (const [key, p] of options) {
     const rating = p.rating ? `, ★${p.rating}` : ""
     const about = p.description ? `: ${p.description.slice(0, 140).replace(/[.\s]+$/, "")}` : ""
-    criteria[key] = `${p.name} (${p.category ?? "lugar"}${rating}, a ${formatDistance(distanceMeters(position, p))})${about}. Va con: ${p.matchedTags?.join(", ") || "-"}.`
+    // Un gusto propio ("louvre", "mcdonald's") lo dijo con esas palabras: es justo lo que quiere.
+    const named = (p.matchedTags ?? []).filter((t) => !(INTEREST_TAGS as readonly string[]).includes(t))
+    const asked = named.length > 0 ? ` Le dijo a Polo que le gusta "${named.join('", "')}": es justo esto.` : ""
+    criteria[key] = `${p.name} (${p.category ?? "lugar"}${rating}, a ${formatDistance(distanceMeters(position, p))})${about}. Va con: ${p.matchedTags?.join(", ") || "-"}.${asked}`
   }
   criteria[NONE_KEY] = "Ninguno vale un aviso ahora."
 

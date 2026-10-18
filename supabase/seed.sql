@@ -50,9 +50,8 @@ insert into public.interests (user_id, tag) values
   ('11111111-1111-4111-8111-111111111111', 'diseño'),
   ('11111111-1111-4111-8111-111111111111', 'arquitectura'),
   ('11111111-1111-4111-8111-111111111111', 'café'),
-  ('22222222-2222-4222-8222-222222222222', 'arte'),
-  ('22222222-2222-4222-8222-222222222222', 'historia'),
-  ('22222222-2222-4222-8222-222222222222', 'libros'),
+  -- Lucas: solo "louvre" (gusto propio: coincide por nombre). Con "arte", camino al Louvre le
+  -- llega antes el aviso de una galería y la pausa entre avisos tapa el del museo.
   ('22222222-2222-4222-8222-222222222222', 'louvre'),
   ('33333333-3333-4333-8333-333333333333', 'comida'),
   ('33333333-3333-4333-8333-333333333333', 'mercados'),
@@ -61,12 +60,13 @@ insert into public.interests (user_id, tag) values
 
 -- ---------------------------------------------------------------------------
 -- Dónde arrancan (guion de la demo, docs/pitch/casos-jurado.md): el contexto del agente
--- usa el último ping. Lucas en la Rue de Rivoli, a ~290 m del Louvre (camina hasta la
--- Pirámide y ahí le llega el aviso) y Nicolas en Union Square. Al entrar por el login se vuelve a poner
+-- usa el último ping. Lucas en el quai junto al Sena, a ~184 m del Louvre: caminando derecho
+-- al norte, a ~84 m (4 s con el joystick en 20x) el primero en quedar a 100 m es el museo y le
+-- llega el aviso. Nicolas en Union Square. Al entrar por el login se vuelve a poner
 -- (src/lib/demo-accounts.ts); los dos lugares tienen que coincidir.
 -- ---------------------------------------------------------------------------
 insert into public.pings (user_id, lat, lng, heading, source) values
-  ('22222222-2222-4222-8222-222222222222', 48.86271, 2.33531, null, 'mock'),
+  ('22222222-2222-4222-8222-222222222222', 48.85895, 2.3376, null, 'mock'),
   ('33333333-3333-4333-8333-333333333333', 40.7359, -73.9911, null, 'mock');
 
 -- ---------------------------------------------------------------------------
@@ -84,9 +84,10 @@ insert into public.itinerary_items (trip_id, title, notes, starts_at, ends_at, l
   ('aaaaaaa1-0000-4000-8000-000000000001', 'Tour guiado Torre Eiffel', 'Llegar 15 min antes',
    (date_trunc('day', now() at time zone 'Europe/Paris') + interval '17 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '19 hours') at time zone 'Europe/Paris', 48.8584, 2.2945),
   -- Lucas, guion de la demo: después del Louvre tiene esto a ~22 min a pie; lo que Polo le
-  -- proponga en el medio tiene que quedarle de camino (docs/pitch/casos-jurado.md).
+  -- proponga en el medio tiene que quedarle de camino (docs/pitch/casos-jurado.md). A las 19:30
+  -- y no antes: con un compromiso cerca, Jev duda de avisarle del Louvre.
   ('aaaaaaa1-0000-4000-8000-000000000002', 'Encuentro con amigos en el Jardin du Luxembourg', 'Fontaine Médicis',
-   (date_trunc('day', now() at time zone 'Europe/Paris') + interval '18 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '19 hours 30 minutes') at time zone 'Europe/Paris', 48.8484, 2.3404),
+   (date_trunc('day', now() at time zone 'Europe/Paris') + interval '19 hours 30 minutes') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '21 hours') at time zone 'Europe/Paris', 48.8484, 2.3404),
   ('aaaaaaa1-0000-4000-8000-000000000003', 'Clase de cocina francesa', 'Traer delantal',
    (date_trunc('day', now() at time zone 'Europe/Paris') + interval '18 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '20 hours') at time zone 'Europe/Paris', 48.8650, 2.3600);
 

@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { LatLng } from "@/lib/geo"
+import { forgetJevQuestions } from "@/lib/proximity/engine"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { serverNow } from "@/lib/time/server-clock"
 import { zonedDateKey, zonedTimeToIso } from "@/lib/time/zoned"
@@ -43,18 +44,19 @@ const SEED_USERS: readonly SeedUser[] = [
     id: "22222222-2222-4222-8222-222222222222",
     tripId: "aaaaaaa1-0000-4000-8000-000000000002",
     profile: { full_name: "Lucas", home_city: "Buenos Aires", travel_style: "Museos, historia y librerías", onboarded: true },
-    interests: ["arte", "historia", "libros", "louvre"],
+    interests: ["louvre"],
     trip: { startOffsetDays: -1, endOffsetDays: 3 },
     plan: [
       {
         title: "Encuentro con amigos en el Jardin du Luxembourg",
         notes: "Fontaine Médicis",
-        from: "18:00",
-        to: "19:30",
+        // A las 19:30: con un compromiso cerca, Jev duda de avisarle del Louvre.
+        from: "19:30",
+        to: "21:00",
         at: { lat: 48.8484, lng: 2.3404 },
       },
     ],
-    start: { lat: 48.86271, lng: 2.33531 },
+    start: { lat: 48.85895, lng: 2.3376 },
   },
   {
     id: "33333333-3333-4333-8333-333333333333",
@@ -152,4 +154,5 @@ export async function resetDemoData(): Promise<void> {
   check("gustos", await db.from("interests").insert(interests))
   check("plan", await db.from("itinerary_items").insert(plan))
   check("pings", await db.from("pings").insert(pings))
+  forgetJevQuestions(userIds)
 }

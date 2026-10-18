@@ -9,9 +9,9 @@ La consigna dice que el jurado puede variar un caso dentro del alcance que decla
 Dos cuentas, una por ciudad. Cada una arranca sola en su lugar al entrar (`src/lib/demo-accounts.ts`):
 
 - **Nicolas** (comida, mercados, parques): Union Square, Nueva York. Escenas 1 y 2.
-- **Lucas** (arte, historia, libros): en la Rue de Rivoli, a ~290 m del Louvre, París. Escenas 3 a 5.
+- **Lucas** (gusto: "louvre"): sobre el Pont des Arts, a ~184 m del Louvre, París. Escenas 3 a 5.
 
-**Hora:** en el mapa, Hora → Simulada. Con el pin en Nueva York, 10:00 (= 16:00 en París). La hora simulada vale para todo el navegador, así que al pasar a Lucas en París ya son las 16:00. Si la demo se hace en vivo de mañana en Argentina, también sirve la hora real.
+**Hora:** en el mapa, Hora → Simulada. Con el pin en Nueva York, 10:30 (= 16:30 en París). La hora simulada vale para todo el navegador, así que al pasar a Lucas en París ya son las 16:30. Si la demo se hace en vivo de mañana en Argentina, también sirve la hora real.
 
 ### Escena 1 — Nueva York: el local que no ayuda (~40 s, Nicolas)
 
@@ -30,11 +30,11 @@ Dos cuentas, una por ciudad. Cada una arranca sola en su lugar al entrar (`src/l
 
 ### Escena 3 — París: aviso por gustos (~20 s, Lucas)
 
-"Unos días después…". Entran como Lucas: está en la Rue de Rivoli, a ~290 m del Louvre.
+"Unos días después…". Entran como Lucas: está sobre el Pont des Arts, a ~184 m del Louvre.
 
 | Hacen | Tiene que pasar |
 |---|---|
-| Caminan con el joystick (20x) hasta la Pirámide y esperan 5–10 s | Salta el aviso solo por su gusto por el arte, no por el plan |
+| Empujan el joystick (20x) derecho hacia arriba (norte) ~4 s | En ~5 s salta *"Estás a 1 min de Museo del Louvre, va con lo que te gusta (louvre)."* Es por sus gustos, no por el plan |
 
 ### Escena 4 — París: la Gioconda (~40 s, Lucas)
 
@@ -45,7 +45,7 @@ Dos cuentas, una por ciudad. Cada una arranca sola en su lugar al entrar (`src/l
 
 ### Escena 5 — París: hora y media libre, de camino al plan (~30 s, Lucas)
 
-Saliendo del Louvre. En el plan de hoy tiene **"Encuentro con amigos en el Jardin du Luxembourg" a las 18:00**, a ~22 min a pie.
+Saliendo del Louvre. En el plan de hoy tiene **"Encuentro con amigos en el Jardin du Luxembourg" a las 19:30**, a ~22 min a pie.
 
 | Hacen | Tiene que pasar |
 |---|---|
@@ -55,9 +55,10 @@ Cierre: frase final o slide (~10 s). Total: ~3:00, sin margen; si hay que cortar
 
 ### Antes de presentar
 
-- Cargar el seed el mismo día de la demo (el plan de Lucas es "hoy a las 18:00" en París). En una base ya cargada, sumar la actividad a mano.
+- Antes de cada ensayo: Perfil → **Reiniciar demo** (deja todas las cuentas como el seed, con el plan de Lucas para hoy a las 19:30 de París) y entrar por el login. Si en cambio se recarga la base con `supabase db reset`, reiniciar la app después: el servidor recuerda en memoria qué zonas ya pidió a Google.
 - El Louvre no está en el plan de Lucas (se sacó del seed), así el aviso sale solo por gustos y no menciona el plan.
-- Lucas arranca en la Rue de Rivoli (48.86271, 2.33531), fuera del radio del aviso (100 m). El aviso sale al llegar a la Pirámide (48.86105, 2.33698), a ~70 m del museo, y no en el museo: parado en el museo Jev duda de avisarle (confianza 0.46 a 0.64, el mínimo es 0.6). Medido a las 15:30 en París: Pirámide 0.85 y 0.85; 60 m al oeste 0.91 y 0.89; 60 m al sur (el quai) no avisa, gana la Galerie des Antiquités. Frenar en la Pirámide hasta que salga el aviso.
+- Lucas arranca en el Pont des Arts (48.85895, 2.3376) y tiene solo el gusto "louvre". Medido caminando al norte, a las 16:35 en París: el aviso salió 3 de 3 (confianza 0.66, 0.70, 0.76; el mínimo es 0.6) y en el browser apareció a los 4,6 s de empezar a caminar. Con "arte", "historia" y "libros" además salió 1 de 3, y por la Rue de Rivoli le ganaba el aviso de una galería. Con el Luxembourg a las 18:00 Jev dudaba (no le da el tiempo), por eso es a las 19:30.
+- Escena 5 con solo "louvre": Polo recomienda lugares que coincidan con sus gustos. Para que proponga arte o historia, que Lucas se lo diga antes en la charla ("me encanta el arte y la historia"): Polo lo guarda y lo usa.
 - Borrar los avisos de la cuenta de Lucas: cada lugar avisa una sola vez y entre avisos hay 60 s de pausa.
 - Probar que el modelo y la voz no suavicen el insulto.
 - Probar la foto exacta de la Gioconda.

@@ -13,9 +13,9 @@ export type DemoAccount = {
 
 export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
   { email: "tiago@rumbo.demo", name: "Tiago", tagline: "Autos, diseño y café", initials: "T", tint: "#FF9F0A" },
-  // Guion de la demo (docs/pitch/casos-jurado.md): Lucas en la Rue de Rivoli, a ~290 m del Louvre (camina
-  // hasta la Pirámide y ahí le llega el aviso), Nicolas en Union Square.
-  { email: "lucas@rumbo.demo", name: "Lucas", tagline: "Museos, historia y librerías", initials: "L", tint: "#5E5CE6", start: { lat: 48.86271, lng: 2.33531 } },
+  // Guion de la demo (docs/pitch/casos-jurado.md): Lucas en el quai junto al Sena, a ~184 m del Louvre
+  // (camina ~4 s al norte con el joystick y le llega el aviso), Nicolas en Union Square.
+  { email: "lucas@rumbo.demo", name: "Lucas", tagline: "Museos, historia y librerías", initials: "L", tint: "#5E5CE6", start: { lat: 48.85895, lng: 2.3376 } },
   { email: "nicolas@rumbo.demo", name: "Nicolas", tagline: "Comida, mercados y parques", initials: "N", tint: "#30B0C7", start: { lat: 40.7359, lng: -73.9911 } },
   { email: "nuevo@rumbo.demo", name: "Alex Romero", tagline: "Primer login: arranca con el onboarding", initials: "AR", tint: "#34C759", firstLogin: true },
 ]
