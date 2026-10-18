@@ -48,6 +48,9 @@ export const PROXIMITY = {
   minInterestReviews: num("TUNE_INTEREST_MIN_REVIEWS", 50),
   /** Un lugar a esta distancia de otro mucho más conocido es parte de ese (una sala de un museo). */
   samePointMeters: num("TUNE_INTEREST_SAME_POINT_M", 25),
+  /** Hasta esta distancia, un lugar de la misma categoría y con una palabra del nombre de otro mucho
+   * más conocido es parte de ese ("Musée du Louvre - Galerie des Antiquités" del Louvre). */
+  partOfMeters: num("TUNE_INTEREST_PART_OF_M", 300),
   /** Cuántos lugares por gustos se le pasan a Jev como mucho (los más cercanos). */
   maxInterestOptions: num("TUNE_INTEREST_MAX_OPTIONS", 8),
   /** Pausa mínima entre dos avisos (1 min para la demo; en un viaje real, más). */

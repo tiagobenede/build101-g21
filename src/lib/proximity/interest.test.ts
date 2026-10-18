@@ -85,6 +85,25 @@ describe("distinctInterestPlaces", () => {
     expect(names(distinctInterestPlaces([louvre, twin, away]))).toEqual(["Museo del Louvre", "Café vecino", "Galerie"])
   })
 
+  it("un ala del mismo tipo y con el nombre del lugar, a menos de 300 m, es parte de él", () => {
+    const wing = place(14, { name: "Musée du Louvre - Galerie des Antiquités", category: "Museo", ratingCount: 155 }) // a 140 m
+    const museum = { ...louvre, category: "Museo" }
+    expect(names(distinctInterestPlaces([museum, wing]))).toEqual(["Museo del Louvre"])
+    // Aunque el museo esté fuera del radio del aviso: se lo pasa como lugar de la zona.
+    expect(names(distinctInterestPlaces([wing], [museum, wing]))).toEqual([])
+  })
+
+  it("otro tipo de lugar con el mismo nombre no es parte (la Ladurée del Carrousel du Louvre)", () => {
+    const shop = place(10, { name: "Ladurée Carrousel du Louvre", category: "Café", ratingCount: 400 })
+    expect(names(distinctInterestPlaces([{ ...louvre, category: "Museo" }, shop]))).toEqual(["Museo del Louvre", "Ladurée Carrousel du Louvre"])
+  })
+
+  it("solo palabras genéricas en común (Musée, Galerie) no alcanza", () => {
+    const other = place(10, { name: "Galerie Vivienne", category: "Museo", ratingCount: 300 })
+    const big = place(0, { name: "Musée Galerie Nationale", category: "Museo", ratingCount: 50_000 })
+    expect(distinctInterestPlaces([big, other])).toHaveLength(2)
+  })
+
   it("con puntaje pero sin el dato de reseñas, no lo saca", () => {
     expect(distinctInterestPlaces([place(1)])).toHaveLength(1)
   })

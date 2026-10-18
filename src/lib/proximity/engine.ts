@@ -13,6 +13,7 @@ import { matchInterests } from "@/lib/profile/interests"
 import {
   buildInterestQuestion,
   distinctInterestPlaces,
+  PART_OF_METERS,
   INTEREST_INSTRUCTIONS,
   optionsSignature,
   readInterestChoice,
@@ -85,7 +86,9 @@ async function check(db: SupabaseClient, userId: string, position: LatLng, now: 
   if (inCooldown({ lastNotifiedAt, cooldownMs: COOLDOWN_MS, now })) return null
 
   const trip = await activeTrip(db)
-  const box = boundingBox(position, INTEREST_RADIUS_METERS)
+  // Más grande que el radio de los avisos: para ver de qué lugar es parte cada candidato (un ala del
+  // Louvre a 90 m es parte del museo a 180 m). Avisar, se avisa solo a INTEREST_RADIUS_METERS.
+  const box = boundingBox(position, Math.max(INTEREST_RADIUS_METERS, PART_OF_METERS))
   const [tipsRes, planRes, profileRes, interestsRes, placesRes] = await Promise.all([
     // Toda recomendación no descartada avisa: guardada o ya agendada.
     db.from("local_tips").select("place_id, recommender, places(name, lat, lng)").eq("user_id", userId).in("status", ["saved", "in_plan"]).not("place_id", "is", null),
@@ -148,7 +151,18 @@ async function check(db: SupabaseClient, userId: string, position: LatLng, now: 
   // Fichas duplicadas y partes de otro lugar afuera, antes de mirar qué ya se avisó: si no, avisado
   // el Louvre, al rato aparece su sala (Appartements Napoléon III) como si fuera otro lugar.
   const interestKept = new Set(
-    distinctInterestPlaces(candidates.filter((c): c is InterestPlace => c.kind === "interest")).map((p) => p.placeId)
+    distinctInterestPlaces(
+      candidates.filter((c): c is InterestPlace => c.kind === "interest"),
+      nearbyPlaces.map((p) => ({
+        placeId: p.id as string,
+        name: p.name as string,
+        category: p.category as string | null,
+        rating: p.rating as number | null,
+        ratingCount: p.rating_count as number | null,
+        lat: p.lat as number,
+        lng: p.lng as number,
+      }))
+    ).map((p) => p.placeId)
   )
   const shown = candidates.filter((c) => c.kind !== "interest" || interestKept.has(c.placeId))
 

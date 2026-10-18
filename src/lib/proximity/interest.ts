@@ -16,6 +16,7 @@ export const MIN_INTEREST_CONFIDENCE = PROXIMITY.minInterestConfidence
 export const MAX_INTEREST_OPTIONS = PROXIMITY.maxInterestOptions
 export const MIN_INTEREST_REVIEWS = PROXIMITY.minInterestReviews
 export const SAME_POINT_METERS = PROXIMITY.samePointMeters
+export const PART_OF_METERS = PROXIMITY.partOfMeters
 /** Para que uno "se trague" a otro en el mismo punto, tiene que tener tantas veces más reseñas. */
 const MUCH_BETTER_KNOWN = 10
 export const NONE_KEY = "ninguno"
@@ -28,28 +29,50 @@ export type InterestPlace = Candidate & {
   description: string | null
 }
 
+/** Un lugar de la zona, para ver si un candidato es parte de él (no hace falta que vaya con sus gustos). */
+export type ParentPlace = LatLng & { placeId: string; name: string; category?: string | null; rating: number | null; ratingCount?: number | null }
+
 /** Reseñas de un lugar: sin puntaje ni reseñas, nadie lo reseñó; con puntaje pero sin el dato, no se sabe. */
-const reviews = (p: InterestPlace) => p.ratingCount ?? (p.rating === null ? 0 : null)
+const reviews = (p: ParentPlace) => p.ratingCount ?? (p.rating === null ? 0 : null)
+
+/** Palabras que no identifican a un lugar ("Musée", "Galerie"): no alcanzan para decir que es parte de otro. */
+const GENERIC_WORDS = new Set([
+  "museo", "musee", "museum", "galerie", "galeria", "gallery", "jardin", "garden", "parque", "plaza", "place",
+  "iglesia", "eglise", "church", "restaurante", "restaurant", "boutique", "store", "tienda", "paris", "nacional",
+  "national", "palais", "palacio", "pavillon", "centre", "centro", "grand", "petit", "saint", "sainte",
+])
+/** Palabras propias del nombre: sin tildes, de 5 letras o más y que no sean genéricas. */
+const ownWords = (name: string) =>
+  new Set(
+    name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length >= 5 && !GENERIC_WORDS.has(w))
+  )
+
+/** `p` es parte de `other`: mucho menos conocido y en el mismo punto, o cerca, del mismo tipo y con su nombre. */
+function isPartOf(p: ParentPlace, other: ParentPlace): boolean {
+  if (other.placeId === p.placeId || (reviews(other) ?? 0) < MUCH_BETTER_KNOWN * Math.max(reviews(p) ?? 0, 1)) return false
+  const meters = distanceMeters(p, other)
+  if (meters <= SAME_POINT_METERS) return true
+  if (meters > PART_OF_METERS || !p.category || p.category !== other.category) return false
+  const mine = ownWords(p.name)
+  return [...ownWords(other.name)].some((w) => mine.has(w))
+}
 
 /**
  * Lo que vale la pena mostrarle a Jev: Google tiene fichas duplicadas o vacías (un
  * "Museo del Louvre" con 1 reseña) y partes de un lugar listadas aparte (las salas del
  * Louvre). Si van como opciones separadas, Jev reparte la confianza entre lo mismo.
  */
-export function distinctInterestPlaces(places: readonly InterestPlace[]): InterestPlace[] {
+export function distinctInterestPlaces(places: readonly InterestPlace[], parents: readonly ParentPlace[] = places): InterestPlace[] {
   const known = places.filter((p) => {
     const n = reviews(p)
     return n === null || n >= MIN_INTEREST_REVIEWS
   })
-  return known.filter(
-    (p) =>
-      !known.some(
-        (other) =>
-          other !== p &&
-          (reviews(other) ?? 0) >= MUCH_BETTER_KNOWN * Math.max(reviews(p) ?? 0, 1) &&
-          distanceMeters(p, other) <= SAME_POINT_METERS
-      )
-  )
+  return known.filter((p) => !parents.some((other) => isPartOf(p, other)))
 }
 
 export type TravelerSnapshot = {
