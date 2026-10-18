@@ -9,7 +9,7 @@ La consigna dice que el jurado puede variar un caso dentro del alcance que decla
 Dos cuentas, una por ciudad. Cada una arranca sola en su lugar al entrar (`src/lib/demo-accounts.ts`):
 
 - **Nicolas** (comida, mercados, parques): Union Square, Nueva York. Escenas 1 y 2.
-- **Lucas** (arte, historia, libros): llegando al Louvre por la Pirámide, París. Escenas 3 a 5.
+- **Lucas** (arte, historia, libros): en la Rue de Rivoli, a ~290 m del Louvre, París. Escenas 3 a 5.
 
 **Hora:** en el mapa, Hora → Simulada. Con el pin en Nueva York, 10:00 (= 16:00 en París). La hora simulada vale para todo el navegador, así que al pasar a Lucas en París ya son las 16:00. Si la demo se hace en vivo de mañana en Argentina, también sirve la hora real.
 
@@ -30,11 +30,11 @@ Dos cuentas, una por ciudad. Cada una arranca sola en su lugar al entrar (`src/l
 
 ### Escena 3 — París: aviso por gustos (~20 s, Lucas)
 
-"Unos días después…". Entran como Lucas: está llegando al Louvre por la Pirámide.
+"Unos días después…". Entran como Lucas: está en la Rue de Rivoli, a ~290 m del Louvre.
 
 | Hacen | Tiene que pasar |
 |---|---|
-| Nada: esperan 5–10 s | Salta el aviso solo por su gusto por el arte, no por el plan |
+| Caminan con el joystick (20x) hasta la Pirámide y esperan 5–10 s | Salta el aviso solo por su gusto por el arte, no por el plan |
 
 ### Escena 4 — París: la Gioconda (~40 s, Lucas)
 
@@ -57,7 +57,7 @@ Cierre: frase final o slide (~10 s). Total: ~3:00, sin margen; si hay que cortar
 
 - Cargar el seed el mismo día de la demo (el plan de Lucas es "hoy a las 18:00" en París). En una base ya cargada, sumar la actividad a mano.
 - El Louvre no está en el plan de Lucas (se sacó del seed), así el aviso sale solo por gustos y no menciona el plan.
-- Lucas arranca en la Pirámide (48.86105, 2.33698), a ~70 m del museo, y no en el museo: parado en el museo Jev duda de avisarle (confianza 0.46 a 0.64, el mínimo es 0.6). Medido a las 15:30 en París: Pirámide 0.85 y 0.85; 60 m al oeste 0.91 y 0.89; 60 m al sur (el quai) no avisa, gana la Galerie des Antiquités. No mover a Lucas antes del aviso.
+- Lucas arranca en la Rue de Rivoli (48.86271, 2.33531), fuera del radio del aviso (100 m). El aviso sale al llegar a la Pirámide (48.86105, 2.33698), a ~70 m del museo, y no en el museo: parado en el museo Jev duda de avisarle (confianza 0.46 a 0.64, el mínimo es 0.6). Medido a las 15:30 en París: Pirámide 0.85 y 0.85; 60 m al oeste 0.91 y 0.89; 60 m al sur (el quai) no avisa, gana la Galerie des Antiquités. Frenar en la Pirámide hasta que salga el aviso.
 - Borrar los avisos de la cuenta de Lucas: cada lugar avisa una sola vez y entre avisos hay 60 s de pausa.
 - Probar que el modelo y la voz no suavicen el insulto.
 - Probar la foto exacta de la Gioconda.

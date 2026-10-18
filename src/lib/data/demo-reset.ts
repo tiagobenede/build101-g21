@@ -54,7 +54,7 @@ const SEED_USERS: readonly SeedUser[] = [
         at: { lat: 48.8484, lng: 2.3404 },
       },
     ],
-    start: { lat: 48.86105, lng: 2.33698 },
+    start: { lat: 48.86271, lng: 2.33531 },
   },
   {
     id: "33333333-3333-4333-8333-333333333333",

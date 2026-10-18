@@ -60,12 +60,12 @@ insert into public.interests (user_id, tag) values
 
 -- ---------------------------------------------------------------------------
 -- Dónde arrancan (guion de la demo, docs/pitch/casos-jurado.md): el contexto del agente
--- usa el último ping. Lucas llegando al Louvre por la Pirámide (parado en el museo, Jev
--- duda de avisarle) y Nicolas en Union Square. Al entrar por el login se vuelve a poner
+-- usa el último ping. Lucas en la Rue de Rivoli, a ~290 m del Louvre (camina hasta la
+-- Pirámide y ahí le llega el aviso) y Nicolas en Union Square. Al entrar por el login se vuelve a poner
 -- (src/lib/demo-accounts.ts); los dos lugares tienen que coincidir.
 -- ---------------------------------------------------------------------------
 insert into public.pings (user_id, lat, lng, heading, source) values
-  ('22222222-2222-4222-8222-222222222222', 48.86105, 2.33698, null, 'mock'),
+  ('22222222-2222-4222-8222-222222222222', 48.86271, 2.33531, null, 'mock'),
   ('33333333-3333-4333-8333-333333333333', 40.7359, -73.9911, null, 'mock');
 
 -- ---------------------------------------------------------------------------
