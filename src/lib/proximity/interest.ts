@@ -53,7 +53,7 @@ const ownWords = (name: string) =>
   )
 
 /** `p` es parte de `other`: mucho menos conocido y en el mismo punto, o cerca, del mismo tipo y con su nombre. */
-function isPartOf(p: ParentPlace, other: ParentPlace): boolean {
+export function isPartOf(p: ParentPlace, other: ParentPlace): boolean {
   if (other.placeId === p.placeId || (reviews(other) ?? 0) < MUCH_BETTER_KNOWN * Math.max(reviews(p) ?? 0, 1)) return false
   const meters = distanceMeters(p, other)
   if (meters <= SAME_POINT_METERS) return true

@@ -37,6 +37,7 @@ import { getOpeningInfo } from "@/lib/places/details"
 import { findPlaceByName, type StoredPlace } from "@/lib/places/lookup"
 import { openLongEnough } from "@/lib/places/opening"
 import { searchPlaces } from "@/lib/places/search"
+import { isPartOf } from "@/lib/proximity/interest"
 import { formatTodayPlan, itemRef } from "@/lib/realtime/instructions"
 import { fillMissingNulls, isToolName, toolSchemas, type ToolArgs, type ToolResult } from "@/lib/realtime/tools"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -106,8 +107,14 @@ async function recommendNearby(
   // el viajero dice que no le importa caminar.
   const maxWalkMinutes =
     args.max_walk_minutes ?? (args.interest && NEAR_ONLY_TAGS.includes(args.interest) ? WALK.nearMinutes : WALK.defaultMaxMinutes)
+  // Lo que está a pocos metros es donde ya está (y sus alas): en el Louvre no le propone el Louvre.
+  // Para comer o un café sí vale lo de al lado.
+  const nearOnly = Boolean(args.interest && NEAR_ONLY_TAGS.includes(args.interest))
+  const here = nearOnly ? [] : ctx.nearby.filter((p) => p.distanceMeters < WALK.minRecommendMeters)
+  const asParent = (p: (typeof ctx.nearby)[number]) => ({ placeId: p.id, name: p.name, category: p.category, rating: p.rating, ratingCount: p.rating_count ?? null, lat: p.lat, lng: p.lng })
+  const isHere = (p: (typeof ctx.nearby)[number]) => here.some((h) => h.id === p.id || isPartOf(asParent(p), asParent(h)))
   // Los más cercanos (vienen ordenados): con la zona llena de lugares, la lista de ids no entra en la URL.
-  const candidates = ctx.nearby.slice(0, MAX_RANK_CANDIDATES)
+  const candidates = ctx.nearby.filter((p) => !isHere(p)).slice(0, MAX_RANK_CANDIDATES)
   // Los tipos de Google (en `places.data`) sirven para respetar la dieta.
   const { data: typed } = await supabase.from("places").select("id, data").in("id", candidates.map((p) => p.id))
   const typesById = new Map((typed ?? []).map((p) => [p.id as string, (p.data as PlaceData)?.types ?? []]))

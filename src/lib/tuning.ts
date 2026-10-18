@@ -20,6 +20,8 @@ export const WALK = {
   nearMinutes: num("TUNE_WALK_NEAR_MIN", 10),
   /** Qué hacer o adónde ir, sin decir cuánto quiere caminar. */
   defaultMaxMinutes: num("TUNE_WALK_DEFAULT_MAX_MIN", 20),
+  /** Qué hacer o adónde ir: lo que está a menos de esto es donde ya está (en el Louvre, no le propone el Louvre). */
+  minRecommendMeters: num("TUNE_WALK_MIN_RECOMMEND_M", 150),
 } as const
 
 /** "¿Qué estoy viendo?" (C-3, src/lib/vision). */
